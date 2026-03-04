@@ -1,3 +1,4 @@
+// PriorityQueue - Triage view for high-severity civic complaints
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { makeApiCall, apiClient } from '../../services/api'
@@ -43,7 +44,7 @@ export default function PriorityQueue() {
     <div className="p-4 max-w-4xl mx-auto pb-8 fade-in">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">🎯 Priority Queue</h1>
+          <h1 className="text-xl font-bold text-gray-900">ðŸŽ¯ Priority Queue</h1>
           <p className="text-sm text-gray-500">Complaints ranked by AI priority score</p>
         </div>
         <button onClick={fetchQueue} className="p-2.5 rounded-xl hover:bg-gray-100">
@@ -83,7 +84,7 @@ export default function PriorityQueue() {
                       <p className="font-semibold text-gray-800 text-sm truncate">{c.title || c.complaintTitle}</p>
                       <span className={`badge flex-shrink-0 text-xs ${pc.bg} ${pc.text}`}>{pc.label}</span>
                     </div>
-                    <p className="text-xs text-gray-500 mb-2">{c.citizenName || 'Unknown'} · {(c.category || c.issueType || '').replace(/_/g,' ')}</p>
+                    <p className="text-xs text-gray-500 mb-2">{c.citizenName || 'Unknown'} Â· {(c.category || c.issueType || '').replace(/_/g,' ')}</p>
 
                     {/* Priority bar */}
                     <div className="flex items-center gap-2">
