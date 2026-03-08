@@ -1,3 +1,4 @@
+// Spatial analytics component for UrbanPulse
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Popup, CircleMarker, useMap, useMapEvents } from 'react-leaflet'
@@ -235,7 +236,7 @@ export default function ComplaintMap() {
                               onClick={() => navigate(`/citizen/complaint/${c.id}`)}
                               className="text-xs text-primary-700 font-bold hover:underline"
                             >
-                              Details →
+                              Details â†’
                             </button>
                           </div>
                         </div>
@@ -255,7 +256,7 @@ export default function ComplaintMap() {
                     <p className="text-xs text-gray-500">{selectedZonePoints.length} reports within 2km</p>
                   </div>
                   <button onClick={() => setSelectedZonePoints(null)} className="w-8 h-8 flex items-center justify-center hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
-                    ✕
+                    âœ•
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 pb-20 space-y-2">
