@@ -25,8 +25,17 @@ export default function CitizenDetails() {
       try {
         const res = await makeApiCall(apiClient.admin.citizenById(id))
         if (res.success && res.data) {
-          setCitizen(res.data.citizen || res.data)
-          setComplaints(res.data.complaints || [])
+          const rawCitizen = res.data.citizen || res.data
+          setCitizen({
+            ...rawCitizen,
+            fullName: rawCitizen.fullName || rawCitizen.full_name,
+            phoneNumber: rawCitizen.phoneNumber || rawCitizen.phone_number,
+            createdAt: rawCitizen.createdAt || rawCitizen.created_at,
+          })
+          setComplaints((res.data.complaints || []).map(c => ({
+            ...c,
+            createdAt: c.createdAt || c.created_at,
+          })))
         }
       } catch (err) {
         toast.error('Failed to load citizen details')

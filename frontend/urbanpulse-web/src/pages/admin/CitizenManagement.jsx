@@ -16,7 +16,13 @@ export default function CitizenManagement() {
     setLoading(true)
     try {
       const res = await makeApiCall(apiClient.admin.citizens)
-      const dataArray = res.data?.citizens || res.data || []
+      const rawArray = res.data?.citizens || res.data || []
+      const dataArray = (Array.isArray(rawArray) ? rawArray : []).map(c => ({
+        ...c,
+        fullName: c.fullName || c.full_name,
+        phoneNumber: c.phoneNumber || c.phone_number,
+        createdAt: c.createdAt || c.created_at,
+      }))
       if (res.success || Array.isArray(dataArray)) {
         setCitizens(dataArray)
         setFiltered(dataArray)

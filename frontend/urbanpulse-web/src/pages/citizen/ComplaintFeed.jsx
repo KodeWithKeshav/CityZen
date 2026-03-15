@@ -186,10 +186,21 @@ export default function ComplaintFeed() {
 
   const handleVote = async (id) => {
     try {
-      const res = await makeApiCall(apiClient.complaints.vote(id), { method: 'POST' })
+      const res = await makeApiCall(apiClient.complaints.vote(), {
+        method: 'POST',
+        body: JSON.stringify({ complaintId: id }),
+      })
       if (res.success) {
         setAllComplaints(prev =>
-          prev.map(c => (c._id || c.id) === id ? { ...c, upvotes: (c.upvotes || 0) + 1 } : c)
+          prev.map(c => {
+            if ((c._id || c.id) !== id) return c
+            const voteCount = res?.data?.voteCount
+            return {
+              ...c,
+              upvotes: typeof voteCount === 'number' ? voteCount : (c.upvotes || c.votes || 0) + 1,
+              votes: typeof voteCount === 'number' ? voteCount : (c.upvotes || c.votes || 0) + 1,
+            }
+          })
         )
         toast.success('Vote registered!')
       }

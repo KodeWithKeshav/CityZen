@@ -64,7 +64,9 @@ export default function PriorityQueue() {
       ) : (
         <div className="space-y-3">
           {queue.map((c, idx) => {
-            const score = c.priorityScore ? Math.round(c.priorityScore) : 0
+            const score = c.priorityScore
+              ? Math.round(c.priorityScore)
+              : (c.priority_score ? Math.round(c.priority_score) : 0)
             const pc = getPriorityColor(score)
             return (
               <div

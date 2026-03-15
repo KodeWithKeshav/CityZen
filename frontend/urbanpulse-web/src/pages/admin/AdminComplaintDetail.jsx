@@ -22,9 +22,17 @@ export default function AdminComplaintDetail() {
       try {
         const res = await makeApiCall(apiClient.admin.complaintById(id))
         if (res.success && res.data) {
-          setComplaint(res.data)
-          setStatus(res.data.status || 'pending')
-          setAdminNote(res.data.adminNote || '')
+          const mapped = {
+            ...res.data,
+            createdAt: res.data.createdAt || res.data.created_at,
+            complaintTitle: res.data.complaintTitle || res.data.title,
+            citizenName: res.data.citizenName || res.data.user_name || res.data.full_name,
+            priorityScore: res.data.priorityScore || res.data.priority_score,
+            imageUrl: res.data.imageUrl || (Array.isArray(res.data.image_urls) ? res.data.image_urls[0] : undefined),
+          }
+          setComplaint(mapped)
+          setStatus(mapped.status || 'pending')
+          setAdminNote(mapped.adminNote || mapped.resolution_notes || '')
         }
       } catch (err) {
         toast.error('Failed to load complaint')
@@ -40,11 +48,11 @@ export default function AdminComplaintDetail() {
     try {
       const res = await makeApiCall(apiClient.complaints.updateStatus(id), {
         method: 'PUT',
-        body: JSON.stringify({ status, adminNote }),
+        body: JSON.stringify({ status, notes: adminNote }),
       })
       if (res.success) {
         toast.success('Complaint updated successfully!')
-        setComplaint(prev => ({ ...prev, status, adminNote }))
+        setComplaint(prev => ({ ...prev, status, adminNote, resolution_notes: adminNote }))
       }
     } catch (err) {
       toast.error(err.message || 'Update failed')

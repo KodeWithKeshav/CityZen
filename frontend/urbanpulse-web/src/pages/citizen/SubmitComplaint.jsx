@@ -6,25 +6,25 @@ import toast from 'react-hot-toast'
 import { HiCheckCircle, HiArrowRight, HiArrowLeft } from 'react-icons/hi'
 
 const ISSUE_TYPES = [
-  { value: 'pothole', label: 'Ã°Å¸â€¢Â³Ã¯Â¸Â Pothole', desc: 'Road damage' },
-  { value: 'broken_streetlight', label: 'Ã°Å¸â€™Â¡ Streetlight', desc: 'Broken / not working' },
-  { value: 'garbage_collection', label: 'Ã°Å¸â€”â€˜Ã¯Â¸Â Garbage', desc: 'Collection issue' },
-  { value: 'sewage_overflow', label: 'Ã°Å¸â€™Â§ Sewage', desc: 'Overflow/blockage' },
-  { value: 'water_main_break', label: 'Ã°Å¸Å¡Â° Water', desc: 'Pipe break' },
-  { value: 'fire_hazard', label: 'Ã°Å¸â€Â¥ Fire Hazard', desc: 'Dangerous situation' },
-  { value: 'electrical_danger', label: 'Ã¢Å¡Â¡ Electrical', desc: 'Dangerous wires' },
-  { value: 'traffic_signal', label: 'Ã°Å¸Å¡Â¦ Traffic Signal', desc: 'Not working' },
-  { value: 'road_damage', label: 'Ã°Å¸â€ºÂ£Ã¯Â¸Â Road Damage', desc: 'General damage' },
-  { value: 'illegal_parking', label: 'Ã°Å¸Å¡â€” Parking', desc: 'Obstruction' },
-  { value: 'noise_complaint', label: 'Ã°Å¸â€Å  Noise', desc: 'Noise pollution' },
-  { value: 'structural_damage', label: 'Ã°Å¸Ââ€”Ã¯Â¸Â Structure', desc: 'Building damage' },
-  { value: 'others', label: 'Ã°Å¸â€œâ€¹ Other', desc: 'Other issues' },
+  { value: 'pothole', label: 'Pothole', desc: 'Road damage' },
+  { value: 'broken_streetlight', label: 'Streetlight', desc: 'Broken / not working' },
+  { value: 'garbage_collection', label: 'Garbage', desc: 'Collection issue' },
+  { value: 'sewage_overflow', label: 'Sewage', desc: 'Overflow/blockage' },
+  { value: 'water_main_break', label: 'Water', desc: 'Pipe break' },
+  { value: 'fire_hazard', label: 'Fire Hazard', desc: 'Dangerous situation' },
+  { value: 'electrical_danger', label: 'Electrical', desc: 'Dangerous wires' },
+  { value: 'traffic_signal', label: 'Traffic Signal', desc: 'Not working' },
+  { value: 'road_damage', label: 'Road Damage', desc: 'General damage' },
+  { value: 'illegal_parking', label: 'Parking', desc: 'Obstruction' },
+  { value: 'noise_complaint', label: 'Noise', desc: 'Noise pollution' },
+  { value: 'structural_damage', label: 'Structure', desc: 'Building damage' },
+  { value: 'others', label: 'Other', desc: 'Other issues' },
 ]
 
 const PRIVACY_LEVELS = [
-  { value: 'exact', label: 'Ã°Å¸â€œÂ Exact', desc: 'Ã‚Â±5-10m precision' },
-  { value: 'street', label: 'Ã°Å¸â€ºÂ£Ã¯Â¸Â Street-Level', desc: 'Ã‚Â±25m precision' },
-  { value: 'area', label: 'Ã°Å¸ÂËœÃ¯Â¸Â Neighborhood', desc: 'Ã‚Â±150m precision' },
+  { value: 'exact', label: 'Exact', desc: '+/-5-10m precision' },
+  { value: 'street', label: 'Street-Level', desc: '+/-25m precision' },
+  { value: 'area', label: 'Neighborhood', desc: '+/-150m precision' },
 ]
 
 const STEPS = ['Issue Type', 'Details', 'Location', 'Review']
@@ -99,7 +99,7 @@ export default function SubmitComplaint() {
         }
         
         setForm(p => ({ ...p, issueType: detected, aiConfidence: result.confidence || result.modelConfidence }))
-        toast.success(`AI identified: ${(ISSUE_TYPES.find(i => i.value === detected)?.label || detected).replace('Ã¢Å“â€¦', '')} (Raw: ${textToMatch})`)
+        toast.success(`AI identified: ${ISSUE_TYPES.find(i => i.value === detected)?.label || detected}`)
         setStep(1) // auto-advance
       } else {
         toast.error(`Image rejected. Raw API response was: ${textToMatch.substring(0, 50)}...`)
@@ -206,7 +206,7 @@ export default function SubmitComplaint() {
                 {validatingImage ? (
                   <span className="flex items-center gap-2"><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Validating...</span>
                 ) : (
-                  <span>Ã°Å¸â€œÂ¸ Upload Photo</span>
+                  <span>Upload Photo</span>
                 )}
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={validatingImage} />
               </label>
@@ -307,12 +307,12 @@ export default function SubmitComplaint() {
             </div>
 
             <button onClick={detectLocation} disabled={locLoading} className="btn-primary w-full flex items-center justify-center gap-2">
-              {locLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" /> : 'Ã°Å¸â€œÂ Detect My Location'}
+              {locLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" /> : 'Detect My Location'}
             </button>
 
             {form.location.address && (
               <div className="bg-primary-50 rounded-xl p-3 text-sm text-primary-800">
-                <p className="font-medium">Ã°Å¸â€œÂ Location detected</p>
+                <p className="font-medium">Location detected</p>
                 <p className="text-xs mt-1 text-primary-600">{form.location.address}</p>
               </div>
             )}
@@ -370,7 +370,7 @@ export default function SubmitComplaint() {
           </button>
         ) : (
           <button onClick={handleSubmit} disabled={loading || !canNext()} className="btn-primary flex items-center gap-2 ml-auto disabled:opacity-50">
-            {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" /> : 'Ã¢Å“â€¦ Submit Report'}
+            {loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" /> : 'Submit Report'}
           </button>
         )}
       </div>

@@ -3,4 +3,96 @@
 @tailwind utilities;
 
 /* Base styles */
-body { font-family: 'Inter', sans-serif; }
+body {
+	font-family: 'Inter', sans-serif;
+	@apply bg-gray-50 text-gray-900;
+}
+
+#root {
+	min-height: 100vh;
+}
+
+@layer components {
+	.card {
+		@apply bg-white rounded-2xl border border-gray-100 shadow-sm p-4;
+	}
+
+	.input {
+		@apply w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500;
+	}
+
+	.input-admin {
+		@apply input focus:ring-admin-500 focus:border-admin-500;
+	}
+
+	.btn-primary {
+		@apply bg-primary-700 text-white font-semibold px-4 py-2.5 rounded-xl hover:bg-primary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed;
+	}
+
+	.btn-admin {
+		@apply bg-admin-700 text-white font-semibold px-4 py-2.5 rounded-xl hover:bg-admin-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed;
+	}
+
+	.badge {
+		@apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border;
+	}
+
+	.badge-pending {
+		@apply bg-amber-50 text-amber-700 border-amber-200;
+	}
+
+	.badge-resolved {
+		@apply bg-emerald-50 text-emerald-700 border-emerald-200;
+	}
+
+	.badge-inprogress {
+		@apply bg-blue-50 text-blue-700 border-blue-200;
+	}
+
+	.badge-rejected {
+		@apply bg-rose-50 text-rose-700 border-rose-200;
+	}
+
+	.sidebar-link {
+		@apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors;
+	}
+
+	.sidebar-link.active {
+		@apply bg-primary-50 text-primary-700 font-semibold;
+	}
+}
+
+@layer utilities {
+	.fade-in {
+		animation: fade-in 0.25s ease-out;
+	}
+
+	.skeleton {
+		@apply bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse;
+	}
+
+	.line-clamp-1 {
+		overflow: hidden;
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 1;
+	}
+
+	.line-clamp-2 {
+		overflow: hidden;
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+	}
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}

@@ -30,7 +30,7 @@ const formatMarkdown = (text) => {
     if (isListItem) {
       return (
         <div key={i} className="flex gap-2 mt-1.5 ml-1">
-          <span className="text-primary-400 font-bold">â€¢</span>
+          <span className="text-primary-400 font-bold">*</span>
           <span>{formattedLine}</span>
         </div>
       );
