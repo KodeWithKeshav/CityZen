@@ -101,7 +101,7 @@ export default function AdminComplaintMap() {
                       <p className="text-xs text-gray-500 mb-2 line-clamp-2">{c.description}</p>
                       <button onClick={() => navigate(`/admin/complaints/${c._id || c.id}`)}
                         className="text-xs text-admin-700 font-semibold hover:underline">
-                        Manage →
+                        Manage -&gt;
                       </button>
                     </div>
                   </Popup>

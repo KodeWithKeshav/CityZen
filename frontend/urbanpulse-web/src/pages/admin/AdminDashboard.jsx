@@ -123,7 +123,7 @@ export default function AdminDashboard() {
             <div className="card lg:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-gray-800">Recent Complaints</h3>
-                <button onClick={() => navigate('/admin/complaints')} className="text-sm text-admin-600 font-medium hover:underline">View all â†’</button>
+                <button onClick={() => navigate('/admin/complaints')} className="text-sm text-admin-600 font-medium hover:underline">View all -&gt;</button>
               </div>
               {recentComplaints.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-6">No recent complaints</p>
@@ -140,7 +140,7 @@ export default function AdminDashboard() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800 truncate">{c.title || c.complaintTitle}</p>
-                        <p className="text-xs text-gray-500">{c.citizenName || 'Unknown'} Â· {c.createdAt ? format(new Date(c.createdAt), 'MMM d') : 'â€”'}</p>
+                        <p className="text-xs text-gray-500">{c.citizenName || 'Unknown'} | {c.createdAt ? format(new Date(c.createdAt), 'MMM d') : '-'}</p>
                       </div>
                       <span className={`badge capitalize flex-shrink-0 text-xs
                         ${c.status === 'resolved' ? 'badge-resolved'
@@ -159,17 +159,17 @@ export default function AdminDashboard() {
           {/* Quick action cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: 'Manage Complaints', icon: 'ðŸ“‹', to: '/admin/complaints', color: 'bg-blue-600' },
-              { label: 'Priority Queue', icon: 'ðŸŽ¯', to: '/admin/priority', color: 'bg-orange-500' },
-              { label: 'Complaint Map', icon: 'ðŸ—ºï¸', to: '/admin/map', color: 'bg-teal-600' },
-              { label: 'Citizens', icon: 'ðŸ‘¥', to: '/admin/citizens', color: 'bg-violet-600' },
+              { label: 'Manage Complaints', icon: 'MC', to: '/admin/complaints', color: 'bg-blue-600' },
+              { label: 'Priority Queue', icon: 'PQ', to: '/admin/priority', color: 'bg-orange-500' },
+              { label: 'Complaint Map', icon: 'CM', to: '/admin/map', color: 'bg-teal-600' },
+              { label: 'Citizens', icon: 'CZ', to: '/admin/citizens', color: 'bg-violet-600' },
             ].map(a => (
               <button
                 key={a.to}
                 onClick={() => navigate(a.to)}
                 className={`${a.color} text-white p-4 rounded-2xl text-left hover:opacity-90 transition-opacity active:scale-95`}
               >
-                <div className="text-2xl mb-2">{a.icon}</div>
+                <div className="text-base font-bold mb-2">{a.icon}</div>
                 <p className="font-bold text-sm">{a.label}</p>
               </button>
             ))}

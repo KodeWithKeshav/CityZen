@@ -74,16 +74,16 @@ export default function CitizenDetails() {
             {citizen.fullName?.charAt(0)?.toUpperCase() || '?'}
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{citizen.fullName || '—'}</h1>
+            <h1 className="text-xl font-bold text-gray-900">{citizen.fullName || '-'}</h1>
             <p className="text-gray-500 text-sm">{citizen.email}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 text-sm">
           {[
-            ['Phone', citizen.phoneNumber || '—'],
-            ['Address', citizen.address || '—'],
-            ['Joined', citizen.createdAt ? format(new Date(citizen.createdAt), 'MMM d, yyyy') : '—'],
+            ['Phone', citizen.phoneNumber || '-'],
+            ['Address', citizen.address || '-'],
+            ['Joined', citizen.createdAt ? format(new Date(citizen.createdAt), 'MMM d, yyyy') : '-'],
             ['Total Complaints', complaints.length],
           ].map(([k, v]) => (
             <div key={k} className="bg-gray-50 rounded-xl p-3">
@@ -119,7 +119,7 @@ export default function CitizenDetails() {
                 </div>
                 <p className="text-xs text-gray-500 mt-1 line-clamp-1">{c.description}</p>
                 <p className="text-xs text-gray-400 mt-1.5">
-                  {c.createdAt ? format(new Date(c.createdAt), 'MMM d, yyyy') : '—'}
+                  {c.createdAt ? format(new Date(c.createdAt), 'MMM d, yyyy') : '-'}
                 </p>
               </div>
             ))}

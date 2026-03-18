@@ -40,7 +40,7 @@ export default function AdminLayout() {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
-          <div className="w-9 h-9 bg-admin-700 rounded-xl flex items-center justify-center text-white text-lg">Ã¢Å¡â„¢Ã¯Â¸Â</div>
+          <div className="w-9 h-9 bg-admin-700 rounded-xl flex items-center justify-center text-white text-sm font-bold">AP</div>
           <div>
             <h1 className="font-bold text-gray-900 text-base leading-none">UrbanPulse</h1>
             <p className="text-xs text-admin-600 font-medium mt-0.5">Admin Panel</p>

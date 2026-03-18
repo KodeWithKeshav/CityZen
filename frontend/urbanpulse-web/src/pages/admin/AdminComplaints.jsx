@@ -121,10 +121,10 @@ export default function AdminComplaints() {
                       <p className="font-medium text-gray-900 truncate max-w-[180px]">{c.title || c.complaintTitle}</p>
                       <p className="text-xs text-gray-500 truncate max-w-[180px]">{c.description}</p>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.citizenName || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.citizenName || '-'}</td>
                     <td className="px-4 py-3">
                       <span className="text-xs bg-gray-100 px-2 py-1 rounded-full capitalize">
-                        {(c.category || c.issueType || '—').replace(/_/g, ' ')}
+                        {(c.category || c.issueType || '-').replace(/_/g, ' ')}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -132,12 +132,12 @@ export default function AdminComplaints() {
                         {c.status?.replace(/_/g,' ')}
                       </span>
                     </td>
-                    <td className="px-4 py-3 capitalize text-gray-600">{c.priority || '—'}</td>
+                    <td className="px-4 py-3 capitalize text-gray-600">{c.priority || '-'}</td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
-                      {c.createdAt ? format(new Date(c.createdAt), 'MMM d, yyyy') : '—'}
+                      {c.createdAt ? format(new Date(c.createdAt), 'MMM d, yyyy') : '-'}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-admin-600 text-xs font-medium hover:underline">View →</span>
+                      <span className="text-admin-600 text-xs font-medium hover:underline">View -&gt;</span>
                     </td>
                   </tr>
                 ))}
@@ -155,9 +155,9 @@ export default function AdminComplaints() {
                 </div>
                 <p className="text-xs text-gray-500 mb-2 line-clamp-1">{c.description}</p>
                 <div className="flex gap-3 text-xs text-gray-400">
-                  <span>{c.citizenName || '—'}</span>
-                  <span>·</span>
-                  <span>{c.createdAt ? format(new Date(c.createdAt), 'MMM d') : '—'}</span>
+                  <span>{c.citizenName || '-'}</span>
+                  <span>|</span>
+                  <span>{c.createdAt ? format(new Date(c.createdAt), 'MMM d') : '-'}</span>
                 </div>
               </div>
             ))}
