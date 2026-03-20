@@ -1,3 +1,5 @@
+// UrbanPulse API Service Layer
+// Handles all backend communication for auth, complaints, admin, and AI services
 export const API_BASE_URL = 'http://localhost:3001';
 
 export const apiClient = {
