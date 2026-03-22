@@ -1,3 +1,4 @@
+// CitizenManagement - Admin view for managing registered citizens
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { makeApiCall, apiClient } from '../../services/api'
@@ -85,17 +86,17 @@ export default function CitizenManagement() {
                         <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center font-bold text-violet-700 text-sm flex-shrink-0">
                           {c.fullName?.charAt(0)?.toUpperCase() || '?'}
                         </div>
-                        <p className="font-medium text-gray-900">{c.fullName || '—'}</p>
+                        <p className="font-medium text-gray-900">{c.fullName || 'â€”'}</p>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{c.email || '—'}</td>
-                    <td className="px-4 py-3 text-gray-600">{c.phoneNumber || '—'}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs max-w-[160px] truncate">{c.address || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600">{c.email || 'â€”'}</td>
+                    <td className="px-4 py-3 text-gray-600">{c.phoneNumber || 'â€”'}</td>
+                    <td className="px-4 py-3 text-gray-500 text-xs max-w-[160px] truncate">{c.address || 'â€”'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                      {c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                      {c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'â€”'}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-admin-600 text-xs font-medium">View →</span>
+                      <span className="text-admin-600 text-xs font-medium">View â†’</span>
                     </td>
                   </tr>
                 ))}
@@ -112,7 +113,7 @@ export default function CitizenManagement() {
                     {c.fullName?.charAt(0)?.toUpperCase() || '?'}
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-800 text-sm">{c.fullName || '—'}</p>
+                    <p className="font-semibold text-gray-800 text-sm">{c.fullName || 'â€”'}</p>
                     <p className="text-xs text-gray-500">{c.email}</p>
                     {c.phoneNumber && <p className="text-xs text-gray-400">{c.phoneNumber}</p>}
                   </div>
