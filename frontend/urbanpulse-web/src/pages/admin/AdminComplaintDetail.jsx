@@ -1,3 +1,4 @@
+// AdminComplaintDetail - Stage management and resolution workflow
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { makeApiCall, apiClient } from '../../services/api'
@@ -90,12 +91,12 @@ export default function AdminComplaintDetail() {
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm mb-4">
           {[
-            ['Citizen', complaint.citizenName || '—'],
-            ['Category', (complaint.category || complaint.issueType || '—').replace(/_/g,' ')],
-            ['Priority', complaint.priority || '—'],
-            ['Submitted', complaint.createdAt ? format(new Date(complaint.createdAt), 'MMM d, yyyy') : '—'],
+            ['Citizen', complaint.citizenName || 'â€”'],
+            ['Category', (complaint.category || complaint.issueType || 'â€”').replace(/_/g,' ')],
+            ['Priority', complaint.priority || 'â€”'],
+            ['Submitted', complaint.createdAt ? format(new Date(complaint.createdAt), 'MMM d, yyyy') : 'â€”'],
             ['Votes', complaint.upvotes || complaint.votes || 0],
-            ['Priority Score', complaint.priorityScore ? Math.round(complaint.priorityScore) : '—'],
+            ['Priority Score', complaint.priorityScore ? Math.round(complaint.priorityScore) : 'â€”'],
           ].map(([k,v]) => (
             <div key={k}>
               <p className="text-gray-500 text-xs">{k}</p>
@@ -113,7 +114,7 @@ export default function AdminComplaintDetail() {
       {/* Location */}
       {(complaint.location_address || complaint.location) && (
         <div className="card mb-4">
-          <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">📍 Location</h3>
+          <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">ðŸ“ Location</h3>
           {<p className="text-sm text-gray-700 mb-1">{complaint.location_address || complaint.location?.address}</p>}
           {(complaint.location_latitude || complaint.location?.latitude) && (
             <p className="text-xs text-gray-400">{complaint.location_latitude || complaint.location?.latitude}, {complaint.location_longitude || complaint.location?.longitude}</p>
@@ -124,7 +125,7 @@ export default function AdminComplaintDetail() {
       {/* AI Analysis */}
       {complaint.aiAnalysis && (
         <div className="card mb-4">
-          <h3 className="font-bold text-gray-800 mb-3">🤖 AI Analysis</h3>
+          <h3 className="font-bold text-gray-800 mb-3">ðŸ¤– AI Analysis</h3>
           <div className="grid grid-cols-2 gap-3 text-sm">
             {Object.entries(complaint.aiAnalysis).map(([k, v]) => (
               typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' ? (
@@ -140,7 +141,7 @@ export default function AdminComplaintDetail() {
 
       {/* Update Status */}
       <div className="card">
-        <h3 className="font-bold text-gray-800 mb-4">⚡ Update Complaint</h3>
+        <h3 className="font-bold text-gray-800 mb-4">âš¡ Update Complaint</h3>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Update Status</label>
