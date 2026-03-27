@@ -236,7 +236,7 @@ export default function ComplaintMap() {
                               onClick={() => navigate(`/citizen/complaint/${c.id}`)}
                               className="text-xs text-primary-700 font-bold hover:underline"
                             >
-                              Details Ã¢â€ â€™
+                              Details ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢
                             </button>
                           </div>
                         </div>
@@ -256,7 +256,7 @@ export default function ComplaintMap() {
                     <p className="text-xs text-gray-500">{selectedZonePoints.length} reports within 2km</p>
                   </div>
                   <button onClick={() => setSelectedZonePoints(null)} className="w-8 h-8 flex items-center justify-center hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
-                    Ã¢Å“â€¢
+                    ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¢
                   </button>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 pb-20 space-y-2">
@@ -292,3 +292,5 @@ export default function ComplaintMap() {
 }
 
 // Fix: leaflet default marker icon paths for production builds
+
+// End of ComplaintMap component
