@@ -102,7 +102,10 @@ export default function SubmitComplaint() {
         toast.success(`AI identified: ${ISSUE_TYPES.find(i => i.value === detected)?.label || detected}`)
         setStep(1) // auto-advance
       } else {
-        toast.error(`Image rejected. Raw API response was: ${textToMatch.substring(0, 50)}...`)
+        const friendlyMsg = result.message && !result.message.includes('status code')
+          ? result.message
+          : 'Image could not be verified as a civic issue. Please try a clearer photo or select a category manually.'
+        toast.error(friendlyMsg)
       }
 
     } catch (err) {
