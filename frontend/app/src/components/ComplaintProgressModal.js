@@ -11,7 +11,7 @@ import {
   Dimensions,
   Alert
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { makeApiCall } from '../../config/supabase';
 
@@ -26,8 +26,6 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
     if (visible) {
       setLoading(true);
       fetchComplaintProgress();
-      
-      // Animate modal in
       Animated.spring(modalAnimation, {
         toValue: 1,
         tension: 65,
@@ -35,7 +33,6 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
         useNativeDriver: true,
       }).start();
     } else {
-      // Animate modal out
       Animated.timing(modalAnimation, {
         toValue: 0,
         duration: 250,
@@ -47,7 +44,6 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
   const fetchComplaintProgress = async () => {
     try {
       const response = await makeApiCall(`/complaint-details/${complaintId}/progress`, 'GET');
-      
       if (response.success) {
         setProgressData(response.data);
       } else {
@@ -61,57 +57,51 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
     }
   };
 
-  const getStageIcon = (stageStatus, stageNumber) => {
+  // Returns icon name + color for each stage state
+  const getStageVisuals = (stageStatus) => {
     switch (stageStatus) {
       case 'completed':
-        return <Ionicons name="checkmark-circle" size={28} color="#27ae60" />;
+        return { icon: 'checkmark-circle', color: '#16a34a', bg: '#dcfce7', border: '#16a34a' };
       case 'in_progress':
-        return (
-          <View style={styles.activeStageIcon}>
-            <LinearGradient
-              colors={['#3498db', '#2980b9']}
-              style={styles.activeStageGradient}
-            >
-              <Text style={styles.activeStageNumber}>{stageNumber}</Text>
-            </LinearGradient>
-          </View>
-        );
+        return { icon: 'ellipse', color: '#1A1A1A', bg: '#1A1A1A', border: '#1A1A1A', active: true };
       case 'pending':
-        return (
-          <View style={styles.pendingStageIcon}>
-            <Text style={styles.pendingStageNumber}>{stageNumber}</Text>
-          </View>
-        );
       default:
-        return <Ionicons name="ellipse-outline" size={28} color="#95a5a6" />;
+        return { icon: 'ellipse-outline', color: '#9CA3AF', bg: '#F9FAFB', border: '#E5E7EB' };
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColors = (status) => {
     switch (status) {
-      case 'pending':
-        return ['#f39c12', '#e67e22'];
-      case 'in_progress':
-        return ['#3498db', '#2980b9'];
-      case 'resolved':
-        return ['#27ae60', '#229954'];
-      case 'rejected':
-        return ['#e74c3c', '#c0392b'];
-      default:
-        return ['#95a5a6', '#7f8c8d'];
+      case 'pending':    return ['#F59E0B', '#D97706'];
+      case 'in_progress': return ['#1A1A1A', '#374151'];
+      case 'resolved':   return ['#16a34a', '#15803d'];
+      case 'rejected':   return ['#DC2626', '#B91C1C'];
+      default:           return ['#6B7280', '#4B5563'];
     }
+  };
+
+  const getTimelineIcon = (actionType) => {
+    const map = {
+      'complaint_submitted': 'document-text-outline',
+      'status_updated':      'refresh-outline',
+      'stage_completed':     'checkmark-done-outline',
+      'officer_assigned':    'person-add-outline',
+      'contractor_assigned': 'construct-outline',
+      'note_added':          'chatbubble-outline',
+    };
+    return map[actionType] || 'ellipse-outline';
   };
 
   const formatTimelineAction = (action) => {
     const actionTypes = {
       'complaint_submitted': 'Complaint Submitted',
-      'status_updated': 'Status Updated',
-      'stage_completed': 'Stage Completed',
-      'officer_assigned': 'Officer Assigned',
+      'status_updated':      'Status Updated',
+      'stage_completed':     'Stage Completed',
+      'officer_assigned':    'Officer Assigned',
       'contractor_assigned': 'Contractor Assigned',
-      'note_added': 'Note Added'
+      'note_added':          'Note Added',
     };
-    return actionTypes[action] || action.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    return actionTypes[action] || action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   if (!visible) return null;
@@ -124,215 +114,253 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <Animated.View 
+        <Animated.View
           style={[
             styles.modalContainer,
             {
               transform: [
-                {
-                  scale: modalAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.8, 1],
-                  })
-                },
-                {
-                  translateY: modalAnimation.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [50, 0],
-                  })
-                }
+                { scale: modalAnimation.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }) },
+                { translateY: modalAnimation.interpolate({ inputRange: [0, 1], outputRange: [60, 0] }) },
               ],
-              opacity: modalAnimation
-            }
+              opacity: modalAnimation,
+            },
           ]}
         >
-          {/* Header */}
-          <LinearGradient
-            colors={['#3498db', '#2980b9']}
-            style={styles.modalHeader}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerLeft}>
-                <Ionicons name="analytics-outline" size={24} color="#fff" />
-                <Text style={styles.modalTitle}>Progress Tracker</Text>
+          {/* ── Header ── */}
+          <View style={styles.modalHeader}>
+            <View style={styles.headerRow}>
+              <View style={styles.headerIconWrap}>
+                <Ionicons name="analytics" size={20} color="#1A1A1A" />
               </View>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Progress Tracker</Text>
             </View>
-            <Text style={styles.complaintTitle} numberOfLines={2}>{complaintTitle}</Text>
-          </LinearGradient>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={20} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Complaint title strip */}
+          <View style={styles.titleStrip}>
+            <Ionicons name="document-text-outline" size={14} color="#6B7280" />
+            <Text style={styles.complaintTitleText} numberOfLines={2}>{complaintTitle}</Text>
+          </View>
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#3498db" />
-              <Text style={styles.loadingText}>Loading progress...</Text>
+              <ActivityIndicator size="large" color="#1A1A1A" />
+              <Text style={styles.loadingText}>Loading progress…</Text>
             </View>
           ) : progressData ? (
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              {/* Progress Overview */}
-              <View style={styles.progressOverview}>
+
+              {/* ── Progress Overview Card ── */}
+              <View style={styles.section}>
                 <LinearGradient
-                  colors={getStatusColor(progressData.complaint.status)}
-                  style={styles.progressCard}
+                  colors={getStatusColors(progressData.complaint.status)}
+                  style={styles.overviewCard}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
                 >
-                  <View style={styles.progressInfo}>
-                    <Text style={styles.progressPercentage}>{progressData.progress.percentage}%</Text>
-                    <Text style={styles.progressLabel}>Complete</Text>
+                  <View style={styles.overviewLeft}>
+                    <Text style={styles.overviewPercent}>{progressData.progress.percentage}%</Text>
+                    <Text style={styles.overviewPercentLabel}>Complete</Text>
                   </View>
-                  <View style={styles.progressStats}>
-                    <Text style={styles.progressStatsText}>
-                      {progressData.progress.completed_stages} of {progressData.progress.total_stages} stages completed
+                  <View style={styles.overviewDivider} />
+                  <View style={styles.overviewRight}>
+                    <Text style={styles.overviewStages}>
+                      {progressData.progress.completed_stages}/{progressData.progress.total_stages} stages done
                     </Text>
-                    <Text style={styles.statusText}>
-                      Status: {progressData.complaint.status?.charAt(0).toUpperCase() + progressData.complaint.status?.slice(1).replace('_', ' ')}
-                    </Text>
+                    <View style={styles.overviewStatusRow}>
+                      <View style={styles.overviewStatusDot} />
+                      <Text style={styles.overviewStatusLabel}>
+                        {progressData.complaint.status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </Text>
+                    </View>
+                    {/* Mini progress bar */}
+                    <View style={styles.miniBarTrack}>
+                      <View style={[styles.miniBarFill, { width: `${progressData.progress.percentage}%` }]} />
+                    </View>
                   </View>
                 </LinearGradient>
               </View>
 
-              {/* Current Stage */}
+              {/* ── Current Stage ── */}
               {progressData.progress.current_stage && (
-                <View style={styles.currentStageContainer}>
-                  <Text style={styles.sectionTitle}>Current Stage</Text>
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Active Stage</Text>
                   <View style={styles.currentStageCard}>
-                    <LinearGradient
-                      colors={['#e8f4fd', '#d4e8fc']}
-                      style={styles.currentStageGradient}
-                    >
-                      <View style={styles.currentStageHeader}>
-                        <Ionicons name="time-outline" size={20} color="#3498db" />
-                        <Text style={styles.currentStageTitle}>
-                          {progressData.progress.current_stage.stage_name}
+                    <View style={styles.currentStageHeader}>
+                      <View style={styles.currentStagePulse}>
+                        <Ionicons name="pulse" size={16} color="#1A1A1A" />
+                      </View>
+                      <Text style={styles.currentStageName}>
+                        {progressData.progress.current_stage.stage_name}
+                      </Text>
+                    </View>
+                    <Text style={styles.currentStageDesc}>
+                      {progressData.progress.current_stage.stage_description}
+                    </Text>
+                    {progressData.progress.current_stage.estimated_completion_date && (
+                      <View style={styles.metaRow}>
+                        <Ionicons name="calendar-outline" size={13} color="#6B7280" />
+                        <Text style={styles.metaText}>
+                          Expected by {progressData.progress.current_stage.formatted_estimated_date}
                         </Text>
                       </View>
-                      <Text style={styles.currentStageDescription}>
-                        {progressData.progress.current_stage.stage_description}
-                      </Text>
-                      {progressData.progress.current_stage.estimated_completion_date && (
-                        <Text style={styles.estimatedDate}>
-                          Expected completion: {progressData.progress.current_stage.formatted_estimated_date}
+                    )}
+                    {progressData.progress.current_stage.officers && (
+                      <View style={styles.metaRow}>
+                        <Ionicons name="person-circle-outline" size={13} color="#6B7280" />
+                        <Text style={styles.metaText}>
+                          {progressData.progress.current_stage.officers.name} · {progressData.progress.current_stage.officers.department}
                         </Text>
-                      )}
-                      {progressData.progress.current_stage.officers && (
-                        <View style={styles.assignedPersonnel}>
-                          <Ionicons name="person-outline" size={16} color="#666" />
-                          <Text style={styles.personnelText}>
-                            Officer: {progressData.progress.current_stage.officers.name} ({progressData.progress.current_stage.officers.department})
-                          </Text>
-                        </View>
-                      )}
-                    </LinearGradient>
+                      </View>
+                    )}
                   </View>
                 </View>
               )}
 
-              {/* Stages Timeline */}
-              <View style={styles.stagesContainer}>
-                <Text style={styles.sectionTitle}>Progress Stages</Text>
-                {progressData.stages && progressData.stages.map((stage, index) => (
-                  <View key={stage.id || index} style={styles.stageItem}>
-                    <View style={styles.stageLeftColumn}>
-                      {getStageIcon(stage.stage_status, stage.stage_number)}
-                      {index < progressData.stages.length - 1 && (
+              {/* ── Stages Timeline ── */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>All Stages</Text>
+                {progressData.stages && progressData.stages.map((stage, index) => {
+                  const visuals = getStageVisuals(stage.stage_status);
+                  const isLast = index === progressData.stages.length - 1;
+                  return (
+                    <View key={stage.id || index} style={styles.timelineRow}>
+                      {/* Left column: icon + connector */}
+                      <View style={styles.timelineLeft}>
                         <View style={[
-                          styles.stageLine,
-                          { backgroundColor: stage.stage_status === 'completed' ? '#27ae60' : '#e0e0e0' }
-                        ]} />
-                      )}
-                    </View>
-                    <View style={styles.stageContent}>
-                      <Text style={[
-                        styles.stageName,
-                        { color: stage.stage_status === 'completed' ? '#27ae60' : '#333' }
-                      ]}>
-                        {stage.stage_name}
-                      </Text>
-                      {stage.stage_description && (
-                        <Text style={styles.stageDescription}>{stage.stage_description}</Text>
-                      )}
-                      <View style={styles.stageDetails}>
-                        {stage.stage_status === 'completed' && stage.formatted_completion_date && (
-                          <Text style={styles.stageDate}>
-                            ✅ Completed: {stage.formatted_completion_date}
-                          </Text>
-                        )}
-                        {stage.stage_status === 'in_progress' && stage.formatted_estimated_date && (
-                          <Text style={styles.stageDate}>
-                            🕐 Expected: {stage.formatted_estimated_date}
-                          </Text>
-                        )}
-                        {stage.officers && (
-                          <Text style={styles.stagePersonnel}>
-                            👮 Officer: {stage.officers.name}
-                          </Text>
-                        )}
-                        {stage.contractors && (
-                          <Text style={styles.stagePersonnel}>
-                            🔧 Contractor: {stage.contractors.name}
-                          </Text>
+                          styles.stageCircle,
+                          { backgroundColor: visuals.active ? visuals.bg : visuals.bg, borderColor: visuals.border },
+                        ]}>
+                          <Ionicons
+                            name={visuals.icon}
+                            size={visuals.active ? 10 : 18}
+                            color={visuals.active ? '#fff' : visuals.color}
+                          />
+                        </View>
+                        {!isLast && (
+                          <View style={[
+                            styles.connector,
+                            { backgroundColor: stage.stage_status === 'completed' ? '#16a34a' : '#E5E7EB' },
+                          ]} />
                         )}
                       </View>
+
+                      {/* Right column: content */}
+                      <View style={[styles.stageCard, !isLast && { marginBottom: 0 }]}>
+                        <View style={styles.stageCardHeader}>
+                          <Text style={[
+                            styles.stageCardName,
+                            stage.stage_status === 'completed' && { color: '#16a34a' },
+                            stage.stage_status === 'in_progress' && { color: '#1A1A1A' },
+                            stage.stage_status === 'pending' && { color: '#9CA3AF' },
+                          ]}>
+                            {stage.stage_name}
+                          </Text>
+                          {stage.stage_status === 'in_progress' && (
+                            <View style={styles.activeChip}>
+                              <Text style={styles.activeChipText}>Active</Text>
+                            </View>
+                          )}
+                          {stage.stage_status === 'completed' && (
+                            <View style={styles.doneChip}>
+                              <Text style={styles.doneChipText}>Done</Text>
+                            </View>
+                          )}
+                        </View>
+
+                        {stage.stage_description && (
+                          <Text style={styles.stageCardDesc}>{stage.stage_description}</Text>
+                        )}
+
+                        <View style={styles.stageMetaGroup}>
+                          {stage.stage_status === 'completed' && stage.formatted_completion_date && (
+                            <View style={styles.metaRow}>
+                              <Ionicons name="checkmark-circle-outline" size={12} color="#16a34a" />
+                              <Text style={[styles.metaText, { color: '#16a34a' }]}>
+                                Completed {stage.formatted_completion_date}
+                              </Text>
+                            </View>
+                          )}
+                          {stage.stage_status === 'in_progress' && stage.formatted_estimated_date && (
+                            <View style={styles.metaRow}>
+                              <Ionicons name="calendar-outline" size={12} color="#6B7280" />
+                              <Text style={styles.metaText}>Expected {stage.formatted_estimated_date}</Text>
+                            </View>
+                          )}
+                          {stage.officers && (
+                            <View style={styles.metaRow}>
+                              <Ionicons name="person-circle-outline" size={12} color="#6B7280" />
+                              <Text style={styles.metaText}>Officer: {stage.officers.name}</Text>
+                            </View>
+                          )}
+                          {stage.contractors && (
+                            <View style={styles.metaRow}>
+                              <Ionicons name="construct-outline" size={12} color="#6B7280" />
+                              <Text style={styles.metaText}>Contractor: {stage.contractors.name}</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
 
-              {/* Recent Activity Timeline */}
+              {/* ── Recent Activity ── */}
               {progressData.timeline && progressData.timeline.length > 0 && (
-                <View style={styles.timelineContainer}>
+                <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Recent Activity</Text>
-                  {progressData.timeline.slice(0, 5).map((entry, index) => (
-                    <View key={entry.id || index} style={styles.timelineItem}>
-                      <View style={styles.timelineDot} />
-                      <View style={styles.timelineContent}>
-                        <Text style={styles.timelineAction}>
-                          {formatTimelineAction(entry.action_type)}
-                        </Text>
-                        <Text style={styles.timelineDescription}>
-                          {entry.action_description}
-                        </Text>
-                        <Text style={styles.timelineDate}>
-                          {entry.formatted_date}
-                        </Text>
+                  <View style={styles.activityCard}>
+                    {progressData.timeline.slice(0, 5).map((entry, index) => (
+                      <View key={entry.id || index} style={[
+                        styles.activityRow,
+                        index < Math.min(progressData.timeline.length, 5) - 1 && styles.activityRowBorder,
+                      ]}>
+                        <View style={styles.activityIconWrap}>
+                          <Ionicons name={getTimelineIcon(entry.action_type)} size={14} color="#1A1A1A" />
+                        </View>
+                        <View style={styles.activityContent}>
+                          <Text style={styles.activityAction}>{formatTimelineAction(entry.action_type)}</Text>
+                          <Text style={styles.activityDesc}>{entry.action_description}</Text>
+                          <Text style={styles.activityDate}>{entry.formatted_date}</Text>
+                        </View>
                       </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* ── Report Info ── */}
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Report Info</Text>
+                <View style={styles.infoCard}>
+                  {[
+                    { label: 'Submitted', value: progressData.complaint.formatted_created_date, icon: 'calendar-outline' },
+                    { label: 'Category',  value: progressData.complaint.category?.replace(/_/g, ' '), icon: 'pricetag-outline' },
+                    { label: 'Priority',  value: progressData.complaint.priority_score ? `${progressData.complaint.priority_score.toFixed(1)} / 10` : 'N/A', icon: 'speedometer-outline', highlight: true },
+                    { label: 'Reporter',  value: progressData.complaint.user?.full_name || 'Anonymous', icon: 'person-outline' },
+                  ].map((row, i, arr) => (
+                    <View key={row.label} style={[styles.infoRow, i < arr.length - 1 && styles.infoRowBorder]}>
+                      <View style={styles.infoLabelGroup}>
+                        <Ionicons name={row.icon} size={13} color="#9CA3AF" />
+                        <Text style={styles.infoLabel}>{row.label}</Text>
+                      </View>
+                      <Text style={[styles.infoValue, row.highlight && { color: '#DC2626' }]}>
+                        {row.value}
+                      </Text>
                     </View>
                   ))}
                 </View>
-              )}
-
-              {/* Report Info */}
-              <View style={styles.reportInfoContainer}>
-                <Text style={styles.sectionTitle}>Report Information</Text>
-                <View style={styles.reportInfoCard}>
-                  <View style={styles.reportInfoRow}>
-                    <Text style={styles.reportInfoLabel}>Submitted:</Text>
-                    <Text style={styles.reportInfoValue}>{progressData.complaint.formatted_created_date}</Text>
-                  </View>
-                  <View style={styles.reportInfoRow}>
-                    <Text style={styles.reportInfoLabel}>Category:</Text>
-                    <Text style={styles.reportInfoValue}>
-                      {progressData.complaint.category?.replace('_', ' ')}
-                    </Text>
-                  </View>
-                  <View style={styles.reportInfoRow}>
-                    <Text style={styles.reportInfoLabel}>Priority:</Text>
-                    <Text style={[styles.reportInfoValue, { color: '#e74c3c' }]}>
-                      {progressData.complaint.priority_score ? `${progressData.complaint.priority_score.toFixed(1)}/10` : 'N/A'}
-                    </Text>
-                  </View>
-                  <View style={styles.reportInfoRow}>
-                    <Text style={styles.reportInfoLabel}>Reporter:</Text>
-                    <Text style={styles.reportInfoValue}>{progressData.complaint.user?.full_name || 'Anonymous'}</Text>
-                  </View>
-                </View>
               </View>
 
-              <View style={{ height: 20 }} />
+              <View style={{ height: 24 }} />
             </ScrollView>
           ) : (
             <View style={styles.errorContainer}>
-              <Ionicons name="alert-circle-outline" size={48} color="#e74c3c" />
+              <Ionicons name="alert-circle-outline" size={48} color="#DC2626" />
               <Text style={styles.errorText}>Unable to load progress data</Text>
             </View>
           )}
@@ -345,306 +373,385 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     width: width - 40,
     maxHeight: height - 100,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 12,
   },
+
+  // ── Header ──
   modalHeader: {
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-  },
-  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
-  headerLeft: {
+  headerRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   modalTitle: {
-    color: '#fff',
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '700',
-    marginLeft: 10,
+    color: '#111827',
+    letterSpacing: -0.3,
   },
   closeButton: {
-    padding: 4,
-  },
-  complaintTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-    opacity: 0.9,
-    lineHeight: 22,
-  },
-  modalContent: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+  },
+  titleStrip: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#FAFAFA',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  complaintTitleText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
+  },
+
+  // ── Loading / Error ──
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 48,
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-  },
-  progressOverview: {
-    padding: 20,
-  },
-  progressCard: {
-    borderRadius: 16,
-    padding: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  progressInfo: {
-    alignItems: 'center',
-  },
-  progressPercentage: {
-    fontSize: 36,
-    fontWeight: '800',
-    color: '#fff',
-  },
-  progressLabel: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '600',
-    opacity: 0.9,
-  },
-  progressStats: {
-    flex: 1,
-    marginLeft: 20,
-  },
-  progressStatsText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  statusText: {
-    color: '#fff',
+    marginTop: 14,
     fontSize: 14,
-    opacity: 0.9,
+    color: '#6B7280',
   },
-  currentStageContainer: {
+  errorContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 48,
+  },
+  errorText: {
+    marginTop: 14,
+    fontSize: 15,
+    color: '#DC2626',
+    textAlign: 'center',
+  },
+
+  // ── Sections ──
+  modalContent: { flex: 1 },
+  section: {
     paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingTop: 20,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#2c3e50',
+    color: '#9CA3AF',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
     marginBottom: 12,
   },
-  currentStageCard: {
-    borderRadius: 12,
+
+  // ── Overview Card ──
+  overviewCard: {
+    borderRadius: 14,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  overviewLeft: {
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  overviewPercent: {
+    fontSize: 38,
+    fontWeight: '800',
+    color: '#fff',
+    lineHeight: 44,
+  },
+  overviewPercentLabel: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
+  },
+  overviewDivider: {
+    width: 1,
+    height: 48,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    marginRight: 16,
+  },
+  overviewRight: { flex: 1 },
+  overviewStages: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  overviewStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  overviewStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    marginRight: 6,
+  },
+  overviewStatusLabel: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '500',
+    textTransform: 'capitalize',
+  },
+  miniBarTrack: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 2,
     overflow: 'hidden',
   },
-  currentStageGradient: {
+  miniBarFill: {
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 2,
+  },
+
+  // ── Current Stage ──
+  currentStageCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
     padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   currentStageHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
+    gap: 8,
   },
-  currentStageTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2c3e50',
-    marginLeft: 8,
-  },
-  currentStageDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  estimatedDate: {
-    fontSize: 13,
-    color: '#3498db',
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  assignedPersonnel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  personnelText: {
-    fontSize: 13,
-    color: '#666',
-    marginLeft: 6,
-  },
-  stagesContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  stageItem: {
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
-  stageLeftColumn: {
-    alignItems: 'center',
-    marginRight: 16,
-    width: 28,
-  },
-  activeStageIcon: {
+  currentStagePulse: {
     width: 28,
     height: 28,
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  activeStageGradient: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  activeStageNumber: {
-    color: '#fff',
-    fontSize: 12,
+  currentStageName: {
+    fontSize: 15,
     fontWeight: '700',
-  },
-  pendingStageIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#ecf0f1',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#bdc3c7',
-  },
-  pendingStageNumber: {
-    color: '#7f8c8d',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  stageLine: {
-    width: 2,
-    height: 30,
-    marginTop: 8,
-  },
-  stageContent: {
+    color: '#111827',
     flex: 1,
   },
-  stageName: {
-    fontSize: 16,
-    fontWeight: '700',
+  currentStageDesc: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 19,
+    marginBottom: 8,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     marginBottom: 4,
   },
-  stageDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  stageDetails: {},
-  stageDate: {
+  metaText: {
     fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
+    color: '#6B7280',
   },
-  stagePersonnel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 2,
-  },
-  timelineContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  timelineItem: {
+
+  // ── Stages Timeline ──
+  timelineRow: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 4,
   },
-  timelineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#3498db',
-    marginTop: 6,
+  timelineLeft: {
+    alignItems: 'center',
+    width: 36,
     marginRight: 12,
   },
-  timelineContent: {
-    flex: 1,
+  stageCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  timelineAction: {
+  connector: {
+    width: 2,
+    flex: 1,
+    minHeight: 20,
+    marginVertical: 4,
+    borderRadius: 1,
+  },
+  stageCard: {
+    flex: 1,
+    backgroundColor: '#FAFAFA',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  stageCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  stageCardName: {
     fontSize: 14,
+    fontWeight: '700',
+    flex: 1,
+    marginRight: 8,
+  },
+  activeChip: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  activeChipText: {
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  doneChip: {
+    backgroundColor: '#DCFCE7',
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  doneChipText: {
+    fontSize: 10,
+    color: '#16a34a',
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  stageCardDesc: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    lineHeight: 17,
+    marginBottom: 6,
+  },
+  stageMetaGroup: { gap: 2 },
+
+  // ── Recent Activity ──
+  activityCard: {
+    backgroundColor: '#FAFAFA',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    overflow: 'hidden',
+  },
+  activityRow: {
+    flexDirection: 'row',
+    padding: 12,
+    alignItems: 'flex-start',
+  },
+  activityRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  activityIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    marginTop: 1,
+  },
+  activityContent: { flex: 1 },
+  activityAction: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#2c3e50',
+    color: '#111827',
     marginBottom: 2,
   },
-  timelineDescription: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 4,
-    lineHeight: 18,
-  },
-  timelineDate: {
+  activityDesc: {
     fontSize: 12,
-    color: '#95a5a6',
+    color: '#6B7280',
+    lineHeight: 17,
+    marginBottom: 3,
   },
-  reportInfoContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
+  activityDate: {
+    fontSize: 11,
+    color: '#9CA3AF',
   },
-  reportInfoCard: {
-    backgroundColor: '#f8f9fa',
+
+  // ── Report Info ──
+  infoCard: {
+    backgroundColor: '#FAFAFA',
     borderRadius: 12,
-    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    overflow: 'hidden',
   },
-  reportInfoRow: {
+  infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    padding: 12,
   },
-  reportInfoLabel: {
-    fontSize: 14,
-    color: '#666',
+  infoRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  infoLabelGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  infoLabel: {
+    fontSize: 13,
+    color: '#6B7280',
     fontWeight: '500',
   },
-  reportInfoValue: {
-    fontSize: 14,
-    color: '#2c3e50',
+  infoValue: {
+    fontSize: 13,
+    color: '#111827',
     fontWeight: '600',
     textTransform: 'capitalize',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  errorText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#e74c3c',
-    textAlign: 'center',
+    maxWidth: '55%',
+    textAlign: 'right',
   },
 });
 
