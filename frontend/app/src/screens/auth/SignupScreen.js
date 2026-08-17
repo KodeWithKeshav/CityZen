@@ -90,7 +90,7 @@ const SignupScreen = ({ navigation }) => {
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Join UrbanPulse Community</Text>
+        <Text style={styles.subtitle}>Join CivicStack Community</Text>
 
         <View style={styles.form}>
           <TextInput
@@ -257,4 +257,3 @@ const styles = StyleSheet.create({
 });
 
 export default SignupScreen;
-
