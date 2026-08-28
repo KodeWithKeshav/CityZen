@@ -143,7 +143,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
           userVoted: response.complaint.userVoted || false,
         });
       } else {
-        console.error('âŒ Error fetching complaint details:', response);
+        console.error('❌ Error fetching complaint details:', response);
         Alert.alert(
           "Error",
           "Could not load complaint details. Please try again later.",
@@ -151,7 +151,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
         );
       }
     } catch (error) {
-      console.error('âŒ Error fetching complaint details:', error);
+      console.error('❌ Error fetching complaint details:', error);
       Alert.alert(
         "Error",
         "An error occurred while loading the complaint. Please try again.",
@@ -202,10 +202,10 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
       if (response.success && response.breakdown) {
         setBreakdownData(response.breakdown);
       } else {
-        console.error('âŒ Error fetching breakdown data:', response);
+        console.error('❌ Error fetching breakdown data:', response);
       }
     } catch (error) {
-      console.error('âŒ Error fetching breakdown data:', error);
+      console.error('❌ Error fetching breakdown data:', error);
     } finally {
       setLoadingBreakdown(false);
     }
@@ -235,7 +235,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
       const voteResponse = await handleVoting(complaintId, apiClient, makeApiCall);
       
       if (!voteResponse.success) {
-        console.error('âŒ Vote failed:', voteResponse);
+        console.error('❌ Vote failed:', voteResponse);
         Alert.alert(
           "Vote Failed",
           "There was a problem recording your vote. Please try again.",
@@ -254,12 +254,12 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
           userVoted: refetchResponse.userVoted
         });
         
-        console.log(`âœ… Vote updated: ${refetchResponse.userVoted ? 'Voted' : 'Unvoted'}, Count: ${refetchResponse.voteCount}`);
+        console.log(`✅ Vote updated: ${refetchResponse.userVoted ? 'Voted' : 'Unvoted'}, Count: ${refetchResponse.voteCount}`);
       } else {
-        console.error('âŒ Failed to refetch vote count');
+        console.error('❌ Failed to refetch vote count');
       }
     } catch (error) {
-      console.error('âŒ Error voting for complaint:', error);
+      console.error('❌ Error voting for complaint:', error);
       Alert.alert(
         "Vote Failed", 
         "There was a problem recording your vote. Please try again.",
@@ -273,8 +273,8 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
   const handleShare = async () => {
     try {
       const result = await Share.share({
-        message: `Check out this civic issue: ${complaint.title} - Reported via UrbanPulse App`,
-        url: `https://urbanpulse.org/complaints/${complaintId}`,
+        message: `Check out this civic issue: ${complaint.title} - Reported via CivicRezo App`,
+        url: `https://civicrezo.org/complaints/${complaintId}`,
         title: 'Share Civic Issue',
       });
     } catch (error) {
@@ -397,7 +397,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color="#3498db" />
+        <ActivityIndicator size="large" color="#1A1A1A" />
         <Text style={styles.loadingText}>Loading complaint details...</Text>
       </View>
     );
@@ -554,7 +554,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                 <Ionicons 
                   name={complaint.userVoted ? "arrow-up-circle" : "arrow-up-circle-outline"} 
                   size={30} 
-                  color={complaint.userVoted ? "#3498db" : "#777"} 
+                  color={complaint.userVoted ? "#1A1A1A" : "#777"} 
                 />
               </Animated.View>
               <Text style={[styles.voteCount, complaint.userVoted && styles.userVotedText]}>
@@ -621,7 +621,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                   onPress={handleNavigateToMap}
                 >
                   <Text style={styles.viewOnMapText}>View on Full Map</Text>
-                  <Ionicons name="map-outline" size={16} color="#3498db" />
+                  <Ionicons name="map-outline" size={16} color="#1A1A1A" />
                 </TouchableOpacity>
               </View>
             )}
@@ -770,7 +770,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
               <View style={styles.breakdownContent}>
                 {loadingBreakdown ? (
                   <View style={styles.breakdownLoading}>
-                    <ActivityIndicator size="small" color="#3498db" />
+                    <ActivityIndicator size="small" color="#1A1A1A" />
                     <Text style={styles.loadingText}>Loading breakdown...</Text>
                   </View>
                 ) : breakdownData ? (
@@ -778,7 +778,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     {/* Infrastructure Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>ðŸ¢ Infrastructure</Text>
+                        <Text style={styles.scoreName}>Infrastructure</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.infrastructureScore || 0) * 100)}%
                         </Text>
@@ -799,7 +799,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     {/* Image Analysis Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>ðŸ“· Image Analysis</Text>
+                        <Text style={styles.scoreName}>Image Analysis</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.imageValidationScore || 0) * 100)}%
                         </Text>
@@ -820,7 +820,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     {/* Emotion Analysis Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>ðŸ§  Emotion Analysis</Text>
+                        <Text style={styles.scoreName}>Emotion Analysis</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.emotionScore || 0) * 100)}%
                         </Text>
@@ -841,7 +841,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     {/* Community Voting Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>ðŸ—³ï¸ Community Votes</Text>
+                        <Text style={styles.scoreName}>Community Votes</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.voteScore || 0) * 100)}%
                         </Text>
@@ -860,7 +860,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     </View>
 
                     <Text style={styles.weightingNote}>
-                      Weighting: Infrastructure (40%) â€¢ Image (30%) â€¢ Emotion (20%) â€¢ Votes (10%)
+                      Weighting: Infrastructure (40%) • Image (30%) • Emotion (20%) • Votes (10%)
                     </Text>
                   </View>
                 ) : (
@@ -949,7 +949,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: Platform.OS === 'ios' ? 90 : 60,
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1116,7 +1116,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -1150,7 +1150,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   userVotedText: {
-    color: '#3498db',
+    color: '#1A1A1A',
   },
   descriptionContainer: {
     backgroundColor: '#fff',
@@ -1218,7 +1218,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#3498db',
+    borderColor: '#1A1A1A',
   },
   markerArrow: {
     width: 0,
@@ -1228,7 +1228,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 5,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: '#3498db',
+    borderTopColor: '#1A1A1A',
   },
   viewOnMapButton: {
     position: 'absolute',
@@ -1247,7 +1247,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   viewOnMapText: {
-    color: '#3498db',
+    color: '#1A1A1A',
     fontSize: 12,
     marginRight: 4,
     fontWeight: '500',
@@ -1486,7 +1486,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backButton: {
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
@@ -1613,4 +1613,3 @@ const styles = StyleSheet.create({
 });
 
 export default ComplaintDetailScreen;
-

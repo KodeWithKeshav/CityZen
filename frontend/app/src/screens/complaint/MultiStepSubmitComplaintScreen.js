@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
+
   View,
   Text,
   StyleSheet,
@@ -12,6 +13,7 @@ import {
   Platform,
   Modal,
   ScrollView,
+
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import * as ImagePicker from 'expo-image-picker';
@@ -27,6 +29,7 @@ import CustomTextInput from '../../components/CustomTextInput';
 import InfrastructureService from '../../services/InfrastructureService';
 
 const MultiStepSubmitComplaintScreen = ({ navigation }) => {
+
   // Overall flow state
   const [currentStep, setCurrentStep] = useState(1);
   const [complaintData, setComplaintData] = useState({
@@ -34,13 +37,13 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     category: '',
     locationData: null,
     locationPriorityScore: null,
-    
+
     // Step 2: Title and description
     title: '',
     description: '',
     selectedLang: 'hi-IN',
     emotionScore: null,
-    
+
     // Step 3: Image and validation
     selectedImage: null,
     imageValidation: null,
@@ -51,18 +54,19 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   const [validatingImage, setValidatingImage] = useState(false);
   const [autoCapturingLocation, setAutoCapturingLocation] = useState(false);
   const [locationCaptured, setLocationCaptured] = useState(false);
-  
+
   // Voice input states
   const [isRecording, setIsRecording] = useState(false);
   const [voiceError, setVoiceError] = useState(null);
   const [speechService] = useState(new SarvamSpeechService());
-  
+  const lastTranslationRef = useRef(null);
+
   // Language picker modal state
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
-  
+
   // Infrastructure modal state
   const [showInfrastructureModal, setShowInfrastructureModal] = useState(false);
-  
+
   // Submission result
   const [submissionResult, setSubmissionResult] = useState(null);
   const [nearbyInfrastructure, setNearbyInfrastructure] = useState(null);
@@ -91,17 +95,17 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     { value: 'fire_hazard', label: 'Fire Hazard', urgency: 'urgent', icon: '🚨' },
     { value: 'electrical_danger', label: 'Electrical Danger', urgency: 'urgent', icon: '⚡' },
     { value: 'sewage_overflow', label: 'Sewage Overflow', urgency: 'urgent', icon: '🚰' },
-    
+
     // Safety Issues
     { value: 'broken_streetlight', label: 'Broken Streetlight', urgency: 'safety', icon: '💡' },
     { value: 'traffic_signal', label: 'Traffic Signal Issue', urgency: 'safety', icon: '🚦' },
-    
+
     // General Infrastructure
     { value: 'pothole', label: 'Pothole', urgency: 'general', icon: '🕳️' },
     { value: 'road_damage', label: 'Road Damage', urgency: 'general', icon: '�️' },
     { value: 'water_leakage', label: 'Water Leakage', urgency: 'general', icon: '💧' },
     { value: 'garbage_collection', label: 'Garbage Collection', urgency: 'general', icon: '🗑️' },
-    
+
     // Other Issues
     { value: 'others', label: 'Others', urgency: 'general', icon: '�' },
   ];
@@ -118,7 +122,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
   const handleDescriptionChange = useCallback((text) => {
     setComplaintData(prev => ({ ...prev, description: text }));
-    
+
     // Debounced emotion analysis
     if (text.trim().length > 10) {
       setTimeout(() => {
@@ -133,14 +137,14 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   // Emotion analysis function
   const analyzeEmotion = useCallback(async (text) => {
     if (!text || text.trim().length < 10) return;
-    
+
     console.log('🧠 Starting emotion analysis for text:', text.substring(0, 50) + '...');
     console.log('🌐 API_BASE_URL:', API_BASE_URL);
-    
+
     try {
       const apiUrl = `${API_BASE_URL}/api/emotion/analyze`;
       console.log('📡 Calling emotion API:', apiUrl);
-      
+
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -148,16 +152,17 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         },
         body: JSON.stringify({
           text: text,
+          translation: lastTranslationRef.current || null,
           category: complaintData.category || 'general'
         }),
       });
 
       console.log('📊 Emotion API response status:', response.status);
-      
+
       if (response.ok) {
         const result = await response.json();
         console.log('✅ Emotion analysis result:', result);
-        
+
         if (result.success && result.data) {
           const emotionData = {
             score: (result.data.emotionScore * 100).toFixed(1),
@@ -165,11 +170,11 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             analysisMethod: result.data.analysisMethod,
             language: result.data.language
           };
-          
+
           console.log('💡 Setting emotion data:', emotionData);
-          
-          setComplaintData(prev => ({ 
-            ...prev, 
+
+          setComplaintData(prev => ({
+            ...prev,
             emotionScore: emotionData
           }));
         } else {
@@ -202,19 +207,23 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         if (result && result.value && result.value.length > 0) {
           const voiceText = result.value[0];
           console.log('🎤 Voice input result:', voiceText);
-          
+
           // Use handleDescriptionChange to ensure emotion analysis is triggered
           handleDescriptionChange(voiceText);
         }
       },
       onTranslation: (translation) => {
         console.log('Translation received:', translation);
+        if (translation && translation.trim().length > 0) {
+          lastTranslationRef.current = translation;
+          console.log('🌐 Stored English translation for emotion analysis:', translation);
+        }
       },
       onError: (error) => {
         console.error('Speech recognition error:', error);
         setVoiceError(error.error?.message || 'Error in speech recognition');
         setIsRecording(false);
-        
+
         Alert.alert(
           'Speech Recognition Error',
           `There was an error processing your speech. Please try again or type your description.`,
@@ -226,7 +235,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         console.log('Speech recognition ended');
       }
     });
-    
+
     return () => {
       // Clean up speech service on component unmount
       if (isRecording) {
@@ -253,10 +262,10 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               currentStep >= step.number && styles.progressStepActive,
               currentStep === step.number && styles.progressStepCurrent
             ]}>
-              <Ionicons 
-                name={step.icon} 
-                size={20} 
-                color={currentStep >= step.number ? '#fff' : '#666'} 
+              <Ionicons
+                name={step.icon}
+                size={20}
+                color={currentStep >= step.number ? '#fff' : '#666'}
               />
               <Text style={[
                 styles.progressStepText,
@@ -309,7 +318,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   const Step1IssueTypeSelection = () => {
     const handleCategorySelect = async (category) => {
       setComplaintData(prev => ({ ...prev, category }));
-      
+
       // Auto-capture location after category selection
       if (!locationCaptured) {
         await autoCaptureLo‌‌cation(category);
@@ -318,35 +327,35 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
     const autoCaptureLo‌‌cation = async (category) => {
       if (autoCapturingLocation || locationCaptured) return;
-      
+
       setAutoCapturingLocation(true);
-      
+
       try {
         // Get recommended privacy level for the complaint type
         const recommendedPrivacy = LocationService.getRecommendedPrivacyLevel(category);
-        
+
         // Show user-friendly message about location capture
         const urgencyLevel = LocationService.determineUrgencyLevel(category);
         const isUrgent = urgencyLevel === 'urgent';
-        
+
         Alert.alert(
           '📍 Location Required',
-          isUrgent 
+          isUrgent
             ? `For ${category} complaints, we need your exact location to prioritize emergency response. This helps us route your complaint to the nearest response team.`
             : `We'll capture your location to help prioritize your complaint and route it to the correct municipal office. Your privacy is protected with street-level accuracy.`,
           [
-            { 
-              text: 'Cancel', 
+            {
+              text: 'Cancel',
               style: 'cancel',
               onPress: () => setAutoCapturingLocation(false)
             },
-            { 
-              text: isUrgent ? 'Allow Exact Location' : 'Allow Location', 
+            {
+              text: isUrgent ? 'Allow Exact Location' : 'Allow Location',
               onPress: () => proceedWithLocationCapture(recommendedPrivacy, category)
             }
           ]
         );
-        
+
       } catch (error) {
         console.error('Auto location capture error:', error);
         setAutoCapturingLocation(false);
@@ -357,16 +366,16 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       try {
         // Capture location with recommended privacy level
         const location = await LocationService.getLocationWithPrivacy(privacyLevel, category);
-        
+
         setComplaintData(prev => ({ ...prev, locationData: location }));
         setLocationCaptured(true);
-        
+
         // Immediately calculate priority score
         await calculateLocationPriority(location, category);
-        
+
         // Get nearby infrastructure after location capture
         await loadNearbyInfrastructure(location);
-        
+
         // Show success message with location info
         Alert.alert(
           '✅ Location Captured Successfully!',
@@ -375,7 +384,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           `Your complaint will be prioritized based on nearby infrastructure.`,
           [{ text: 'Continue', style: 'default' }]
         );
-        
+
       } catch (error) {
         console.error('Location capture error:', error);
         Alert.alert(
@@ -408,11 +417,11 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             }
           }),
         });
-        
+
         if (response.ok) {
           const priorityResult = await response.json();
           setComplaintData(prev => ({ ...prev, locationPriorityScore: priorityResult }));
-          
+
           // Show priority notification for high-priority complaints
           if (priorityResult.priorityLevel === 'CRITICAL') {
             Alert.alert(
@@ -424,7 +433,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         } else {
           console.error('Priority calculation failed:', response.status);
         }
-        
+
       } catch (error) {
         console.error('Failed to calculate location priority:', error);
       }
@@ -439,21 +448,21 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       setIsLoadingInfrastructure(true);
       try {
         console.log('Loading nearby infrastructure for location:', location);
-        
+
         const infrastructure = await InfrastructureService.getNearbyInfrastructure(
           location.latitude,
           location.longitude,
           2000 // 2km radius
         );
-        
+
         console.log('Nearby infrastructure found:', infrastructure);
         setNearbyInfrastructure(infrastructure);
-        
+
         // Show infrastructure report to user in a custom modal
         if (infrastructure && (infrastructure.infrastructure?.length > 0 || infrastructure.summary)) {
           setShowInfrastructureModal(true);
         }
-        
+
       } catch (error) {
         console.error('Error loading nearby infrastructure:', error);
       } finally {
@@ -466,10 +475,10 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         Alert.alert('Error', 'Please select a complaint category');
         return;
       }
-      
+
       if (!complaintData.locationData) {
         Alert.alert(
-          'Location Required', 
+          'Location Required',
           'Location is required for priority assessment. Would you like to capture your location now?',
           [
             { text: 'Cancel', style: 'cancel' },
@@ -483,7 +492,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     };
 
     return (
-      <KeyboardAwareScrollView 
+      <KeyboardAwareScrollView
         style={styles.stepContainer}
         enableOnAndroid={true}
         keyboardShouldPersistTaps="handled"
@@ -519,8 +528,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                     styles.categoryUrgency,
                     category.urgency === 'urgent' && styles.categoryUrgencyHigh
                   ]}>
-                    {category.urgency === 'urgent' ? '🚨 Urgent' : 
-                     category.urgency === 'safety' ? '⚠️ Safety' : '📋 General'}
+                    {category.urgency === 'urgent' ? '🚨 Urgent' :
+                      category.urgency === 'safety' ? '⚠️ Safety' : '📋 General'}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -535,7 +544,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             <Text style={styles.locationStatusText}>🔍 Capturing your location...</Text>
           </View>
         )}
-        
+
         {locationCaptured && complaintData.locationData && (
           <View style={styles.locationCapturedContainer}>
             <Text style={styles.locationCapturedTitle}>✅ Location Captured Successfully</Text>
@@ -568,7 +577,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           <View style={styles.infrastructureContainer}>
             <Text style={styles.infrastructureTitle}>🏢 Nearby Infrastructure</Text>
             <Text style={styles.infrastructureSummary}>{nearbyInfrastructure.summary}</Text>
-            
+
             <View style={styles.infrastructureList}>
               {nearbyInfrastructure.places.slice(0, 3).map((place, index) => (
                 <View key={index} style={styles.infrastructureItem}>
@@ -611,7 +620,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   const Step2TitleAndDescription = () => {
     const startVoiceInput = async () => {
       setVoiceError(null);
-      
+
       try {
         // Request audio recording permissions
         const { status } = await Audio.requestPermissionsAsync();
@@ -619,11 +628,11 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           Alert.alert('Permission Required', 'Please allow microphone access to record your complaint.');
           return;
         }
-        
+
         // Start recording with Sarvam Speech Service using the selected language
         console.log(`Starting speech recognition with language: ${complaintData.selectedLang}`);
         await speechService.startSpeech(complaintData.selectedLang);
-        
+
       } catch (err) {
         console.error('Speech recognition setup error:', err);
         setVoiceError(err.message);
@@ -658,7 +667,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     };
 
     return (
-      <KeyboardAwareScrollView 
+      <KeyboardAwareScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContentContainer}
         enableOnAndroid={true}
@@ -679,236 +688,236 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             </Text>
           </View>
 
-        {/* Selected Category Display */}
-        <View style={styles.selectedCategoryDisplay}>
-          <Text style={styles.selectedCategoryTitle}>Selected Issue Type:</Text>
-          <View style={styles.selectedCategoryChip}>
-            <Text style={styles.selectedCategoryChipText}>
-              {selectedCategory?.icon} {' '}
-              {selectedCategory?.label}
-            </Text>
-          </View>
-        </View>
-
-        {/* Title Input - Custom Component */}
-        <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>Complaint Title *</Text>
-          <CustomTextInput
-            value={complaintData.title}
-            onChangeText={handleTitleChange}
-            placeholder="Brief title describing the issue"
-            maxLength={100}
-            multiline={false}
-            style={styles.customInputContainer}
-          />
-          <Text style={styles.characterCount}>{complaintData.title.length}/100</Text>
-        </View>
-
-        {/* Language Picker - Enhanced */}
-        <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>Select Language for Voice Input</Text>
-          <TouchableOpacity 
-            style={styles.customLanguageSelector}
-            onPress={() => setShowLanguagePicker(true)}
-          >
-            <View style={styles.languageSelectorContent}>
-              <View style={styles.selectedLanguageDisplay}>
-                <Ionicons name="language" size={24} color="#2E7D32" />
-                <View style={styles.languageTextContainer}>
-                  <Text style={styles.selectedLanguageText}>
-                    {languageOptions.find(lang => lang.value === complaintData.selectedLang)?.label || 'Hindi (हिंदी)'}
-                  </Text>
-                  <Text style={styles.selectedLanguageSubtext}>
-                    {languageOptions.find(lang => lang.value === complaintData.selectedLang)?.nativeName || 'हिंदी'}
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-down" size={20} color="#666" />
+          {/* Selected Category Display */}
+          <View style={styles.selectedCategoryDisplay}>
+            <Text style={styles.selectedCategoryTitle}>Selected Issue Type:</Text>
+            <View style={styles.selectedCategoryChip}>
+              <Text style={styles.selectedCategoryChipText}>
+                {selectedCategory?.icon} {' '}
+                {selectedCategory?.label}
+              </Text>
             </View>
-          </TouchableOpacity>
-          <Text style={styles.languageHelper}>
-            🎙️ Voice input will be processed in the selected language
+          </View>
 
-
-
-
-          </Text>
-        </View>
-
-        {/* Description Input - Custom Component */}
-        <View style={styles.inputSection}>
-          <Text style={styles.inputLabel}>Description *</Text>
-          <View style={styles.descriptionWrapper}>
+          {/* Title Input - Custom Component */}
+          <View style={styles.inputSection}>
+            <Text style={styles.inputLabel}>Complaint Title *</Text>
             <CustomTextInput
-              value={complaintData.description}
-              onChangeText={handleDescriptionChange}
-              placeholder="Detailed description of the civic issue"
-              maxLength={500}
-              multiline={true}
+              value={complaintData.title}
+              onChangeText={handleTitleChange}
+              placeholder="Brief title describing the issue"
+              maxLength={100}
+              multiline={false}
               style={styles.customInputContainer}
             />
+            <Text style={styles.characterCount}>{complaintData.title.length}/100</Text>
           </View>
-          
-          {/* Voice Button - Separate from input */}
-          <View style={styles.voiceButtonContainer}>
-            <TouchableOpacity 
-              style={styles.voiceButtonEnhanced}
-              onPress={isRecording ? stopVoiceInput : startVoiceInput} 
-              disabled={loading}
+
+          {/* Language Picker - Enhanced */}
+          <View style={styles.inputSection}>
+            <Text style={styles.inputLabel}>Select Language for Voice Input</Text>
+            <TouchableOpacity
+              style={styles.customLanguageSelector}
+              onPress={() => setShowLanguagePicker(true)}
             >
-              <Ionicons 
-                name={isRecording ? 'mic' : 'mic-outline'} 
-                size={24} 
-                color={isRecording ? '#2E7D32' : loading ? '#ccc' : '#666'} 
+              <View style={styles.languageSelectorContent}>
+                <View style={styles.selectedLanguageDisplay}>
+                  <Ionicons name="language" size={24} color="#2E7D32" />
+                  <View style={styles.languageTextContainer}>
+                    <Text style={styles.selectedLanguageText}>
+                      {languageOptions.find(lang => lang.value === complaintData.selectedLang)?.label || 'Hindi (हिंदी)'}
+                    </Text>
+                    <Text style={styles.selectedLanguageSubtext}>
+                      {languageOptions.find(lang => lang.value === complaintData.selectedLang)?.nativeName || 'हिंदी'}
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-down" size={20} color="#666" />
+              </View>
+            </TouchableOpacity>
+            <Text style={styles.languageHelper}>
+              🎙️ Voice input will be processed in the selected language
+
+
+
+
+            </Text>
+          </View>
+
+          {/* Description Input - Custom Component */}
+          <View style={styles.inputSection}>
+            <Text style={styles.inputLabel}>Description *</Text>
+            <View style={styles.descriptionWrapper}>
+              <CustomTextInput
+                value={complaintData.description}
+                onChangeText={handleDescriptionChange}
+                placeholder="Detailed description of the civic issue"
+                maxLength={500}
+                multiline={true}
+                style={styles.customInputContainer}
               />
-              <Text style={[
-                styles.voiceButtonText,
-                isRecording && styles.voiceButtonTextActive
-              ]}>
-                {isRecording ? 'Stop Recording' : 'Voice Input'}
-              </Text>
+            </View>
+
+            {/* Voice Button - Separate from input */}
+            <View style={styles.voiceButtonContainer}>
+              <TouchableOpacity
+                style={styles.voiceButtonEnhanced}
+                onPress={isRecording ? stopVoiceInput : startVoiceInput}
+                disabled={loading}
+              >
+                <Ionicons
+                  name={isRecording ? 'mic' : 'mic-outline'}
+                  size={24}
+                  color={isRecording ? '#2E7D32' : loading ? '#ccc' : '#666'}
+                />
+                <Text style={[
+                  styles.voiceButtonText,
+                  isRecording && styles.voiceButtonTextActive
+                ]}>
+                  {isRecording ? 'Stop Recording' : 'Voice Input'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.characterCount}>{complaintData.description.length}/500</Text>
+
+            {/* Emotion Analysis Score */}
+            {complaintData.emotionScore ? (
+              <View style={styles.emotionScoreContainer}>
+                <Text style={styles.emotionScoreLabel}>🧠 Emotion Analysis Results</Text>
+                <Text style={styles.emotionScoreValue}>
+                  Priority Impact: {complaintData.emotionScore.score}%
+                </Text>
+                <Text style={styles.emotionScoreMethod}>
+                  Method: {complaintData.emotionScore.analysisMethod || 'ai-powered'} ({complaintData.emotionScore.language || 'en'})
+                </Text>
+                {complaintData.emotionScore.emotions && (
+                  <View style={styles.emotionDetails}>
+                    <Text style={styles.emotionDetailText}>
+                      Urgency: {(complaintData.emotionScore.emotions.urgency * 100).toFixed(0)}% |
+                      Concern: {(complaintData.emotionScore.emotions.concern * 100).toFixed(0)}% |
+                      Frustration: {(complaintData.emotionScore.emotions.frustration * 100).toFixed(0)}%
+                    </Text>
+                    {complaintData.emotionScore.emotions.anger && (
+                      <Text style={styles.emotionDetailText}>
+                        Anger: {(complaintData.emotionScore.emotions.anger * 100).toFixed(0)}%
+                      </Text>
+                    )}
+                  </View>
+                )}
+              </View>
+            ) : (
+              <View style={styles.emotionScoreContainer}>
+                <Text style={styles.emotionScoreLabel}>🧠 Emotion Analysis</Text>
+                <Text style={styles.emotionScoreMethod}>
+                  {complaintData.description.length < 10
+                    ? 'Write at least 10 characters for emotion analysis'
+                    : 'Analyzing emotions... (Auto-triggers after 1 second)'}
+                </Text>
+              </View>
+            )}
+
+            {complaintData.description.length > 10 && !complaintData.emotionScore && (
+              <View style={styles.emotionAnalyzingContainer}>
+                <ActivityIndicator size="small" color="#666" />
+                <Text style={styles.emotionAnalyzingText}>Analyzing emotion...</Text>
+              </View>
+            )}
+          </View>
+
+          {voiceError && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>⚠️ {voiceError}</Text>
+            </View>
+          )}
+
+          {/* Voice Recording Status */}
+          {isRecording && (
+            <View style={styles.recordingIndicator}>
+              <ActivityIndicator size="small" color="#2E7D32" />
+              <Text style={styles.recordingText}>🎤 Recording... Speak clearly</Text>
+            </View>
+          )}
+
+          {/* Navigation Buttons */}
+          <View style={styles.navigationButtons}>
+            <TouchableOpacity
+              style={styles.backNavigationButton}
+              onPress={goToPreviousStep}
+            >
+              <Ionicons name="chevron-back" size={20} color="#666" />
+              <Text style={styles.backNavigationText}>Back</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.continueButton,
+                (!complaintData.title.trim() || !complaintData.description.trim()) && styles.continueButtonDisabled
+              ]}
+              onPress={handleContinue}
+              disabled={!complaintData.title.trim() || !complaintData.description.trim()}
+            >
+              <Text style={styles.continueButtonText}>Continue to Photo</Text>
             </TouchableOpacity>
           </View>
-          
-          <Text style={styles.characterCount}>{complaintData.description.length}/500</Text>
-          
-          {/* Emotion Analysis Score */}
-          {complaintData.emotionScore ? (
-            <View style={styles.emotionScoreContainer}>
-              <Text style={styles.emotionScoreLabel}>🧠 Emotion Analysis Results</Text>
-              <Text style={styles.emotionScoreValue}>
-                Priority Impact: {complaintData.emotionScore.score}%
-              </Text>
-              <Text style={styles.emotionScoreMethod}>
-                Method: {complaintData.emotionScore.analysisMethod || 'ai-powered'} ({complaintData.emotionScore.language || 'en'})
-              </Text>
-              {complaintData.emotionScore.emotions && (
-                <View style={styles.emotionDetails}>
-                  <Text style={styles.emotionDetailText}>
-                    Urgency: {(complaintData.emotionScore.emotions.urgency * 100).toFixed(0)}% | 
-                    Concern: {(complaintData.emotionScore.emotions.concern * 100).toFixed(0)}% | 
-                    Frustration: {(complaintData.emotionScore.emotions.frustration * 100).toFixed(0)}%
-                  </Text>
-                  {complaintData.emotionScore.emotions.anger && (
-                    <Text style={styles.emotionDetailText}>
-                      Anger: {(complaintData.emotionScore.emotions.anger * 100).toFixed(0)}%
-                    </Text>
-                  )}
-                </View>
-              )}
-            </View>
-          ) : (
-            <View style={styles.emotionScoreContainer}>
-              <Text style={styles.emotionScoreLabel}>🧠 Emotion Analysis</Text>
-              <Text style={styles.emotionScoreMethod}>
-                {complaintData.description.length < 10 
-                  ? 'Write at least 10 characters for emotion analysis' 
-                  : 'Analyzing emotions... (Auto-triggers after 1 second)'}
-              </Text>
-            </View>
-          )}
-          
-          {complaintData.description.length > 10 && !complaintData.emotionScore && (
-            <View style={styles.emotionAnalyzingContainer}>
-              <ActivityIndicator size="small" color="#666" />
-              <Text style={styles.emotionAnalyzingText}>Analyzing emotion...</Text>
-            </View>
-          )}
-        </View>
 
-        {voiceError && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>⚠️ {voiceError}</Text>
-          </View>
-        )}
-
-        {/* Voice Recording Status */}
-        {isRecording && (
-          <View style={styles.recordingIndicator}>
-            <ActivityIndicator size="small" color="#2E7D32" />
-            <Text style={styles.recordingText}>🎤 Recording... Speak clearly</Text>
-          </View>
-        )}
-
-        {/* Navigation Buttons */}
-        <View style={styles.navigationButtons}>
-          <TouchableOpacity 
-            style={styles.backNavigationButton}
-            onPress={goToPreviousStep}
+          {/* Custom Language Picker Modal */}
+          <Modal
+            visible={showLanguagePicker}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={() => setShowLanguagePicker(false)}
           >
-            <Ionicons name="chevron-back" size={20} color="#666" />
-            <Text style={styles.backNavigationText}>Back</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.continueButton,
-              (!complaintData.title.trim() || !complaintData.description.trim()) && styles.continueButtonDisabled
-            ]}
-            onPress={handleContinue}
-            disabled={!complaintData.title.trim() || !complaintData.description.trim()}
-          >
-            <Text style={styles.continueButtonText}>Continue to Photo</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Custom Language Picker Modal */}
-        <Modal
-          visible={showLanguagePicker}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowLanguagePicker(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.languagePickerModal}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Language</Text>
-                <TouchableOpacity 
-                  onPress={() => setShowLanguagePicker(false)}
-                  style={styles.modalCloseButton}
-                >
-                  <Ionicons name="close" size={24} color="#666" />
-                </TouchableOpacity>
-              </View>
-              
-              <ScrollView style={styles.languageList} showsVerticalScrollIndicator={false}>
-                {languageOptions.map((language) => (
+            <View style={styles.modalOverlay}>
+              <View style={styles.languagePickerModal}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Select Language</Text>
                   <TouchableOpacity
-                    key={language.value}
-                    style={[
-                      styles.languageOption,
-                      complaintData.selectedLang === language.value && styles.selectedLanguageOption
-                    ]}
-                    onPress={() => {
-                      handleLanguageChange(language.value);
-                      setShowLanguagePicker(false);
-                    }}
+                    onPress={() => setShowLanguagePicker(false)}
+                    style={styles.modalCloseButton}
                   >
-                    <View style={styles.languageOptionContent}>
-                      <View style={styles.languageInfo}>
-                        <Text style={[
-                          styles.languageOptionLabel,
-                          complaintData.selectedLang === language.value && styles.selectedLanguageOptionText
-                        ]}>
-                          {language.label}
-                        </Text>
-                        <Text style={[
-                          styles.languageNativeName,
-                          complaintData.selectedLang === language.value && styles.selectedLanguageNativeText
-                        ]}>
-                          {language.nativeName}
-                        </Text>
-                      </View>
-                      {complaintData.selectedLang === language.value && (
-                        <Ionicons name="checkmark-circle" size={24} color="#2E7D32" />
-                      )}
-                    </View>
+                    <Ionicons name="close" size={24} color="#666" />
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
+                </View>
+
+                <ScrollView style={styles.languageList} showsVerticalScrollIndicator={false}>
+                  {languageOptions.map((language) => (
+                    <TouchableOpacity
+                      key={language.value}
+                      style={[
+                        styles.languageOption,
+                        complaintData.selectedLang === language.value && styles.selectedLanguageOption
+                      ]}
+                      onPress={() => {
+                        handleLanguageChange(language.value);
+                        setShowLanguagePicker(false);
+                      }}
+                    >
+                      <View style={styles.languageOptionContent}>
+                        <View style={styles.languageInfo}>
+                          <Text style={[
+                            styles.languageOptionLabel,
+                            complaintData.selectedLang === language.value && styles.selectedLanguageOptionText
+                          ]}>
+                            {language.label}
+                          </Text>
+                          <Text style={[
+                            styles.languageNativeName,
+                            complaintData.selectedLang === language.value && styles.selectedLanguageNativeText
+                          ]}>
+                            {language.nativeName}
+                          </Text>
+                        </View>
+                        {complaintData.selectedLang === language.value && (
+                          <Ionicons name="checkmark-circle" size={24} color="#2E7D32" />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
             </View>
-          </View>
-        </Modal>
+          </Modal>
         </View>
       </KeyboardAwareScrollView>
     );
@@ -920,7 +929,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       try {
         // Request permissions
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        
+
         if (permissionResult.granted === false) {
           Alert.alert('Permission Required', 'Please allow access to your photo library to upload images.');
           return;
@@ -948,7 +957,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       try {
         // Request permissions
         const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-        
+
         if (permissionResult.granted === false) {
           Alert.alert('Permission Required', 'Please allow access to your camera to take photos.');
           return;
@@ -974,10 +983,10 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     const validateImage = async (imageAsset) => {
       if (!imageAsset) return;
       setValidatingImage(true);
-      
+
       try {
         console.log('🔍 Starting image validation...');
-        
+
         // 1. Upload image to Cloudinary
         const CLOUDINARY_URL = 'https://api.cloudinary.com/v1_1/dsvc9y4rq/image/upload';
         const UPLOAD_PRESET = 'damage';
@@ -988,17 +997,17 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           name: imageAsset.fileName || 'civic-image.jpg',
         });
         data.append('upload_preset', UPLOAD_PRESET);
-        
+
         const cloudRes = await fetch(CLOUDINARY_URL, {
           method: 'POST',
           body: data,
         });
         const cloudResult = await cloudRes.json();
-        
+
         if (!cloudResult.secure_url) throw new Error('Cloudinary upload failed');
-        
+
         console.log('✅ Image uploaded to Cloudinary:', cloudResult.secure_url);
-        
+
         // Update selectedImage to use Cloudinary URL
         setComplaintData(prev => ({
           ...prev,
@@ -1009,7 +1018,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             publicId: cloudResult.public_id
           }
         }));
-        
+
         // 2. Send imageUrl to backend for validation
         const validateRes = await fetch(`${API_BASE_URL}/api/image-analysis/validate-image`, {
           method: 'POST',
@@ -1017,7 +1026,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           body: JSON.stringify({ imageUrl: cloudResult.secure_url }),
         });
         const result = await validateRes.json();
-        
+
         console.log('📋 Validation result:', result);
 
         // Process validation result
@@ -1030,12 +1039,12 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           data: result.data || {},
           raw: result.raw || null,
         };
-        
+
         setComplaintData(prev => ({ ...prev, imageValidation: validationData }));
-        
+
         // Show validation result
         const displayConfidence = validationData.modelConfidence >= 0.7 ? validationData.modelConfidence : validationData.confidence;
-        
+
         if (validationData.allowUpload) {
           Alert.alert(
             '✅ Valid Civic Issue Detected!',
@@ -1052,7 +1061,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             ]
           );
         }
-        
+
       } catch (error) {
         console.error('❌ Image validation error:', error);
         Alert.alert(
@@ -1091,7 +1100,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
     const submitComplaint = async () => {
       setLoading(true);
-      
+
       try {
         // Prepare submission data
         const submissionData = {
@@ -1118,9 +1127,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             emotions: complaintData.emotionScore.emotions,
             analysisMethod: complaintData.emotionScore.analysisMethod,
             language: complaintData.emotionScore.language
-          } : null
+          } : null,
         };
-        
+
         console.log('📤 Submitting complaint with comprehensive data:', submissionData);
 
         // Submit to comprehensive endpoint using makeApiCall
@@ -1130,7 +1139,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         });
 
         console.log('📋 Response data:', result);
-        
+
         if (result.success) {
           setSubmissionResult(result);
           goToNextStep(); // Go to success page
@@ -1141,10 +1150,10 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
       } catch (error) {
         console.error('❌ Submission error:', error);
-        
+
         let errorMessage = 'Please check your connection and try again.';
         let errorTitle = 'Submission Failed';
-        
+
         if (error.message.includes('Network request failed')) {
           errorMessage = 'Cannot connect to server. Please check your internet connection.';
           errorTitle = 'Connection Error';
@@ -1160,9 +1169,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         } else if (error.message) {
           errorMessage = error.message;
         }
-        
+
         Alert.alert(
-          errorTitle, 
+          errorTitle,
           errorMessage,
           [
             { text: 'Retry', onPress: () => submitComplaint() },
@@ -1206,7 +1215,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     };
 
     return (
-      <KeyboardAwareScrollView 
+      <KeyboardAwareScrollView
         style={styles.stepContainer}
         enableOnAndroid={true}
         keyboardShouldPersistTaps="handled"
@@ -1224,7 +1233,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           {complaintData.selectedImage ? (
             <View style={styles.selectedImageContainer}>
               <Image source={{ uri: complaintData.selectedImage.uri }} style={styles.selectedImage} />
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.changeImageButton}
                 onPress={() => setComplaintData(prev => ({ ...prev, selectedImage: null, imageValidation: null }))}
               >
@@ -1237,7 +1246,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                 <Ionicons name="camera" size={32} color="#2E7D32" />
                 <Text style={styles.imagePickerText}>Take Photo</Text>
               </TouchableOpacity>
-              
+
               <TouchableOpacity style={styles.imagePickerButton} onPress={pickImage}>
                 <Ionicons name="images" size={32} color="#2E7D32" />
                 <Text style={styles.imagePickerText}>Choose from Gallery</Text>
@@ -1250,7 +1259,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
         {/* Navigation Buttons */}
         <View style={styles.navigationButtons}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backNavigationButton}
             onPress={goToPreviousStep}
           >
@@ -1299,13 +1308,13 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         location: complaintData.locationData.description || complaintData.locationData.address,
         created_at: new Date().toISOString()
       };
-      
+
       navigation.navigate('ComplaintMap', { newComplaint });
     };
 
     return (
-      <KeyboardAwareScrollView 
-        style={styles.stepContainer} 
+      <KeyboardAwareScrollView
+        style={styles.stepContainer}
         contentContainerStyle={styles.successContainer}
         enableOnAndroid={true}
         keyboardShouldPersistTaps="handled"
@@ -1322,17 +1331,17 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
         <View style={styles.complaintDetailsCard}>
           <Text style={styles.detailsCardTitle}>📋 Complaint Details</Text>
-          
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Complaint ID:</Text>
             <Text style={styles.detailValue}>{submissionResult.complaint.id}</Text>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Title:</Text>
             <Text style={styles.detailValue}>{complaintData.title}</Text>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Category:</Text>
             <Text style={styles.detailValue}>
@@ -1340,27 +1349,27 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               {complaintCategories.find(cat => cat.value === complaintData.category)?.label}
             </Text>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Status:</Text>
             <Text style={styles.detailValue}>{submissionResult.complaint.status || 'Pending'}</Text>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Priority Level:</Text>
             <Text style={[styles.detailValue, styles.priorityText]}>
-              {submissionResult.priorityAnalysis?.priorityLevel || 'MEDIUM'} 
+              {submissionResult.priorityAnalysis?.priorityLevel || 'MEDIUM'}
               ({Math.round((submissionResult.priorityAnalysis?.totalScore || 0) * 100)}%)
             </Text>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Location Accuracy:</Text>
             <Text style={styles.detailValue}>
               ±{complaintData.locationData.radiusM}m ({complaintData.locationData.precision})
             </Text>
           </View>
-          
+
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Submitted:</Text>
             <Text style={styles.detailValue}>{new Date().toLocaleString()}</Text>
@@ -1390,9 +1399,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             <Ionicons name="map" size={20} color="#fff" />
             <Text style={styles.mapButtonText}>View on Map</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.doneButton} 
+
+          <TouchableOpacity
+            style={styles.doneButton}
             onPress={() => navigation.navigate('FeedbackScreen', {
               complaintId: submissionResult.complaint.id,
               complaintTitle: complaintData.title
@@ -1408,7 +1417,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={currentStep > 1 ? goToPreviousStep : () => navigation.goBack()}
         >
@@ -1433,21 +1442,21 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           <View style={styles.infrastructureModal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>🏢 Nearby Infrastructure Report</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowInfrastructureModal(false)}
                 style={styles.modalCloseButton}
               >
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView style={styles.infrastructureModalContent} showsVerticalScrollIndicator={false}>
               {nearbyInfrastructure?.infrastructure?.length > 0 ? (
                 <>
                   <Text style={styles.infrastructureModalSubtitle}>
                     📍 Location captured successfully! Here are the facilities near your location:
                   </Text>
-                  
+
                   {/* Essential Services */}
                   {nearbyInfrastructure.infrastructure
                     .filter(infra => infra.priority === 'high')
@@ -1458,33 +1467,33 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                       return unique;
                     }, [])
                     .length > 0 && (
-                    <>
-                      <Text style={styles.infrastructureSectionTitle}>🚨 Essential Services</Text>
-                      {nearbyInfrastructure.infrastructure
-                        .filter(infra => infra.priority === 'high')
-                        .reduce((unique, infra) => {
-                          if (!unique.find(u => u.infrastructureType === infra.infrastructureType)) {
-                            unique.push(infra);
-                          }
-                          return unique;
-                        }, [])
-                        .map((infra, index) => (
-                          <View key={`high-${index}`} style={styles.infrastructureModalItem}>
-                            <View style={styles.infrastructureItemHeader}>
-                              <Text style={styles.infrastructureItemType}>
-                                {infra.infrastructureType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                              </Text>
-                              <Text style={styles.infrastructureItemDistance}>{infra.distance}m away</Text>
+                      <>
+                        <Text style={styles.infrastructureSectionTitle}>🚨 Essential Services</Text>
+                        {nearbyInfrastructure.infrastructure
+                          .filter(infra => infra.priority === 'high')
+                          .reduce((unique, infra) => {
+                            if (!unique.find(u => u.infrastructureType === infra.infrastructureType)) {
+                              unique.push(infra);
+                            }
+                            return unique;
+                          }, [])
+                          .map((infra, index) => (
+                            <View key={`high-${index}`} style={styles.infrastructureModalItem}>
+                              <View style={styles.infrastructureItemHeader}>
+                                <Text style={styles.infrastructureItemType}>
+                                  {infra.infrastructureType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                </Text>
+                                <Text style={styles.infrastructureItemDistance}>{infra.distance}m away</Text>
+                              </View>
+                              <Text style={styles.infrastructureItemName}>{infra.name}</Text>
+                              {infra.vicinity && (
+                                <Text style={styles.infrastructureItemVicinity}>{infra.vicinity}</Text>
+                              )}
                             </View>
-                            <Text style={styles.infrastructureItemName}>{infra.name}</Text>
-                            {infra.vicinity && (
-                              <Text style={styles.infrastructureItemVicinity}>{infra.vicinity}</Text>
-                            )}
-                          </View>
-                        ))}
-                    </>
-                  )}
-                  
+                          ))}
+                      </>
+                    )}
+
                   {/* Other Facilities */}
                   {nearbyInfrastructure.infrastructure
                     .filter(infra => infra.priority === 'medium')
@@ -1495,31 +1504,31 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                       return unique;
                     }, [])
                     .length > 0 && (
-                    <>
-                      <Text style={styles.infrastructureSectionTitle}>🏢 Other Facilities</Text>
-                      {nearbyInfrastructure.infrastructure
-                        .filter(infra => infra.priority === 'medium')
-                        .reduce((unique, infra) => {
-                          if (!unique.find(u => u.infrastructureType === infra.infrastructureType)) {
-                            unique.push(infra);
-                          }
-                          return unique;
-                        }, [])
-                        .slice(0, 4)
-                        .map((infra, index) => (
-                          <View key={`medium-${index}`} style={styles.infrastructureModalItem}>
-                            <View style={styles.infrastructureItemHeader}>
-                              <Text style={styles.infrastructureItemType}>
-                                {infra.infrastructureType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                              </Text>
-                              <Text style={styles.infrastructureItemDistance}>{infra.distance}m away</Text>
+                      <>
+                        <Text style={styles.infrastructureSectionTitle}>🏢 Other Facilities</Text>
+                        {nearbyInfrastructure.infrastructure
+                          .filter(infra => infra.priority === 'medium')
+                          .reduce((unique, infra) => {
+                            if (!unique.find(u => u.infrastructureType === infra.infrastructureType)) {
+                              unique.push(infra);
+                            }
+                            return unique;
+                          }, [])
+                          .slice(0, 4)
+                          .map((infra, index) => (
+                            <View key={`medium-${index}`} style={styles.infrastructureModalItem}>
+                              <View style={styles.infrastructureItemHeader}>
+                                <Text style={styles.infrastructureItemType}>
+                                  {infra.infrastructureType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                </Text>
+                                <Text style={styles.infrastructureItemDistance}>{infra.distance}m away</Text>
+                              </View>
+                              <Text style={styles.infrastructureItemName}>{infra.name}</Text>
                             </View>
-                            <Text style={styles.infrastructureItemName}>{infra.name}</Text>
-                          </View>
-                        ))}
-                    </>
-                  )}
-                  
+                          ))}
+                      </>
+                    )}
+
                   <View style={styles.infrastructureModalFooter}>
                     <Text style={styles.infrastructureModalSummary}>
                       📊 Total facilities found: {nearbyInfrastructure.totalFound || nearbyInfrastructure.infrastructure.length}
@@ -1532,8 +1541,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                 </Text>
               )}
             </ScrollView>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.infrastructureModalButton}
               onPress={() => setShowInfrastructureModal(false)}
             >
@@ -1544,675 +1553,677 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       </Modal>
     </SafeAreaView>
   );
+
 };
 
 // Base styles for the multi-step flow
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  scrollContentContainer: {
-    flexGrow: 1,
-    paddingBottom: 120,
-  },
-  header: {
-    backgroundColor: '#2E7D32',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  backButton: {
-    padding: 5,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 34,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    backgroundColor: '#fff',
-    marginBottom: 10,
-  },
-  progressStep: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  progressStepActive: {
-    opacity: 1,
-  },
-  progressStepCurrent: {
-    backgroundColor: '#2E7D32',
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  progressStepText: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  progressStepTextActive: {
-    color: '#2E7D32',
-    fontWeight: 'bold',
-  },
-  progressLine: {
-    height: 2,
-    backgroundColor: '#ddd',
-    flex: 0.3,
-    marginHorizontal: 10,
-  },
-  progressLineActive: {
-    backgroundColor: '#2E7D32',
-  },
-  stepContainer: {
-    flex: 1,
-    backgroundColor: '#fff',
-    margin: 10,
-    borderRadius: 10,
-    padding: 20,
-  },
-  stepHeader: {
-    marginBottom: 30,
-  },
-  stepTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  stepSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 24,
-  },
-  // Step 1: Category Selection
-  categoriesGrid: {
-    marginBottom: 24,
-  },
-  categoryRow: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 30,
-  },
-  categoryCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 6,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  categoryCardSelected: {
-    borderColor: '#2E7D32',
-    backgroundColor: '#E8F5E8',
-  },
-  selectedCategoryCard: {
-    backgroundColor: '#e8f5e8',
-    borderColor: '#2E7D32',
-  },
-  categoryIcon: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  categoryTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  categoryLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-    marginBottom: 5,
-  },
-  selectedCategoryLabel: {
-    color: '#2E7D32',
-  },
-  categoryUrgency: {
-    fontSize: 11,
-    color: '#666',
-    textAlign: 'center',
-  },
-  categoryUrgencyHigh: {
-    color: '#F44336',
-    fontWeight: '600',
-  },
-  urgencyIndicator: {
-    fontSize: 11,
-    color: '#666',
-    textAlign: 'center',
-  },
-  locationStatusContainer: {
-    backgroundColor: '#fff3cd',
-    padding: 15,
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#ffc107',
-  },
-  locationStatusText: {
-    fontSize: 14,
-    color: '#856404',
-    marginLeft: 10,
-  },
-  locationCapturedContainer: {
-    backgroundColor: '#d4edda',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#28a745',
-  },
-  locationCapturedTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#155724',
-    marginBottom: 8,
-  },
-  locationDetailText: {
-    fontSize: 14,
-    color: '#155724',
-    marginBottom: 4,
-  },
-  priorityScoreContainer: {
-    marginTop: 8,
-    padding: 8,
-    backgroundColor: '#cce5ff',
-    borderRadius: 6,
-  },
-  priorityScoreText: {
-    fontSize: 13,
-    color: '#0066cc',
-    fontWeight: '600',
-  },
+ container: {
+ flex: 1,
+ backgroundColor: '#f8f9fa',
+ },
+ scrollContentContainer: {
+ flexGrow: 1,
+ paddingBottom: 120,
+ },
+ header: {
+ backgroundColor: '#1A1A1A',
+ flexDirection: 'row',
+ alignItems: 'center',
+ paddingHorizontal: 20,
+ paddingVertical: 15,
+ },
+ backButton: {
+ padding: 5,
+ },
+ headerTitle: {
+ flex: 1,
+ fontSize: 20,
+ fontWeight: 'bold',
+ color: '#fff',
+ textAlign: 'center',
+ },
+ headerSpacer: {
+ width: 34,
+ },
+ progressContainer: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ justifyContent: 'space-between',
+ paddingHorizontal: 20,
+ paddingVertical: 20,
+ backgroundColor: '#fff',
+ marginBottom: 10,
+ },
+ progressStep: {
+ alignItems: 'center',
+ flex: 1,
+ },
+ progressStepActive: {
+ opacity: 1,
+ },
+ progressStepCurrent: {
+ backgroundColor: '#1A1A1A',
+ borderRadius: 20,
+ paddingVertical: 8,
+ paddingHorizontal: 12,
+ },
+ progressStepText: {
+ fontSize: 12,
+ color: '#666',
+ marginTop: 4,
+ textAlign: 'center',
+ },
+ progressStepTextActive: {
+ color: '#1A1A1A',
+ fontWeight: 'bold',
+ },
+ progressLine: {
+ height: 2,
+ backgroundColor: '#ddd',
+ flex: 0.3,
+ marginHorizontal: 10,
+ },
+ progressLineActive: {
+ backgroundColor: '#1A1A1A',
+ },
+ stepContainer: {
+ flex: 1,
+ backgroundColor: '#fff',
+ margin: 10,
+ borderRadius: 10,
+ padding: 20,
+ },
+ stepHeader: {
+ marginBottom: 30,
+ },
+ stepTitle: {
+ fontSize: 24,
+ fontWeight: 'bold',
+ color: '#333',
+ marginBottom: 8,
+ },
+ stepSubtitle: {
+ fontSize: 16,
+ color: '#666',
+ lineHeight: 24,
+ },
+ // Step 1: Category Selection
+ categoriesGrid: {
+ marginBottom: 24,
+ },
+ categoryRow: {
+ flexDirection: 'row',
+ marginBottom: 12,
+ },
+ categoryGrid: {
+ flexDirection: 'row',
+ flexWrap: 'wrap',
+ justifyContent: 'space-between',
+ marginBottom: 30,
+ },
+ categoryCard: {
+ flex: 1,
+ backgroundColor: '#fff',
+ borderRadius: 12,
+ padding: 16,
+ marginHorizontal: 6,
+ alignItems: 'center',
+ elevation: 2,
+ shadowColor: '#000',
+ shadowOffset: { width: 0, height: 1 },
+ shadowOpacity: 0.1,
+ shadowRadius: 3,
+ borderWidth: 2,
+ borderColor: 'transparent',
+ },
+ categoryCardSelected: {
+ borderColor: '#1A1A1A',
+ backgroundColor: '#F3F4F6',
+ },
+ selectedCategoryCard: {
+ backgroundColor: '#F3F4F6',
+ borderColor: '#1A1A1A',
+ },
+ categoryIcon: {
+ fontSize: 28,
+ marginBottom: 8,
+ },
+ categoryTitle: {
+ fontSize: 14,
+ fontWeight: '600',
+ color: '#333',
+ textAlign: 'center',
+ marginBottom: 4,
+ },
+ categoryLabel: {
+ fontSize: 14,
+ fontWeight: '600',
+ color: '#333',
+ textAlign: 'center',
+ marginBottom: 5,
+ },
+ selectedCategoryLabel: {
+ color: '#1A1A1A',
+ },
+ categoryUrgency: {
+ fontSize: 11,
+ color: '#666',
+ textAlign: 'center',
+ },
+ categoryUrgencyHigh: {
+ color: '#1A1A1A',
+ fontWeight: '600',
+ },
+ urgencyIndicator: {
+ fontSize: 11,
+ color: '#666',
+ textAlign: 'center',
+ },
+ locationStatusContainer: {
+ backgroundColor: '#F3F4F6',
+ padding: 15,
+ borderRadius: 8,
+ flexDirection: 'row',
+ alignItems: 'center',
+ marginBottom: 20,
+ borderWidth: 1,
+ borderColor: '#1A1A1A',
+ },
+ locationStatusText: {
+ fontSize: 14,
+ color: '#856404',
+ marginLeft: 10,
+ },
+ locationCapturedContainer: {
+ backgroundColor: '#d4edda',
+ padding: 15,
+ borderRadius: 8,
+ marginBottom: 20,
+ borderWidth: 1,
+ borderColor: '#28a745',
+ },
+ locationCapturedTitle: {
+ fontSize: 16,
+ fontWeight: 'bold',
+ color: '#155724',
+ marginBottom: 8,
+ },
+ locationDetailText: {
+ fontSize: 14,
+ color: '#155724',
+ marginBottom: 4,
+ },
+ priorityScoreContainer: {
+ marginTop: 8,
+ padding: 8,
+ backgroundColor: '#cce5ff',
+ borderRadius: 6,
+ },
+ priorityScoreText: {
+ fontSize: 13,
+ color: '#0066cc',
+ fontWeight: '600',
+ },
 
-  // Step 2: Title and Description
-  selectedCategoryDisplay: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  selectedCategoryTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
-  },
-  selectedCategoryChip: {
-    backgroundColor: '#E8F5E8',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignSelf: 'flex-start',
-  },
-  selectedCategoryChipText: {
-    fontSize: 14,
-    color: '#2E7D32',
-    fontWeight: '600',
-  },
-  inputSection: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  textInput: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    minHeight: 48,
-  },
-  customInputContainer: {
-    marginBottom: 0,
-  },
-  simpleTextInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E3F2FD',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#333333',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    minHeight: 50,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  simpleTextArea: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E3F2FD',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#333333',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    minHeight: 120,
-    maxHeight: 200,
-    textAlignVertical: 'top',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  titleInput: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  descriptionInput: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  textArea: {
-    minHeight: 120,
-    textAlignVertical: 'top',
-  },
-  characterCount: {
-    textAlign: 'right',
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-  },
-  // Emotion Analysis Styles
-  emotionScoreContainer: {
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#2E7D32',
-  },
-  emotionScoreLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2E7D32',
-    marginBottom: 4,
-  },
-  emotionScoreValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1B5E20',
-    marginBottom: 2,
-  },
-  emotionScoreMethod: {
-    fontSize: 12,
-    color: '#666',
-    fontStyle: 'italic',
-    marginBottom: 4,
-  },
-  emotionDetails: {
-    marginTop: 4,
-  },
-  emotionDetailText: {
-    fontSize: 11,
-    color: '#444',
-    lineHeight: 16,
-  },
-  emotionAnalyzingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 6,
-    padding: 8,
-    marginTop: 8,
-  },
-  emotionAnalyzingText: {
-    fontSize: 12,
-    color: '#666',
-    marginLeft: 6,
-    fontStyle: 'italic',
-  },
-  pickerContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  // Custom Language Picker Styles
-  customLanguageSelector: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E3F2FD',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  languageSelectorContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  selectedLanguageDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  languageTextContainer: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  selectedLanguageText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  selectedLanguageSubtext: {
-    fontSize: 14,
-    color: '#2E7D32',
-    marginTop: 2,
-  },
-  
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  languagePickerModal: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '70%',
-    paddingBottom: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  modalCloseButton: {
-    padding: 4,
-  },
-  languageList: {
-    paddingHorizontal: 20,
-  },
-  languageOption: {
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
-  },
-  selectedLanguageOption: {
-    backgroundColor: '#E8F5E8',
-    borderRadius: 8,
-    borderBottomColor: 'transparent',
-    marginVertical: 2,
-    paddingHorizontal: 12,
-  },
-  languageOptionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  languageInfo: {
-    flex: 1,
-  },
-  languageOptionLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-  },
-  selectedLanguageOptionText: {
-    color: '#2E7D32',
-    fontWeight: '600',
-  },
-  languageNativeName: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
-  },
-  selectedLanguageNativeText: {
-    color: '#2E7D32',
-  },
+ // Step 2: Title and Description
+ selectedCategoryDisplay: {
+ backgroundColor: '#fff',
+ borderRadius: 12,
+ padding: 16,
+ marginBottom: 20,
+ elevation: 1,
+ shadowColor: '#000',
+ shadowOffset: { width: 0, height: 1 },
+ shadowOpacity: 0.1,
+ shadowRadius: 3,
+ },
+ selectedCategoryTitle: {
+ fontSize: 14,
+ fontWeight: '600',
+ color: '#666',
+ marginBottom: 8,
+ },
+ selectedCategoryChip: {
+ backgroundColor: '#F3F4F6',
+ borderRadius: 20,
+ paddingHorizontal: 12,
+ paddingVertical: 6,
+ alignSelf: 'flex-start',
+ },
+ selectedCategoryChipText: {
+ fontSize: 14,
+ color: '#1A1A1A',
+ fontWeight: '600',
+ },
+ inputSection: {
+ marginBottom: 20,
+ },
+ inputLabel: {
+ fontSize: 16,
+ fontWeight: '600',
+ color: '#333',
+ marginBottom: 8,
+ },
+ textInput: {
+ backgroundColor: '#fff',
+ borderRadius: 8,
+ paddingHorizontal: 16,
+ paddingVertical: 12,
+ fontSize: 16,
+ borderWidth: 1,
+ borderColor: '#E0E0E0',
+ minHeight: 48,
+ },
+ customInputContainer: {
+ marginBottom: 0,
+ },
+ simpleTextInput: {
+ backgroundColor: '#FFFFFF',
+ borderWidth: 2,
+ borderColor: '#F3F4F6',
+ borderRadius: 10,
+ paddingHorizontal: 16,
+ paddingVertical: 14,
+ fontSize: 16,
+ color: '#333333',
+ fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+ minHeight: 50,
+ shadowColor: '#000',
+ shadowOffset: { width: 0, height: 1 },
+ shadowOpacity: 0.1,
+ shadowRadius: 2,
+ elevation: 2,
+ },
+ simpleTextArea: {
+ backgroundColor: '#FFFFFF',
+ borderWidth: 2,
+ borderColor: '#F3F4F6',
+ borderRadius: 10,
+ paddingHorizontal: 16,
+ paddingVertical: 14,
+ fontSize: 15,
+ color: '#333333',
+ fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
+ minHeight: 120,
+ maxHeight: 200,
+ textAlignVertical: 'top',
+ shadowColor: '#000',
+ shadowOffset: { width: 0, height: 1 },
+ shadowOpacity: 0.1,
+ shadowRadius: 2,
+ elevation: 2,
+ },
+ titleInput: {
+ fontSize: 16,
+ fontWeight: '500',
+ },
+ descriptionInput: {
+ fontSize: 15,
+ lineHeight: 20,
+ },
+ textArea: {
+ minHeight: 120,
+ textAlignVertical: 'top',
+ },
+ characterCount: {
+ textAlign: 'right',
+ fontSize: 12,
+ color: '#666',
+ marginTop: 4,
+ },
+ // Emotion Analysis Styles
+ emotionScoreContainer: {
+ backgroundColor: '#F8F9FA',
+ borderRadius: 8,
+ padding: 12,
+ marginTop: 8,
+ borderLeftWidth: 3,
+ borderLeftColor: '#1A1A1A',
+ },
+ emotionScoreLabel: {
+ fontSize: 14,
+ fontWeight: '600',
+ color: '#1A1A1A',
+ marginBottom: 4,
+ },
+ emotionScoreValue: {
+ fontSize: 16,
+ fontWeight: '700',
+ color: '#1B5E20',
+ marginBottom: 2,
+ },
+ emotionScoreMethod: {
+ fontSize: 12,
+ color: '#666',
+ fontStyle: 'italic',
+ marginBottom: 4,
+ },
+ emotionDetails: {
+ marginTop: 4,
+ },
+ emotionDetailText: {
+ fontSize: 11,
+ color: '#444',
+ lineHeight: 16,
+ },
+ emotionAnalyzingContainer: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ justifyContent: 'center',
+ backgroundColor: '#F5F5F5',
+ borderRadius: 6,
+ padding: 8,
+ marginTop: 8,
+ },
+ emotionAnalyzingText: {
+ fontSize: 12,
+ color: '#666',
+ marginLeft: 6,
+ fontStyle: 'italic',
+ },
+ pickerContainer: {
+ backgroundColor: '#fff',
+ borderRadius: 8,
+ borderWidth: 1,
+ borderColor: '#E0E0E0',
+ },
+ // Custom Language Picker Styles
+ customLanguageSelector: {
+ backgroundColor: '#FFFFFF',
+ borderWidth: 2,
+ borderColor: '#F3F4F6',
+ borderRadius: 12,
+ paddingHorizontal: 16,
+ paddingVertical: 16,
+ shadowColor: '#000',
+ shadowOffset: { width: 0, height: 2 },
+ shadowOpacity: 0.1,
+ shadowRadius: 4,
+ elevation: 3,
+ },
+ languageSelectorContent: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ justifyContent: 'space-between',
+ },
+ selectedLanguageDisplay: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ flex: 1,
+ },
+ languageTextContainer: {
+ marginLeft: 12,
+ flex: 1,
+ },
+ selectedLanguageText: {
+ fontSize: 16,
+ fontWeight: '600',
+ color: '#333',
+ },
+ selectedLanguageSubtext: {
+ fontSize: 14,
+ color: '#1A1A1A',
+ marginTop: 2,
+ },
 
-  languagePickerContainer: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E3F2FD',
-    borderRadius: 10,
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  languagePicker: {
-    height: 50,
-    color: '#333',
-  },
-  pickerItem: {
-    fontSize: 16,
-    color: '#333',
-  },
-  pickerIcon: {
-    position: 'absolute',
-    right: 15,
-    top: 15,
-    pointerEvents: 'none',
-  },
-  languageHelper: {
-    fontSize: 13,
-    color: '#2E7D32',
-    marginTop: 8,
-    fontWeight: '500',
-    backgroundColor: '#E8F5E8',
-    padding: 10,
-    borderRadius: 8,
-    textAlign: 'center',
-    borderLeftWidth: 3,
-    borderLeftColor: '#2E7D32',
-  },
-  picker: {
-    height: 50,
-  },
-  descriptionContainer: {
-    position: 'relative',
-  },
-  descriptionWrapper: {
-    marginBottom: 12,
-  },
-  voiceButtonContainer: {
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  voiceButtonEnhanced: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-    borderWidth: 2,
-    borderColor: '#E3F2FD',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  voiceButton: {
-    position: 'absolute',
-    bottom: 8,
-    right: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  voiceButtonText: {
-    marginLeft: 4,
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '500',
-  },
-  voiceButtonTextActive: {
-    color: '#2E7D32',
-    fontWeight: '600',
-  },
-  recordingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E8',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-  },
-  recordingText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#2E7D32',
-    fontWeight: '600',
-  },
-  errorContainer: {
-    backgroundColor: '#FFEBEE',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-  },
-  errorText: {
-    color: '#F44336',
-    fontSize: 14,
-  },
+ // Modal Styles
+ modalOverlay: {
+ flex: 1,
+ backgroundColor: 'rgba(0, 0, 0, 0.5)',
+ justifyContent: 'flex-end',
+ },
+ languagePickerModal: {
+ backgroundColor: '#fff',
+ borderTopLeftRadius: 20,
+ borderTopRightRadius: 20,
+ maxHeight: '70%',
+ paddingBottom: 20,
+ },
+ modalHeader: {
+ flexDirection: 'row',
+ justifyContent: 'space-between',
+ alignItems: 'center',
+ paddingHorizontal: 20,
+ paddingVertical: 16,
+ borderBottomWidth: 1,
+ borderBottomColor: '#E0E0E0',
+ },
+ modalTitle: {
+ fontSize: 18,
+ fontWeight: '600',
+ color: '#333',
+ },
+ modalCloseButton: {
+ padding: 4,
+ },
+ languageList: {
+ paddingHorizontal: 20,
+ },
+ languageOption: {
+ paddingVertical: 16,
+ borderBottomWidth: 1,
+ borderBottomColor: '#F0F0F0',
+ },
+ selectedLanguageOption: {
+ backgroundColor: '#F3F4F6',
+ borderRadius: 8,
+ borderBottomColor: 'transparent',
+ marginVertical: 2,
+ paddingHorizontal: 12,
+ },
+ languageOptionContent: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ justifyContent: 'space-between',
+ },
+ languageInfo: {
+ flex: 1,
+ },
+ languageOptionLabel: {
+ fontSize: 16,
+ fontWeight: '500',
+ color: '#333',
+ },
+ selectedLanguageOptionText: {
+ color: '#1A1A1A',
+ fontWeight: '600',
+ },
+ languageNativeName: {
+ fontSize: 14,
+ color: '#666',
+ marginTop: 2,
+ },
+ selectedLanguageNativeText: {
+ color: '#1A1A1A',
+ },
 
-  // Step 3: Image Upload
-  imageSection: {
-    marginBottom: 24,
-  },
-  imagePickerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 20,
-  },
-  imagePickerButton: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    minWidth: 140,
-  },
-  imagePickerText: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-  },
-  selectedImageContainer: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  selectedImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  changeImageButton: {
-    backgroundColor: '#E3F2FD',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  changeImageText: {
-    color: '#1976D2',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  validationStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 16,
-  },
-  validationSuccess: {
-    backgroundColor: '#E8F5E8',
-  },
-  validationError: {
-    backgroundColor: '#FFEBEE',
-  },
-  validationText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#333',
-  },
+ languagePickerContainer: {
+ backgroundColor: '#FFFFFF',
+ borderWidth: 2,
+ borderColor: '#F3F4F6',
+ borderRadius: 10,
+ position: 'relative',
+ shadowColor: '#000',
+ shadowOffset: { width: 0, height: 1 },
+ shadowOpacity: 0.1,
+ shadowRadius: 2,
+ elevation: 2,
+ },
+ languagePicker: {
+ height: 50,
+ color: '#333',
+ },
+ pickerItem: {
+ fontSize: 16,
+ color: '#333',
+ },
+ pickerIcon: {
+ position: 'absolute',
+ right: 15,
+ top: 15,
+ pointerEvents: 'none',
+ },
+ languageHelper: {
+ fontSize: 13,
+ color: '#1A1A1A',
+ marginTop: 8,
+ fontWeight: '500',
+ backgroundColor: '#F3F4F6',
+ padding: 10,
+ borderRadius: 8,
+ textAlign: 'center',
+ borderLeftWidth: 3,
+ borderLeftColor: '#1A1A1A',
+ },
+ picker: {
+ height: 50,
+ },
+ descriptionContainer: {
+ position: 'relative',
+ },
+ descriptionWrapper: {
+ marginBottom: 12,
+ },
+ voiceButtonContainer: {
+ alignItems: 'center',
+ marginBottom: 8,
+ },
+ voiceButtonEnhanced: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ backgroundColor: '#F8F9FA',
+ borderWidth: 2,
+ borderColor: '#F3F4F6',
+ borderRadius: 25,
+ paddingHorizontal: 20,
+ paddingVertical: 12,
+ shadowColor: '#000',
+ shadowOffset: { width: 0, height: 2 },
+ shadowOpacity: 0.1,
+ shadowRadius: 3,
+ elevation: 3,
+ },
+ voiceButton: {
+ position: 'absolute',
+ bottom: 8,
+ right: 8,
+ flexDirection: 'row',
+ alignItems: 'center',
+ backgroundColor: '#F5F5F5',
+ borderRadius: 20,
+ paddingHorizontal: 12,
+ paddingVertical: 6,
+ elevation: 2,
+ shadowColor: '#000',
+ shadowOffset: { width: 0, height: 1 },
+ shadowOpacity: 0.1,
+ shadowRadius: 2,
+ },
+ voiceButtonText: {
+ marginLeft: 4,
+ fontSize: 12,
+ color: '#666',
+ fontWeight: '500',
+ },
+ voiceButtonTextActive: {
+ color: '#1A1A1A',
+ fontWeight: '600',
+ },
+ recordingIndicator: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ backgroundColor: '#F3F4F6',
+ borderRadius: 8,
+ padding: 12,
+ marginBottom: 16,
+ },
+ recordingText: {
+ marginLeft: 8,
+ fontSize: 14,
+ color: '#1A1A1A',
+ fontWeight: '600',
+ },
+ errorContainer: {
+ backgroundColor: '#F3F4F6',
+ borderRadius: 8,
+ padding: 12,
+ marginBottom: 16,
+ },
+ errorText: {
+ color: '#1A1A1A',
+ fontSize: 14,
+ },
+
+ // Step 3: Image Upload
+ imageSection: {
+ marginBottom: 24,
+ },
+ imagePickerContainer: {
+ flexDirection: 'row',
+ justifyContent: 'space-around',
+ marginBottom: 20,
+ },
+ imagePickerButton: {
+ backgroundColor: '#fff',
+ borderRadius: 12,
+ padding: 20,
+ alignItems: 'center',
+ elevation: 2,
+ shadowColor: '#000',
+ shadowOffset: { width: 0, height: 1 },
+ shadowOpacity: 0.1,
+ shadowRadius: 3,
+ minWidth: 140,
+ },
+ imagePickerText: {
+ marginTop: 8,
+ fontSize: 14,
+ fontWeight: '600',
+ color: '#333',
+ textAlign: 'center',
+ },
+ selectedImageContainer: {
+ alignItems: 'center',
+ marginBottom: 16,
+ },
+ selectedImage: {
+ width: 200,
+ height: 200,
+ borderRadius: 12,
+ marginBottom: 12,
+ },
+ changeImageButton: {
+ backgroundColor: '#F3F4F6',
+ borderRadius: 8,
+ paddingHorizontal: 16,
+ paddingVertical: 8,
+ },
+ changeImageText: {
+ color: '#1A1A1A',
+ fontSize: 14,
+ fontWeight: '600',
+ },
+ validationStatus: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ backgroundColor: '#F5F5F5',
+ borderRadius: 8,
+ padding: 12,
+ marginTop: 16,
+ },
+ validationSuccess: {
+ backgroundColor: '#F3F4F6',
+ },
+ validationError: {
+ backgroundColor: '#F3F4F6',
+ },
+ validationText: {
+ marginLeft: 8,
+ fontSize: 14,
+ color: '#333',
+ },
+
 
   // Step 4: Success Screen
   successContainer: {
@@ -2357,223 +2368,224 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
-  // Navigation Buttons
-  navigationButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 32,
-  },
-  backNavigationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#F5F5F5',
-  },
-  backNavigationText: {
-    marginLeft: 4,
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '600',
-  },
-  continueButton: {
-    backgroundColor: '#2E7D32',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  continueButtonDisabled: {
-    backgroundColor: '#BDBDBD',
-  },
-  continueButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  submitButton: {
-    backgroundColor: '#2E7D32',
-    borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#BDBDBD',
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
 
-  // Infrastructure Display Styles
-  infrastructureLoadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#E8F5E8',
-    padding: 12,
-    borderRadius: 8,
-    marginVertical: 12,
-  },
-  infrastructureLoadingText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#2E7D32',
-    fontWeight: '600',
-  },
-  infrastructureContainer: {
-    backgroundColor: '#F3E5F5',
-    padding: 16,
-    borderRadius: 12,
-    marginVertical: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#9C27B0',
-  },
-  infrastructureTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#4A148C',
-    marginBottom: 8,
-  },
-  infrastructureSummary: {
-    fontSize: 14,
-    color: '#6A1B9A',
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  infrastructureList: {
-    marginTop: 8,
-  },
-  infrastructureItem: {
-    backgroundColor: 'rgba(156, 39, 176, 0.1)',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 6,
-  },
-  infrastructureName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4A148C',
-    textTransform: 'capitalize',
-  },
-  infrastructureDistance: {
-    fontSize: 12,
-    color: '#6A1B9A',
-    marginTop: 2,
-  },
-  infrastructureMore: {
-    fontSize: 12,
-    color: '#9C27B0',
-    fontStyle: 'italic',
-    textAlign: 'center',
-    marginTop: 4,
-  },
+ // Navigation Buttons
+ navigationButtons: {
+ flexDirection: 'row',
+ justifyContent: 'space-between',
+ alignItems: 'center',
+ marginTop: 32,
+ },
+ backNavigationButton: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ paddingVertical: 12,
+ paddingHorizontal: 16,
+ borderRadius: 8,
+ backgroundColor: '#F5F5F5',
+ },
+ backNavigationText: {
+ marginLeft: 4,
+ fontSize: 16,
+ color: '#666',
+ fontWeight: '600',
+ },
+ continueButton: {
+ backgroundColor: '#1A1A1A',
+ borderRadius: 12,
+ paddingVertical: 16,
+ paddingHorizontal: 32,
+ alignItems: 'center',
+ elevation: 2,
+ shadowColor: '#000',
+ shadowOffset: { width: 0, height: 2 },
+ shadowOpacity: 0.1,
+ shadowRadius: 4,
+ },
+ continueButtonDisabled: {
+ backgroundColor: '#BDBDBD',
+ },
+ continueButtonText: {
+ color: '#fff',
+ fontSize: 16,
+ fontWeight: 'bold',
+ },
+ submitButton: {
+ backgroundColor: '#1A1A1A',
+ borderRadius: 12,
+ paddingVertical: 16,
+ paddingHorizontal: 32,
+ alignItems: 'center',
+ elevation: 2,
+ shadowColor: '#000',
+ shadowOffset: { width: 0, height: 2 },
+ shadowOpacity: 0.1,
+ shadowRadius: 4,
+ },
+ submitButtonDisabled: {
+ backgroundColor: '#BDBDBD',
+ },
+ submitButtonText: {
+ color: '#fff',
+ fontSize: 16,
+ fontWeight: 'bold',
+ },
 
-  // Infrastructure Modal Styles
-  infrastructureModal: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 20,
-    maxHeight: '85%',
-    minHeight: '50%',
-  },
-  infrastructureModalContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  infrastructureModalSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  infrastructureSectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2E7D32',
-    marginTop: 15,
-    marginBottom: 10,
-  },
-  infrastructureModalItem: {
-    backgroundColor: '#f8f9fa',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#2E7D32',
-  },
-  infrastructureItemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  infrastructureItemType: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2E7D32',
-    flex: 1,
-  },
-  infrastructureItemDistance: {
-    fontSize: 12,
-    color: '#666',
-    backgroundColor: '#e8f5e8',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  infrastructureItemName: {
-    fontSize: 13,
-    color: '#444',
-    fontWeight: '500',
-  },
-  infrastructureItemVicinity: {
-    fontSize: 11,
-    color: '#777',
-    marginTop: 2,
-    fontStyle: 'italic',
-  },
-  infrastructureModalFooter: {
-    marginTop: 20,
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  infrastructureModalSummary: {
-    fontSize: 13,
-    color: '#666',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  infrastructureModalButton: {
-    backgroundColor: '#2E7D32',
-    borderRadius: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    alignItems: 'center',
-    marginHorizontal: 20,
-    marginTop: 10,
-  },
-  infrastructureModalButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+ // Infrastructure Display Styles
+ infrastructureLoadingContainer: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ backgroundColor: '#F3F4F6',
+ padding: 12,
+ borderRadius: 8,
+ marginVertical: 12,
+ },
+ infrastructureLoadingText: {
+ marginLeft: 8,
+ fontSize: 14,
+ color: '#1A1A1A',
+ fontWeight: '600',
+ },
+ infrastructureContainer: {
+ backgroundColor: '#F3F4F6',
+ padding: 16,
+ borderRadius: 12,
+ marginVertical: 12,
+ borderLeftWidth: 4,
+ borderLeftColor: '#1A1A1A',
+ },
+ infrastructureTitle: {
+ fontSize: 16,
+ fontWeight: 'bold',
+ color: '#4A148C',
+ marginBottom: 8,
+ },
+ infrastructureSummary: {
+ fontSize: 14,
+ color: '#6A1B9A',
+ marginBottom: 12,
+ lineHeight: 20,
+ },
+ infrastructureList: {
+ marginTop: 8,
+ },
+ infrastructureItem: {
+ backgroundColor: 'rgba(156, 39, 176, 0.1)',
+ padding: 10,
+ borderRadius: 8,
+ marginBottom: 6,
+ },
+ infrastructureName: {
+ fontSize: 14,
+ fontWeight: '600',
+ color: '#4A148C',
+ textTransform: 'capitalize',
+ },
+ infrastructureDistance: {
+ fontSize: 12,
+ color: '#6A1B9A',
+ marginTop: 2,
+ },
+ infrastructureMore: {
+ fontSize: 12,
+ color: '#1A1A1A',
+ fontStyle: 'italic',
+ textAlign: 'center',
+ marginTop: 4,
+ },
+
+ // Infrastructure Modal Styles
+ infrastructureModal: {
+ backgroundColor: '#fff',
+ borderTopLeftRadius: 20,
+ borderTopRightRadius: 20,
+ paddingBottom: 20,
+ maxHeight: '85%',
+ minHeight: '50%',
+ },
+ infrastructureModalContent: {
+ paddingHorizontal: 20,
+ paddingVertical: 10,
+ },
+ infrastructureModalSubtitle: {
+ fontSize: 14,
+ color: '#666',
+ marginBottom: 20,
+ lineHeight: 20,
+ textAlign: 'center',
+ },
+ infrastructureSectionTitle: {
+ fontSize: 16,
+ fontWeight: 'bold',
+ color: '#1A1A1A',
+ marginTop: 15,
+ marginBottom: 10,
+ },
+ infrastructureModalItem: {
+ backgroundColor: '#f8f9fa',
+ padding: 12,
+ borderRadius: 10,
+ marginBottom: 8,
+ borderLeftWidth: 3,
+ borderLeftColor: '#1A1A1A',
+ },
+ infrastructureItemHeader: {
+ flexDirection: 'row',
+ justifyContent: 'space-between',
+ alignItems: 'center',
+ marginBottom: 4,
+ },
+ infrastructureItemType: {
+ fontSize: 14,
+ fontWeight: '600',
+ color: '#1A1A1A',
+ flex: 1,
+ },
+ infrastructureItemDistance: {
+ fontSize: 12,
+ color: '#666',
+ backgroundColor: '#F3F4F6',
+ paddingHorizontal: 8,
+ paddingVertical: 2,
+ borderRadius: 10,
+ },
+ infrastructureItemName: {
+ fontSize: 13,
+ color: '#444',
+ fontWeight: '500',
+ },
+ infrastructureItemVicinity: {
+ fontSize: 11,
+ color: '#777',
+ marginTop: 2,
+ fontStyle: 'italic',
+ },
+ infrastructureModalFooter: {
+ marginTop: 20,
+ paddingTop: 15,
+ borderTopWidth: 1,
+ borderTopColor: '#eee',
+ },
+ infrastructureModalSummary: {
+ fontSize: 13,
+ color: '#666',
+ textAlign: 'center',
+ fontWeight: '500',
+ },
+ infrastructureModalButton: {
+ backgroundColor: '#1A1A1A',
+ borderRadius: 10,
+ paddingVertical: 12,
+ paddingHorizontal: 30,
+ alignItems: 'center',
+ marginHorizontal: 20,
+ marginTop: 10,
+ },
+ infrastructureModalButtonText: {
+ color: '#fff',
+ fontSize: 16,
+ fontWeight: '600',
+ },
 });
 
 export default MultiStepSubmitComplaintScreen;

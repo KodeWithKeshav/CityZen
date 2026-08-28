@@ -46,11 +46,11 @@ const ComplaintMapScreen = ({ navigation, route }) => {
   // Get user's current location
   const getUserLocation = async () => {
     try {
-      console.log('ðŸ“ Requesting location permissions...');
+      console.log('📍 Requesting location permissions...');
       const { status } = await Location.requestForegroundPermissionsAsync();
       
       if (status !== 'granted') {
-        console.log('âŒ Location permission denied');
+        console.log('❌ Location permission denied');
         Alert.alert(
           'Location Permission Required',
           'Please enable location access to see complaints near you.',
@@ -60,7 +60,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
         return;
       }
 
-      console.log('ðŸ”„ Getting current location...');
+      console.log('🔄 Getting current location...');
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
         timeout: 10000,
@@ -73,12 +73,12 @@ const ComplaintMapScreen = ({ navigation, route }) => {
         longitudeDelta: 0.05,
       };
 
-      console.log('âœ… User location obtained:', userCoords);
+      console.log('✅ User location obtained:', userCoords);
       setUserLocation(location.coords);
       setRegion(userCoords);
       
     } catch (error) {
-      console.error('âŒ Error getting location:', error);
+      console.error('❌ Error getting location:', error);
       Alert.alert(
         'Location Error', 
         'Could not get your location. Showing default area.',
@@ -91,10 +91,10 @@ const ComplaintMapScreen = ({ navigation, route }) => {
 
   // Dynamic global search function with geocoding
   const searchLocation = async (query) => {
-    console.log('ï¿½ SEARCH TRIGGERED - Query:', query);
+    console.log('� SEARCH TRIGGERED - Query:', query);
     
     if (!query || !query.trim()) {
-      console.log('âŒ Empty query, clearing results');
+      console.log('❌ Empty query, clearing results');
       setSearchResults([]);
       setShowSearchResults(false);
       return;
@@ -106,7 +106,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
     try {
       const results = [];
       const queryLower = query.toLowerCase().trim();
-      console.log('ðŸ”Ž Searching for:', queryLower);
+      console.log('🔎 Searching for:', queryLower);
 
       // 1. Search predefined cities (most reliable)
       const cities = {
@@ -138,7 +138,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
           subtitle: 'Major City',
           type: 'city'
         });
-        console.log('âœ… Found exact city match:', city.name);
+        console.log('✅ Found exact city match:', city.name);
       } else {
         // Partial match
         const partialMatches = Object.keys(cities).filter(cityKey => 
@@ -156,27 +156,27 @@ const ComplaintMapScreen = ({ navigation, route }) => {
             subtitle: 'Major City',
             type: 'city'
           });
-          console.log('âœ… Found partial city match:', city.name);
+          console.log('✅ Found partial city match:', city.name);
         }
       }
 
       // 2. Dynamic geocoding search for all cities worldwide
       if (results.length === 0 || queryLower.length > 3) {
-        console.log('ðŸŒ Searching globally via geocoding...');
+        console.log('🌐 Searching globally via geocoding...');
         
         try {
           // Use Nominatim (OpenStreetMap) for free geocoding
           const geocodeUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=8&q=${encodeURIComponent(query)}&addressdetails=1`;
-          console.log('ðŸ”— Geocoding URL:', geocodeUrl);
+          console.log('🔗 Geocoding URL:', geocodeUrl);
           
           const geocodeResponse = await fetch(geocodeUrl, {
             headers: {
-              'User-Agent': 'UrbanPulse App 1.0'
+              'User-Agent': 'CivicRezo App 1.0'
             }
           });
           
           const geocodeData = await geocodeResponse.json();
-          console.log('ðŸ—ºï¸ Geocoding response:', geocodeData.length, 'results');
+          console.log('🗺️ Geocoding response:', geocodeData.length, 'results');
           
           if (geocodeData && geocodeData.length > 0) {
             geocodeData.slice(0, 6).forEach((place, index) => {
@@ -197,7 +197,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
                 const country = place.address?.country || nameParts[nameParts.length - 1]?.trim();
                 
                 const title = state && state !== mainName ? `${mainName}, ${state}` : mainName;
-                const subtitle = `${country || 'Location'} â€¢ Global Search`;
+                const subtitle = `${country || 'Location'} • Global Search`;
                 
                 // Avoid duplicates from predefined cities
                 const isDuplicate = results.some(r => 
@@ -216,13 +216,13 @@ const ComplaintMapScreen = ({ navigation, route }) => {
                     importance: place.importance || 0
                   });
                   
-                  console.log(`ðŸŒ Added geocoded location: ${title}`);
+                  console.log(`🌍 Added geocoded location: ${title}`);
                 }
               }
             });
           }
         } catch (geocodeError) {
-          console.log('âš ï¸ Geocoding failed, continuing with other results:', geocodeError.message);
+          console.log('⚠️ Geocoding failed, continuing with other results:', geocodeError.message);
         }
       }
 
@@ -240,12 +240,12 @@ const ComplaintMapScreen = ({ navigation, route }) => {
             latitude: parseFloat(complaint.location_latitude),
             longitude: parseFloat(complaint.location_longitude),
             title: complaint.title,
-            subtitle: `${complaint.category} â€¢ Complaint`,
+            subtitle: `${complaint.category} • Complaint`,
             complaint: complaint,
             type: 'complaint'
           });
         });
-        console.log(`âœ… Found ${matchingComplaints.length} matching complaints`);
+        console.log(`✅ Found ${matchingComplaints.length} matching complaints`);
       }
 
       // Sort results by relevance (predefined cities first, then by importance)
@@ -260,14 +260,14 @@ const ComplaintMapScreen = ({ navigation, route }) => {
 
       // Show results
       if (results.length > 0) {
-        console.log(`ðŸŽ¯ Setting ${results.length} search results (sorted):`, results.map(r => `${r.title} (${r.type})`));
+        console.log(`🎯 Setting ${results.length} search results (sorted):`, results.map(r => `${r.title} (${r.type})`));
         setSearchResults(results);
         setShowSearchResults(true);
-        console.log('âœ… Search results state updated, dropdown should show');
+        console.log('✅ Search results state updated, dropdown should show');
 
         // Auto-select if only one result and it's exact match
         if (results.length === 1 && (results[0].type === 'city' || results[0].title.toLowerCase().includes(queryLower))) {
-          console.log('ðŸŽ¯ Only one result found, auto-selecting:', results[0].title);
+          console.log('🎯 Only one result found, auto-selecting:', results[0].title);
           Alert.alert(
             'Location Found!', 
             `Moving to ${results[0].title}...`, 
@@ -281,7 +281,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
           // Auto-select top result if its title matches the query closely
           const topResult = results[0];
           if (topResult.title && topResult.title.toLowerCase().includes(queryLower)) {
-            console.log('ðŸŽ¯ Top result matches query, auto-selecting:', topResult.title);
+            console.log('🎯 Top result matches query, auto-selecting:', topResult.title);
             Alert.alert(
               'Location Found!', 
               `Moving to ${topResult.title}...`, 
@@ -294,25 +294,25 @@ const ComplaintMapScreen = ({ navigation, route }) => {
           }
         }
       } else {
-        console.log('âŒ No results found, showing empty state');
+        console.log('❌ No results found, showing empty state');
         setSearchResults([]);
         setShowSearchResults(false);
         Alert.alert('No Results', `No results found for "${query}". Try searching for any city name worldwide or complaint keywords.`);
       }
 
     } catch (error) {
-      console.error('âŒ Search error:', error);
+      console.error('❌ Search error:', error);
       setSearchResults([]);
       Alert.alert('Search Error', 'Search failed. Please try again.');
     } finally {
       setSearchLoading(false);
-      console.log('âœ… Search completed');
+      console.log('✅ Search completed');
     }
   };
 
   // Handle search result selection
   const selectSearchResult = (result) => {
-    console.log('ðŸŽ¯ SEARCH RESULT SELECTED:', result);
+    console.log('🎯 SEARCH RESULT SELECTED:', result);
     console.log('Current region before update:', region);
     
     const newRegion = {
@@ -322,15 +322,15 @@ const ComplaintMapScreen = ({ navigation, route }) => {
       longitudeDelta: 0.08,
     };
     
-    console.log('ðŸ“ NEW REGION TO SET:', newRegion);
-    console.log(`ðŸŒ Moving from [${region.latitude}, ${region.longitude}] to [${newRegion.latitude}, ${newRegion.longitude}]`);
+    console.log('📍 NEW REGION TO SET:', newRegion);
+    console.log(`🌍 Moving from [${region.latitude}, ${region.longitude}] to [${newRegion.latitude}, ${newRegion.longitude}]`);
     
     // Set flag to prevent onRegionChangeComplete from interfering
     setIsProgrammaticMove(true);
     
     // Use MapView animateToRegion for smooth transition
     if (mapRef.current) {
-      console.log('ðŸŽ¬ Animating map to region via ref');
+      console.log('🎬 Animating map to region via ref');
       mapRef.current.animateToRegion(newRegion, 1000);
     }
     
@@ -343,12 +343,12 @@ const ComplaintMapScreen = ({ navigation, route }) => {
     // Reset flag after animation
     setTimeout(() => {
       setIsProgrammaticMove(false);
-      console.log('âœ… Animation completed, region controls restored');
+      console.log('✅ Animation completed, region controls restored');
     }, 1500);
     
     // Log after state update
     setTimeout(() => {
-      console.log('âœ… Region should now be:', newRegion);
+      console.log('✅ Region should now be:', newRegion);
     }, 100);
     
     // If it's a complaint result, show the complaint details
@@ -363,17 +363,17 @@ const ComplaintMapScreen = ({ navigation, route }) => {
   // Fetch complaints data
   const fetchComplaints = async () => {
     try {
-      console.log('ðŸ”„ Fetching complaints from:', `${API_BASE_URL}/api/complaints/all`);
+      console.log('🔄 Fetching complaints from:', `${API_BASE_URL}/api/complaints/all`);
       const response = await fetch(`${API_BASE_URL}/api/complaints/all`);
       const data = await response.json();
       
       if (data.success && data.complaints) {
-        console.log('âœ… Fetched complaints:', data.complaints.length);
-        console.log('ðŸ“Š Status breakdown:', data.complaints.map(c => ({ id: c.id?.substring(0,8), status: c.status })));
+        console.log('✅ Fetched complaints:', data.complaints.length);
+        console.log('📊 Status breakdown:', data.complaints.map(c => ({ id: c.id?.substring(0,8), status: c.status })));
         setComplaints(data.complaints);
       }
     } catch (error) {
-      console.error('âŒ Error fetching complaints:', error);
+      console.error('❌ Error fetching complaints:', error);
       Alert.alert('Error', 'Failed to load complaints');
     } finally {
       setLoading(false);
@@ -402,18 +402,18 @@ const ComplaintMapScreen = ({ navigation, route }) => {
 
   // Simple manual search function with better debugging
   const handleSearch = () => {
-    console.log('ðŸš€ MANUAL SEARCH TRIGGERED');
+    console.log('🚀 MANUAL SEARCH TRIGGERED');
     console.log('Current searchQuery state:', searchQuery);
     console.log('Query length:', searchQuery?.length);
     console.log('Query trimmed:', searchQuery?.trim());
     
     if (!searchQuery || !searchQuery.trim()) {
-      console.log('âŒ Empty search query, showing alert');
+      console.log('❌ Empty search query, showing alert');
       Alert.alert('Search Required', 'Please enter a city name or complaint keyword.');
       return;
     }
     
-    console.log('âœ… Calling searchLocation with:', searchQuery);
+    console.log('✅ Calling searchLocation with:', searchQuery);
     searchLocation(searchQuery);
   };
 
@@ -423,8 +423,8 @@ const ComplaintMapScreen = ({ navigation, route }) => {
     const inProgress = complaints.filter(c => c.status?.toLowerCase() === 'in_progress').length;
     const resolved = complaints.filter(c => c.status?.toLowerCase() === 'completed' || c.status?.toLowerCase() === 'resolved').length;
     
-    console.log(`ðŸ“Š Statistics calculated - Total: ${complaints.length}, Pending: ${pending}, Progress: ${inProgress}, Resolved: ${resolved}`);
-    console.log('ðŸ” All complaint statuses:', complaints.map(c => ({ id: c.id?.substring(0,8), status: c.status })));
+    console.log(`📊 Statistics calculated - Total: ${complaints.length}, Pending: ${pending}, Progress: ${inProgress}, Resolved: ${resolved}`);
+    console.log('🔍 All complaint statuses:', complaints.map(c => ({ id: c.id?.substring(0,8), status: c.status })));
     
     return { pending, inProgress, resolved };
   })();
@@ -562,7 +562,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
             setSelectedComplaint({
               id: cluster.id,
               title: `${density} Complaint${density > 1 ? 's' : ''} in this area`,
-              description: cluster.complaints.map(c => `â€¢ ${c.title}`).join('\n'),
+              description: cluster.complaints.map(c => `• ${c.title}`).join('\n'),
               status: 'cluster',
               complaints: cluster.complaints,
               latitude: cluster.latitude,
@@ -593,7 +593,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
           title={complaint.title}
           description={complaint.description}
           onPress={() => {
-            console.log('ðŸ“ Marker pressed:', complaint.title);
+            console.log('📍 Marker pressed:', complaint.title);
             setIsMarkerInteracting(true);
             setSelectedComplaint(complaint);
             setShowComplaintModal(true);
@@ -607,7 +607,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
           <View style={styles.modernPinContainer}>
             <View style={[styles.modernPinHead, { backgroundColor: getStatusColor(complaint.status) }]}>
               {/* Debug: Log marker status and color */}
-              {console.log(`ðŸ” Marker ID: ${complaint.id?.substring(0,8)}, Status: "${complaint.status}", Color: ${getStatusColor(complaint.status)}`)}
+              {console.log(`🔍 Marker ID: ${complaint.id?.substring(0,8)}, Status: "${complaint.status}", Color: ${getStatusColor(complaint.status)}`)}
               <Ionicons 
                 name={getCategoryIcon(complaint.category)} 
                 size={16} 
@@ -655,7 +655,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
                 // Cluster view
                 <>
                   <View style={styles.statusSection}>
-                    <View style={[styles.statusBadge, { backgroundColor: '#3498db' }]}>
+                    <View style={[styles.statusBadge, { backgroundColor: '#1A1A1A' }]}>
                       <Text style={styles.statusText}>CLUSTER VIEW</Text>
                     </View>
                   </View>
@@ -741,11 +741,10 @@ const ComplaintMapScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#2E7D32" />
+      <StatusBar barStyle="light-content" backgroundColor="#1A1A1A" />
       
-      {/* Header */}
       <LinearGradient
-        colors={['#1B5E20', '#2E7D32', '#60AD5E']}
+        colors={['#1A1A1A', '#1A1A1A']}
         style={styles.header}
       >
         <View style={styles.headerContent}>
@@ -777,7 +776,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
             placeholderTextColor="#999"
             value={searchQuery}
             onChangeText={(text) => {
-              console.log('ðŸ”¤ Text input changed:', text);
+              console.log('🔤 Text input changed:', text);
               setSearchQuery(text);
               
               // Clear previous timeout
@@ -791,7 +790,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
               } else if (text.trim().length >= 2) {
                 // Debounced search - search after 500ms of no typing
                 const newTimeout = setTimeout(() => {
-                  console.log('â±ï¸ Auto-searching after typing pause:', text);
+                  console.log('⏱️ Auto-searching after typing pause:', text);
                   searchLocation(text);
                 }, 500);
                 setSearchTimeout(newTimeout);
@@ -806,13 +805,13 @@ const ComplaintMapScreen = ({ navigation, route }) => {
             onPress={handleSearch}
             style={styles.searchButton}
           >
-            <Ionicons name="search-circle" size={24} color="#2E7D32" />
+            <Ionicons name="search-circle" size={24} color="#1A1A1A" />
           </TouchableOpacity>
           
           {searchQuery.length > 0 && (
             <TouchableOpacity 
               onPress={() => {
-                console.log('ðŸ—‘ï¸ Clearing search');
+                console.log('🗑️ Clearing search');
                 setSearchQuery('');
                 setSearchResults([]);
                 setShowSearchResults(false);
@@ -825,7 +824,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
         </View>
         
         {searchLoading && (
-          <ActivityIndicator size="small" color="#2E7D32" style={styles.searchLoader} />
+          <ActivityIndicator size="small" color="#1A1A1A" style={styles.searchLoader} />
         )}
         
         {/* Test Buttons - Remove after testing */}
@@ -856,7 +855,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
                   break;
                 default:
                   iconName = 'location';
-                  iconColor = '#2E7D32';
+                  iconColor = '#1A1A1A';
               }
 
               return (
@@ -892,7 +891,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
       <View style={styles.mapContainer}>
         {loading || locationLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#2E7D32" />
+            <ActivityIndicator size="large" color="#1A1A1A" />
             <Text style={styles.loadingText}>
               {locationLoading ? 'Getting your location...' : 'Loading complaints...'}
             </Text>
@@ -919,10 +918,10 @@ const ComplaintMapScreen = ({ navigation, route }) => {
               // Debounce region changes to prevent rapid updates
               regionChangeTimeoutRef.current = setTimeout(() => {
                 if (!isProgrammaticMove && !showComplaintModal && !isMarkerInteracting) {
-                  console.log('ðŸ‘† User manually moved map to:', newRegion);
+                  console.log('👆 User manually moved map to:', newRegion);
                   setRegion(newRegion);
                 } else {
-                  console.log('ðŸ¤– Ignoring region change (programmatic move, modal open, or marker interaction)');
+                  console.log('🤖 Ignoring region change (programmatic move, modal open, or marker interaction)');
                 }
               }, 200); // 200ms debounce
             }}
@@ -966,12 +965,12 @@ const ComplaintMapScreen = ({ navigation, route }) => {
       {/* Stats */}
       <View style={styles.statsContainer}>
         <Text style={styles.statsText}>
-          ðŸ“ {complaints.length} Complaints {showHeatmap ? 'in Density View' : 'as Markers'} {userLocation ? 'â€¢ ðŸŽ¯ Your Location Found' : ''}
+          {complaints.length} Complaints {showHeatmap ? 'in Density View' : 'as Markers'} {userLocation ? '• Your Location Found' : ''}
         </Text>
         <Text style={styles.statsText}>
-          ðŸ”´ {statsData.pending} Pending â€¢ 
-          ðŸŸ¡ {statsData.inProgress} Progress â€¢ 
-          ðŸŸ¢ {statsData.resolved} Resolved
+          {statsData.pending} Pending • 
+          {statsData.inProgress} Progress • 
+          {statsData.resolved} Resolved
         </Text>
       </View>
 
@@ -979,7 +978,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
       <TouchableOpacity
         style={styles.chatbotButton}
         onPress={() => {
-          console.log('ðŸ¤– Chatbot button pressed from map!');
+          console.log('🤖 Chatbot button pressed from map!');
           navigation.navigate('CivicChatbot');
         }}
         activeOpacity={0.8}
@@ -1059,10 +1058,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     maxHeight: 250,
     borderBottomWidth: 2,
-    borderBottomColor: '#2E7D32',
+    borderBottomColor: '#1A1A1A',
     borderLeftWidth: 2,
     borderRightWidth: 2,
-    borderColor: '#2E7D32',
+    borderColor: '#1A1A1A',
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -1107,9 +1106,13 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
   map: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
   loadingContainer: {
     flex: 1,
@@ -1119,7 +1122,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#2E7D32',
+    color: '#1A1A1A',
   },
   pinContainer: {
     alignItems: 'center',
@@ -1303,7 +1306,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   toggleButtonActive: {
-    backgroundColor: '#2E7D32',
+    backgroundColor: '#1A1A1A',
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -1328,7 +1331,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     borderRadius: 8,
     borderLeftWidth: 3,
-    borderLeftColor: '#3498db',
+    borderLeftColor: '#1A1A1A',
   },
   clusterBadge: {
     width: 30,
@@ -1369,11 +1372,11 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
-    shadowColor: '#3498db',
+    shadowColor: '#1A1A1A',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1384,4 +1387,3 @@ const styles = StyleSheet.create({
 });
 
 export default ComplaintMapScreen;
-
