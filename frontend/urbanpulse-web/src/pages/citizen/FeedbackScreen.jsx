@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
-import { HiStar } from 'react-icons/hi'
+import { HiStar, HiCheckCircle } from 'react-icons/hi'
 
 export default function FeedbackScreen() {
   const [form, setForm] = useState({ rating: 0, category: '', message: '' })
@@ -28,7 +28,7 @@ export default function FeedbackScreen() {
 
   if (submitted) return (
     <div className="flex flex-col items-center justify-center p-8 h-full text-center">
-      <div className="text-6xl mb-4">🎉</div>
+      <div className="text-6xl mb-4 text-green-500 flex justify-center"><HiCheckCircle /></div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h2>
       <p className="text-gray-600">Your feedback helps us improve UrbanPulse for everyone.</p>
       <button onClick={() => setSubmitted(false)} className="btn-primary mt-6">Submit Another</button>

@@ -90,7 +90,7 @@ export default function Chatbot() {
       <div className="px-4 py-4 bg-white border-b border-gray-200 shadow-sm z-10">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gradient-to-br from-violet-600 to-purple-500 rounded-xl flex items-center justify-center shadow-sm">
-            <span className="text-xl">🤖</span>
+            <HiChat className="text-xl text-white" />
           </div>
           <div>
             <h1 className="font-bold text-gray-900 leading-tight">UrbanPulse AI</h1>
@@ -108,7 +108,7 @@ export default function Chatbot() {
           <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             {m.role === 'assistant' && (
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 to-purple-500 flex items-center justify-center flex-shrink-0 mr-2.5 mt-0.5 shadow-sm">
-                <span className="text-sm">🤖</span>
+                <HiChat className="text-sm text-white" />
               </div>
             )}
             <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm
@@ -122,7 +122,7 @@ export default function Chatbot() {
         {loading && (
           <div className="flex justify-start">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-600 to-purple-500 flex items-center justify-center flex-shrink-0 mr-2.5 shadow-sm">
-              <span className="text-sm">🤖</span>
+              <HiChat className="text-sm text-white" />
             </div>
             <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm">
               <div className="flex gap-1.5 items-center justify-center h-2">

@@ -6,6 +6,7 @@ import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement,
   Title, Tooltip, Legend, ArcElement
 } from 'chart.js'
+import { HiDocumentText, HiCheckCircle, HiClock, HiTrendingUp, HiLightningBolt } from 'react-icons/hi'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
 
@@ -79,13 +80,13 @@ export default function Transparency() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Total Complaints', value: total, color: 'bg-blue-50 text-blue-700', icon: '📋' },
-          { label: 'Resolved', value: resolved, color: 'bg-green-50 text-green-700', icon: '✅' },
-          { label: 'Pending', value: pending, color: 'bg-amber-50 text-amber-700', icon: '⏳' },
-          { label: 'Resolution Rate', value: `${resolutionRate}%`, color: 'bg-purple-50 text-purple-700', icon: '📈' },
+          { label: 'Total Complaints', value: total, color: 'bg-blue-50 text-blue-700', icon: HiDocumentText },
+          { label: 'Resolved', value: resolved, color: 'bg-green-50 text-green-700', icon: HiCheckCircle },
+          { label: 'Pending', value: pending, color: 'bg-amber-50 text-amber-700', icon: HiClock },
+          { label: 'Resolution Rate', value: `${resolutionRate}%`, color: 'bg-purple-50 text-purple-700', icon: HiTrendingUp },
         ].map(s => (
           <div key={s.label} className={`card ${s.color}`}>
-            <div className="text-2xl mb-1">{s.icon}</div>
+            <div className="text-2xl mb-1"><s.icon /></div>
             <div className="text-2xl font-bold">{s.value}</div>
             <div className="text-xs font-medium mt-0.5">{s.label}</div>
           </div>
@@ -117,7 +118,7 @@ export default function Transparency() {
       {complaints.avgResolutionDays !== undefined && (
         <div className="card mt-6 bg-gradient-to-r from-primary-50 to-emerald-50">
           <div className="flex items-center gap-4">
-            <div className="text-4xl">⚡</div>
+            <div className="text-4xl text-primary-600"><HiLightningBolt /></div>
             <div>
               <p className="text-2xl font-bold text-primary-700">{complaints.avgResolutionDays || 0} days</p>
               <p className="text-sm text-gray-600">Average resolution time</p>

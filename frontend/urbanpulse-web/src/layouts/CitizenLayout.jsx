@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import toast from 'react-hot-toast'
 import {
   HiHome, HiNewspaper, HiPlusCircle, HiMap, HiChartBar,
-  HiDocumentReport, HiChat, HiStar, HiLogout, HiMenu, HiX
+  HiDocumentReport, HiChat, HiStar, HiLogout, HiMenu, HiX, HiOfficeBuilding
 } from 'react-icons/hi'
 import { useState } from 'react'
 
@@ -45,7 +45,7 @@ export default function CitizenLayout() {
       `}>
         {/* Logo */}
         <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
-          <div className="w-9 h-9 bg-primary-700 rounded-xl flex items-center justify-center text-white text-lg">🏙️</div>
+          <div className="w-9 h-9 bg-primary-700 rounded-xl flex items-center justify-center text-white text-lg"><HiOfficeBuilding /></div>
           <div>
             <h1 className="font-bold text-gray-900 text-base leading-none">UrbanPulse</h1>
             <p className="text-xs text-primary-600 font-medium mt-0.5">Citizen Portal</p>

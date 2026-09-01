@@ -47,8 +47,8 @@ function ComplaintCard({ c, onVote, onDetail }) {
     >
       {/* Distance Badge */}
       {c.distanceKm !== undefined && c.distanceKm !== 999 && (
-        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm text-primary-700 text-xs font-bold px-2 py-1 rounded-lg border border-primary-100 shadow-sm z-10">
-          📍 {c.distanceKm < 1 ? '< 1' : c.distanceKm.toFixed(1)} km away
+        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm text-primary-700 text-xs font-bold px-2 py-1 rounded-lg border border-primary-100 shadow-sm z-10 flex items-center gap-1">
+          <HiLocationMarker /> {c.distanceKm < 1 ? '< 1' : c.distanceKm.toFixed(1)} km away
         </div>
       )}
 

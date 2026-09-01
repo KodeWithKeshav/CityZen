@@ -4,7 +4,8 @@ import { useAuth } from '../../context/AuthContext'
 import { makeApiCall, apiClient } from '../../services/api'
 import {
   HiPlusCircle, HiNewspaper, HiMap, HiChartBar,
-  HiDocumentReport, HiChat, HiStar, HiInformationCircle
+  HiDocumentReport, HiChat, HiStar, HiInformationCircle,
+  HiOfficeBuilding, HiClock, HiCheckCircle, HiGlobeAlt
 } from 'react-icons/hi'
 
 const actions = [
@@ -46,20 +47,22 @@ export default function CitizenDashboard() {
       {/* Hero */}
       <div className="rounded-3xl bg-gradient-to-br from-primary-800 to-primary-600 text-white p-6 mb-6">
         <div className="flex items-center gap-4 mb-4">
-          <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-2xl">🌿</div>
+          <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-2xl">
+            <HiOfficeBuilding />
+          </div>
           <div>
             <h1 className="text-2xl font-bold">Hello, {user?.fullName?.split(' ')[0] || 'Citizen'}!</h1>
-            <p className="text-primary-200">Making our city greener, one report at a time</p>
+            <p className="text-primary-200">Making our city better, one report at a time</p>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Pending', value: stats.pending, icon: '⏳' },
-            { label: 'Resolved', value: stats.resolved, icon: '✅' },
-            { label: 'Impact', value: stats.total, icon: '🌍' },
+            { label: 'Pending', value: stats.pending, icon: HiClock },
+            { label: 'Resolved', value: stats.resolved, icon: HiCheckCircle },
+            { label: 'Impact', value: stats.total, icon: HiGlobeAlt },
           ].map(s => (
             <div key={s.label} className="bg-white/10 rounded-xl p-3 text-center">
-              <div className="text-xl">{s.icon}</div>
+              <div className="text-xl flex justify-center"><s.icon /></div>
               <div className="font-bold text-xl">{s.value}</div>
               <div className="text-primary-200 text-xs">{s.label}</div>
             </div>

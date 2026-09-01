@@ -21,6 +21,17 @@ const ISSUE_TYPES = [
   { value: 'others', label: 'Other', desc: 'Other issues' },
 ]
 
+// CityZen SAM3 workflow's normalized detection classes -> this app's issue types
+const SAM3_CLASS_TO_ISSUE_TYPE = {
+  pothole: 'pothole',
+  fallen_tree: 'structural_damage',
+  garbage_dumping: 'garbage_collection',
+  stray_cattle: 'others',
+  fallen_electric_pole: 'electrical_danger',
+  concrete_structure_damage: 'structural_damage',
+  road_waterlogging: 'water_main_break',
+}
+
 const PRIVACY_LEVELS = [
   { value: 'exact', label: 'Exact', desc: '+/-5-10m precision' },
   { value: 'street', label: 'Street-Level', desc: '+/-25m precision' },
@@ -72,34 +83,12 @@ export default function SubmitComplaint() {
         body: JSON.stringify({ imageUrl: uploadedUrl }),
       })
 
-      // 3. Extract Classification and set IssueType
-      const fullRespStr = JSON.stringify(result).toLowerCase()
-      const textToMatch = (result.message || fullRespStr).toLowerCase()
+      // 3. Map the SAM3 workflow's detected class to this app's issue type
+      if (result.allowUpload === true) {
+        const detected = SAM3_CLASS_TO_ISSUE_TYPE[result.primaryClass] || 'others'
 
-      if (result.allowUpload !== false) {
-        let detected = 'others'
-        
-        // Manual heuristics for common variations
-        if (textToMatch.includes('pothole') || textToMatch.includes('pathole') || textToMatch.includes('path-hole') || textToMatch.includes('crater')) detected = 'pothole'
-        else if (textToMatch.includes('water') || textToMatch.includes('leak') || textToMatch.includes('pipe')) detected = 'water_main_break'
-        else if (textToMatch.includes('garbage') || textToMatch.includes('trash') || textToMatch.includes('waste') || textToMatch.includes('dump')) detected = 'garbage_collection'
-        else if (textToMatch.includes('sewage') || textToMatch.includes('drain')) detected = 'sewage_overflow'
-        else if (textToMatch.includes('street') || textToMatch.includes('light') || textToMatch.includes('lamp')) detected = 'broken_streetlight'
-        else if (textToMatch.includes('road') || textToMatch.includes('crack') || textToMatch.includes('damage')) detected = 'road_damage'
-        else if (textToMatch.includes('fire') || textToMatch.includes('smoke') || textToMatch.includes('burn')) detected = 'fire_hazard'
-        else if (textToMatch.includes('electric') || textToMatch.includes('wire') || textToMatch.includes('pole') || textToMatch.includes('cable')) detected = 'electrical_danger'
-        else if (textToMatch.includes('traffic') || textToMatch.includes('signal')) detected = 'traffic_signal'
-        else if (textToMatch.includes('park')) detected = 'illegal_parking'
-        else if (textToMatch.includes('noise') || textToMatch.includes('sound')) detected = 'noise_complaint'
-        else if (textToMatch.includes('structure') || textToMatch.includes('build')) detected = 'structural_damage'
-        else {
-          // Fallback exact match against our types
-          const found = ISSUE_TYPES.find(it => textToMatch.includes(it.value.replace('_', ' ')) || textToMatch.includes(it.label.toLowerCase()))
-          if (found) detected = found.value
-        }
-        
-        setForm(p => ({ ...p, issueType: detected, aiConfidence: result.confidence || result.modelConfidence }))
-        toast.success(`AI identified: ${ISSUE_TYPES.find(i => i.value === detected)?.label || detected}`)
+        setForm(p => ({ ...p, issueType: detected, aiConfidence: result.confidence }))
+        toast.success(result.message || `AI identified: ${ISSUE_TYPES.find(i => i.value === detected)?.label || detected}`)
         setStep(1) // auto-advance
       } else {
         const friendlyMsg = result.message && !result.message.includes('status code')

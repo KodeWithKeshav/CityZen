@@ -1,39 +1,43 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import {
+  HiSparkles, HiLocationMarker, HiGlobeAlt, HiChartBar, HiThumbUp, HiMap,
+  HiOfficeBuilding, HiCamera, HiTrendingUp, HiCheckCircle,
+} from 'react-icons/hi'
 
 const features = [
   {
-    icon: '🤖',
+    icon: HiSparkles,
     title: 'AI-Powered Validation',
     desc: 'Roboflow image analysis verifies civic issues with machine learning before submission.',
     color: 'from-violet-500 to-purple-600',
   },
   {
-    icon: '📍',
+    icon: HiLocationMarker,
     title: 'Location Priority Scoring',
     desc: 'Google Places API ranks complaints by proximity to hospitals, schools, and civic infrastructure.',
     color: 'from-blue-500 to-cyan-600',
   },
   {
-    icon: '🌍',
+    icon: HiGlobeAlt,
     title: 'Multilingual Support',
     desc: 'Submit voice complaints in Hindi, Tamil, Telugu and 7 more Indian languages via Sarvam AI.',
     color: 'from-green-500 to-emerald-600',
   },
   {
-    icon: '📊',
+    icon: HiChartBar,
     title: 'Real-Time Transparency',
     desc: 'Live dashboards show resolution rates, category trends, and government responsiveness metrics.',
     color: 'from-orange-500 to-amber-600',
   },
   {
-    icon: '🗳️',
+    icon: HiThumbUp,
     title: 'Community Voting',
     desc: 'Citizens upvote complaints to push critical issues to the top of the admin priority queue.',
     color: 'from-pink-500 to-rose-600',
   },
   {
-    icon: '🗺️',
+    icon: HiMap,
     title: 'Heat Map Intelligence',
     desc: 'Geographic complaint clusters help authorities identify systemic problem zones across the city.',
     color: 'from-teal-500 to-green-600',
@@ -56,7 +60,7 @@ export default function Welcome() {
       <nav className="fixed top-0 inset-x-0 z-50 bg-gray-950/80 backdrop-blur-md border-b border-white/5">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">🏙️</span>
+            <HiOfficeBuilding className="text-2xl text-green-400" />
             <span className="font-bold text-xl text-white">UrbanPulse</span>
             <span className="hidden sm:inline ml-2 text-xs font-medium bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full border border-green-500/30">v1.0 Beta</span>
           </div>
@@ -115,7 +119,7 @@ export default function Welcome() {
                 onClick={() => navigate('/citizen/signup')}
                 className="w-full sm:w-auto bg-green-600 hover:bg-green-500 text-white font-bold px-8 py-4 rounded-2xl text-lg transition-all duration-200 shadow-xl shadow-green-900/40 hover:shadow-green-900/60 hover:-translate-y-0.5"
               >
-                Report an Issue 📢
+                Report an Issue
               </button>
               <button
                 onClick={() => navigate('/login')}
@@ -164,8 +168,8 @@ export default function Welcome() {
               transition={{ delay: i * 0.08 }}
               className="group bg-white/5 border border-white/10 hover:border-white/20 rounded-2xl p-6 transition-all duration-300 hover:bg-white/8"
             >
-              <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${f.color} flex items-center justify-center text-2xl mb-4 shadow-lg`}>
-                {f.icon}
+              <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${f.color} flex items-center justify-center mb-4 shadow-lg`}>
+                <f.icon className="text-2xl text-white" />
               </div>
               <h3 className="font-bold text-white text-lg mb-2">{f.title}</h3>
               <p className="text-gray-400 text-sm leading-relaxed">{f.desc}</p>
@@ -183,12 +187,14 @@ export default function Welcome() {
           </div>
           <div className="grid sm:grid-cols-3 gap-8">
             {[
-              { step: '01', title: 'Report', desc: 'Snap a photo, add a description, and let AI validate your complaint. Location-based priority is calculated automatically.', icon: '📸' },
-              { step: '02', title: 'Track', desc: 'Watch your complaint move through a 3-stage workflow. Upvote other complaints to push critical issues higher.', icon: '📈' },
-              { step: '03', title: 'Resolve', desc: 'Officials respond, officers are assigned, and you get real-time updates. Rating and feedback close the loop.', icon: '✅' },
+              { step: '01', title: 'Report', desc: 'Snap a photo, add a description, and let AI validate your complaint. Location-based priority is calculated automatically.', icon: HiCamera },
+              { step: '02', title: 'Track', desc: 'Watch your complaint move through a 3-stage workflow. Upvote other complaints to push critical issues higher.', icon: HiTrendingUp },
+              { step: '03', title: 'Resolve', desc: 'Officials respond, officers are assigned, and you get real-time updates. Rating and feedback close the loop.', icon: HiCheckCircle },
             ].map(s => (
               <div key={s.step} className="text-center">
-                <div className="text-5xl mb-4">{s.icon}</div>
+                <div className="flex justify-center mb-4">
+                  <s.icon className="text-4xl text-green-500" />
+                </div>
                 <div className="text-xs font-mono text-green-500 mb-1">{s.step}</div>
                 <h3 className="font-bold text-xl mb-2">{s.title}</h3>
                 <p className="text-gray-400 text-sm leading-relaxed">{s.desc}</p>
@@ -224,7 +230,7 @@ export default function Welcome() {
 
       {/* Footer */}
       <footer className="border-t border-white/5 py-8 px-6 text-center text-gray-600 text-sm">
-        <p>© 2026 UrbanPulse · Built with ❤️ for better cities · Powered by Supabase, Roboflow, Sarvam AI &amp; HuggingFace</p>
+        <p>© 2026 UrbanPulse · Built for better cities · Powered by Supabase, Roboflow, Sarvam AI &amp; HuggingFace</p>
       </footer>
     </div>
   )

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
-import { HiArrowLeft, HiLocationMarker, HiClock, HiThumbUp, HiExclamationCircle } from 'react-icons/hi'
+import { HiArrowLeft, HiLocationMarker, HiClock, HiThumbUp, HiExclamationCircle, HiSparkles } from 'react-icons/hi'
 import { formatDistanceToNow, format } from 'date-fns'
 
 const STATUS_STYLES = {
@@ -134,7 +134,7 @@ export default function ComplaintDetail() {
       {/* AI Analysis */}
       {complaint.aiAnalysis && (
         <div className="card mb-4">
-          <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">🤖 AI Analysis</h3>
+          <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><HiSparkles className="text-violet-500" /> AI Analysis</h3>
           <div className="grid grid-cols-2 gap-3 text-sm">
             {complaint.aiAnalysis.sentiment && <div><span className="text-gray-500">Sentiment:</span> <span className="font-medium ml-1 capitalize">{complaint.aiAnalysis.sentiment}</span></div>}
             {complaint.aiAnalysis.urgency && <div><span className="text-gray-500">Urgency:</span> <span className="font-medium ml-1 capitalize">{complaint.aiAnalysis.urgency}</span></div>}

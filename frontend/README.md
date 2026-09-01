@@ -7,7 +7,7 @@
 
 # UrbanPulse Frontend
 
-**Smart Civic Complaint Portal** -- A modern React web application that empowers citizens to report, track, and resolve civic issues through AI-powered image classification, interactive maps, real-time dashboards, and transparent governance analytics.
+**Smart Civic Complaint Portal** -- A modern React web application that empowers citizens to report, track, and resolve civic issues through AI-powered image segmentation, interactive maps, real-time dashboards, and transparent governance analytics.
 
 ---
 
@@ -32,7 +32,7 @@
 
 ## Overview
 
-UrbanPulse Frontend is the citizen-facing and admin-facing web portal for the UrbanPulse civic complaint management platform. It provides an intuitive, multi-step complaint submission wizard with AI-powered auto-detection, real-time complaint feeds with community voting, interactive heat maps, a civic chatbot, and a full admin dashboard for complaint triage and resolution workflow management.
+UrbanPulse Frontend is the citizen-facing and admin-facing web portal for the UrbanPulse civic complaint management platform. It provides an intuitive, multi-step complaint submission wizard with AI-powered auto-detection (via Roboflow's "CityZen SAM3 2" segmentation workflow), real-time complaint feeds with community voting, interactive heat maps, a civic chatbot, and a full admin dashboard for complaint triage and resolution workflow management.
 
 ---
 
@@ -59,7 +59,7 @@ The frontend is a single-page application (SPA) built with React and Vite. It co
 
 | Feature | Description |
 |---|---|
-| **AI Image Upload** | Upload a photo and let the Roboflow CNN auto-detect the issue category |
+| **AI Image Upload** | Upload a photo and let Roboflow's SAM3 segmentation workflow auto-detect the issue category |
 | **Multi-Step Submission** | Guided 4-step wizard: Issue Type, Details, Location, Review |
 | **Complaint Feed** | Browse all community complaints with upvoting support |
 | **Interactive Map** | Leaflet-powered map with heat map overlay of complaint density |
@@ -77,7 +77,7 @@ The frontend is a single-page application (SPA) built with React and Vite. It co
 | **Complaint Management** | Review, assign, and update complaint status through resolution workflow |
 | **Citizen Management** | View and manage citizen accounts and complaint histories |
 | **Admin Map View** | Geographic overview of all complaints for spatial analysis |
-| **XAI Rationale** | Inspect Grad-CAM heatmaps and AI reasoning for each complaint |
+| **XAI Rationale** | Inspect the SAM3 segmentation map and AI reasoning for each complaint |
 
 ---
 
@@ -285,7 +285,7 @@ Complaints are ranked by a composite AI priority score:
 
 | Weight | Factor | Source |
 |:---:|---|---|
-| 40% | Image Validation | Roboflow CNN confidence |
+| 40% | Image Validation | Roboflow SAM3 segmentation confidence |
 | 20% | Emotion Urgency | DistilBERT sentiment analysis |
 | 30% | Location Sensitivity | Google Places infrastructure proximity |
 | 10% | Community Interest | Upvote count and recency |
@@ -295,7 +295,7 @@ Complaints are ranked by a composite AI priority score:
 1. Click any complaint to view full details including AI scores
 2. Update status through the resolution workflow
 3. Add resolution notes for transparency
-4. View the XAI rationale (Grad-CAM heatmap and explanation text)
+4. View the XAI rationale (SAM3 segmentation map and explanation text)
 
 ### Citizen Management
 
