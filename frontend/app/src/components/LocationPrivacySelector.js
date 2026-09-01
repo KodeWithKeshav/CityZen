@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Ionicons } from '@expo/vector-icons';
 import LocationService from '../services/LocationService';
 
 const LocationPrivacySelector = ({ 
@@ -25,7 +26,7 @@ const LocationPrivacySelector = ({
       level: LocationService.privacyLevels.EXACT,
       title: 'Exact Location',
       subtitle: 'Precise coordinates (±5-10m)',
-      icon: '📍',
+      icon: 'locate-outline',
       color: '#FF4444',
       description: 'For urgent infrastructure issues requiring immediate emergency response',
       recommended: ['fire_hazard', 'electrical_danger', 'sewage_overflow']
@@ -34,7 +35,7 @@ const LocationPrivacySelector = ({
       level: LocationService.privacyLevels.STREET,
       title: 'Street-Level',
       subtitle: 'Street accuracy (±25m)',
-      icon: '🛣️',
+      icon: 'navigate-outline',
       color: '#4CAF50',
       description: 'For general civic complaints and routine maintenance issues',
       recommended: ['pothole', 'broken_streetlight', 'traffic_signal', 'garbage_collection', 'others']
@@ -99,9 +100,10 @@ const LocationPrivacySelector = ({
           
           {privacyLevels.map((levelConfig) => (
             <View key={levelConfig.level} style={styles.modalItem}>
-              <Text style={styles.modalItemTitle}>
-                {levelConfig.icon} {levelConfig.title}
-              </Text>
+              <View style={styles.modalItemTitleRow}>
+                <Ionicons name={levelConfig.icon} size={18} color={levelConfig.color} style={{ marginRight: 6 }} />
+                <Text style={styles.modalItemTitle}>{levelConfig.title}</Text>
+              </View>
               <Text style={styles.modalItemDescription}>
                 {levelConfig.description}
               </Text>
@@ -149,7 +151,7 @@ const LocationPrivacySelector = ({
             onPress={() => selectPrivacyLevel(levelConfig.level)}
           >
             <View style={styles.optionHeader}>
-              <Text style={styles.optionIcon}>{levelConfig.icon}</Text>
+              <Ionicons name={levelConfig.icon} size={24} color={levelConfig.color} style={styles.optionIcon} />
               <View style={styles.optionText}>
                 <Text style={styles.optionTitle}>{levelConfig.title}</Text>
                 <Text style={styles.optionSubtitle}>{levelConfig.subtitle}</Text>
@@ -186,10 +188,10 @@ const LocationPrivacySelector = ({
         <View style={styles.locationPreview}>
           <Text style={styles.previewTitle}>Location Captured</Text>
           <Text style={styles.previewText}>
-            📍 Accuracy: ±{currentLocation.radiusM}m ({currentLocation.precision})
+            Accuracy: ±{currentLocation.radiusM}m ({currentLocation.precision})
           </Text>
           <Text style={styles.previewText}>
-            🔒 Privacy: {currentLocation.description}
+            Privacy: {currentLocation.description}
           </Text>
           <Text style={styles.coordsText}>
             {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
@@ -246,7 +248,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   optionIcon: {
-    fontSize: 24,
     marginRight: 12,
   },
   optionText: {
@@ -345,10 +346,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
+  modalItemTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   modalItemTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
   },
   modalItemDescription: {
     fontSize: 14,

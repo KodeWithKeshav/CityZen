@@ -43,47 +43,44 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   const [filterStatus, setFilterStatus] = useState('all'); // Admin filter
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [heatMapData, setHeatMapData] = useState([]);
-  const [gradCamLoading, setGradCamLoading] = useState(false);
-  const [gradCamResult, setGradCamResult] = useState(null);
-  const [showGradCamModal, setShowGradCamModal] = useState(false);
-  const [selectedImageForGradCam, setSelectedImageForGradCam] = useState(null);
+  const [aiExplainLoading, setAiExplainLoading] = useState(false);
+  const [aiExplainResult, setAiExplainResult] = useState(null);
+  const [showAiExplainModal, setShowAiExplainModal] = useState(false);
+  const [selectedImageForAiExplain, setSelectedImageForAiExplain] = useState(null);
   const mapRef = useRef(null);
   const regionChangeTimeoutRef = useRef(null);
 
-  // Fetch Grad-CAM Explanation
-  const fetchGradCamExplanation = async (imageUrl) => {
+  // Fetch AI explanation (SAM3 segmentation map) for an image
+  const fetchAiExplanation = async (imageUrl) => {
     if (!imageUrl) return;
-    
-    setSelectedImageForGradCam(imageUrl);
-    setGradCamLoading(true);
-    setShowGradCamModal(true);
-    
+
+    setSelectedImageForAiExplain(imageUrl);
+    setAiExplainLoading(true);
+    setShowAiExplainModal(true);
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/gradcam/explain/url`, {
+      const response = await fetch(`${API_BASE_URL}/api/image-analysis/explain`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          image_url: imageUrl,
-          architecture: 'resnet50'
-        })
+        body: JSON.stringify({ imageUrl })
       });
 
       const data = await response.json();
 
       if (data.success) {
-        setGradCamResult(data);
+        setAiExplainResult(data);
       } else {
         Alert.alert('Error', data.error || 'Failed to generate explanation');
-        setShowGradCamModal(false);
+        setShowAiExplainModal(false);
       }
     } catch (error) {
-      console.error('Grad-CAM Error:', error);
+      console.error('AI explanation error:', error);
       Alert.alert('Error', 'Failed to connect to explanation service');
-      setShowGradCamModal(false);
+      setShowAiExplainModal(false);
     } finally {
-      setGradCamLoading(false);
+      setAiExplainLoading(false);
     }
   };
 
@@ -800,9 +797,9 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
                           style={styles.complaintImage}
                           resizeMode="cover"
                         />
-                        <TouchableOpacity 
-                          style={styles.explainButtonMap} 
-                          onPress={() => fetchGradCamExplanation(imageUrl)}
+                        <TouchableOpacity
+                          style={styles.explainButtonMap}
+                          onPress={() => fetchAiExplanation(imageUrl)}
                         >
                           <Ionicons name="scan-outline" size={16} color="#fff" />
                           <Text style={styles.explainButtonText}>Explain AI</Text>
@@ -819,40 +816,34 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
     );
   };
 
-  // Grad-CAM Display Modal
-  const GradCamModal = () => (
+  // AI Explanation Display Modal (SAM3 segmentation map)
+  const AiExplainModal = () => (
     <Modal
-      visible={showGradCamModal}
+      visible={showAiExplainModal}
       transparent={true}
       animationType="fade"
-      onRequestClose={() => setShowGradCamModal(false)}
+      onRequestClose={() => setShowAiExplainModal(false)}
     >
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { width: '90%' }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>AI Image Explanation</Text>
-            <TouchableOpacity onPress={() => setShowGradCamModal(false)}>
+            <TouchableOpacity onPress={() => setShowAiExplainModal(false)}>
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
           </View>
           <ScrollView style={{ maxHeight: 500 }}>
-            {gradCamLoading ? (
+            {aiExplainLoading ? (
               <View style={{ padding: 20, alignItems: 'center' }}>
                 <ActivityIndicator size="large" color="#1A1A1A" />
-                <Text style={{ marginTop: 10 }}>Generating AI heatmap explanation...</Text>
+                <Text style={{ marginTop: 10 }}>Generating SAM3 segmentation map...</Text>
               </View>
-            ) : gradCamResult ? (
+            ) : aiExplainResult ? (
               <View style={{ padding: 10 }}>
-                <Text style={styles.explanationText}>{gradCamResult.explanation_text}</Text>
-                {gradCamResult.overlay_base64 && (
+                <Text style={styles.explanationText}>{aiExplainResult.explanationText}</Text>
+                {aiExplainResult.annotatedImage?.value && (
                   <Image
-                    source={{ uri: `data:image/png;base64,${gradCamResult.overlay_base64}` }}
-                    style={{ width: '100%', height: 250, borderRadius: 8, marginTop: 15, resizeMode: 'contain' }}
-                  />
-                )}
-                {gradCamResult.heatmap_base64 && (
-                  <Image
-                    source={{ uri: `data:image/png;base64,${gradCamResult.heatmap_base64}` }}
+                    source={{ uri: `data:image/jpeg;base64,${aiExplainResult.annotatedImage.value}` }}
                     style={{ width: '100%', height: 250, borderRadius: 8, marginTop: 15, resizeMode: 'contain' }}
                   />
                 )}
@@ -1108,7 +1099,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
 
       <FilterModal />
       <AdminComplaintDetailsModal />
-      <GradCamModal />
+      <AiExplainModal />
     </View>
   );
 };

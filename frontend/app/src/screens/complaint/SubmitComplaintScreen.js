@@ -349,15 +349,15 @@ const SubmitComplaintScreen = ({ navigation }) => {
  const result = await validateRes.json();
  console.log(' Validation result:', result);
 
- // Ensure result has expected fields, provide defaults if missing
+ // Trust the backend's own allowUpload decision (the SAM3 workflow already
+ // applies its own per-class confidence thresholds server-side).
  const validationData = {
  confidence: result.confidence || 0,
  modelConfidence: result.modelConfidence || 0,
- openaiConfidence: result.openaiConfidence || 0,
- allowUpload: result.confidence !== undefined && result.confidence >= 0.7,
+ allowUpload: result.allowUpload === true,
  message: result.message || 'No validation message provided',
- data: result.data || {},
- raw: result.raw || null,
+ detections: Array.isArray(result.detections) ? result.detections : [],
+ primaryClass: result.primaryClass || null,
  };
  setImageValidation(validationData);
  

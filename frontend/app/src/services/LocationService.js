@@ -323,21 +323,21 @@ class LocationService {
       [this.privacyLevels.EXACT]: {
         title: 'Exact Location',
         description: 'Precise coordinates (±5-10m) for urgent infrastructure issues',
-        icon: '📍',
+        icon: 'locate-outline',
         accuracy: 'Highest',
         usage: 'Emergency situations, critical infrastructure problems'
       },
       [this.privacyLevels.STREET]: {
         title: 'Street-Level',
         description: 'Street-level accuracy (±25m) for general civic complaints',
-        icon: '🛣️',
+        icon: 'navigate-outline',
         accuracy: 'High',
         usage: 'Most civic complaints, routine maintenance issues'
       },
       [this.privacyLevels.AREA]: {
         title: 'Neighborhood',
         description: 'Area-level location (±150m) for privacy protection',
-        icon: '🏘️',
+        icon: 'home-outline',
         accuracy: 'Medium',
         usage: 'Privacy-conscious reporting, general area issues'
       }

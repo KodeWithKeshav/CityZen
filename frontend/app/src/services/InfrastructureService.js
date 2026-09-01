@@ -30,26 +30,26 @@ class InfrastructureService {
         { type: 'restaurant', icon: 'restaurant', color: '#f1c40f', priority: 'low' }
       ];
 
-      const allNearbyPlaces = [];
-
-      // Search for each infrastructure type
-      for (const infra of infrastructureTypes) {
+      // Search for every infrastructure type in parallel - each request is
+      // independent, so there's no reason to wait for one before starting the next.
+      const results = await Promise.all(infrastructureTypes.map(async (infra) => {
         try {
           // Use larger radius for train stations as they are typically farther away
           const searchRadius = infra.type === 'train_station' ? radius * 3 : radius;
           const places = await this.searchPlacesByType(latitude, longitude, infra.type, searchRadius);
-          const enhancedPlaces = places.map(place => ({
+          return places.map(place => ({
             ...place,
             icon: infra.icon,
             color: infra.color,
             priority: infra.priority,
             infrastructureType: infra.type
           }));
-          allNearbyPlaces.push(...enhancedPlaces);
         } catch (error) {
-          console.log(`⚠️ Failed to fetch ${infra.type}:`, error.message);
+          console.log(`Failed to fetch ${infra.type}:`, error.message);
+          return [];
         }
-      }
+      }));
+      const allNearbyPlaces = results.flat();
 
       // Sort by priority and distance
       const sortedPlaces = this.sortInfrastructureByRelevance(allNearbyPlaces);
@@ -160,11 +160,11 @@ class InfrastructureService {
     const mediumPriority = uniqueInfrastructure.filter(i => i.priority === 'medium');
     const closest = infrastructure[0];
 
-    let summary = `📍 Location Context Report:\n\n`;
+    let summary = `Location Context Report:\n\n`;
 
     // Essential services (high priority)
     if (highPriority.length > 0) {
-      summary += `🚨 Essential Services:\n`;
+      summary += `Essential Services:\n`;
       highPriority.forEach(infra => {
         const typeLabel = this.getInfrastructureTypeLabel(infra.infrastructureType);
         summary += `• ${typeLabel}: ${infra.name} (${infra.distance}m)\n`;
@@ -174,7 +174,7 @@ class InfrastructureService {
 
     // Other services (medium priority)
     if (mediumPriority.length > 0) {
-      summary += `🏢 Other Facilities:\n`;
+      summary += `Other Facilities:\n`;
       mediumPriority.slice(0, 3).forEach(infra => {
         const typeLabel = this.getInfrastructureTypeLabel(infra.infrastructureType);
         summary += `• ${typeLabel}: ${infra.name} (${infra.distance}m)\n`;
@@ -182,8 +182,8 @@ class InfrastructureService {
       summary += `\n`;
     }
 
-    summary += `� Closest landmark: ${closest.name} (${closest.distance}m away)\n`;
-    summary += `📊 Total infrastructure points found: ${infrastructure.length}`;
+    summary += `Closest landmark: ${closest.name} (${closest.distance}m away)\n`;
+    summary += `Total infrastructure points found: ${infrastructure.length}`;
 
     return summary;
   }

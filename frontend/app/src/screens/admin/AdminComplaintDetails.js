@@ -29,9 +29,9 @@ const AdminComplaintDetails = ({ route, navigation }) => {
   const [contractors, setContractors] = useState([]);
   const [selectedOfficer, setSelectedOfficer] = useState('');
   const [selectedContractor, setSelectedContractor] = useState('');
-  const [gradCamLoading, setGradCamLoading] = useState(false);
-  const [gradCamResult, setGradCamResult] = useState(null);
-  const [showGradCamModal, setShowGradCamModal] = useState(false);
+  const [aiExplainLoading, setAiExplainLoading] = useState(false);
+  const [aiExplainResult, setAiExplainResult] = useState(null);
+  const [showAiExplainModal, setShowAiExplainModal] = useState(false);
 
   useEffect(() => {
     loadComplaintDetails();
@@ -171,33 +171,30 @@ const AdminComplaintDetails = ({ route, navigation }) => {
     }
   };
 
-  const fetchGradCamExplanation = async () => {
+  const fetchAiExplanation = async () => {
     if (!complaint?.image_url) return;
-    
-    setGradCamLoading(true);
-    setShowGradCamModal(true);
-    
+
+    setAiExplainLoading(true);
+    setShowAiExplainModal(true);
+
     try {
-      const response = await makeApiCall(`${apiClient.baseUrl}/api/gradcam/explain/url`, {
+      const response = await makeApiCall(`${apiClient.baseUrl}/api/image-analysis/explain`, {
         method: 'POST',
-        body: JSON.stringify({
-          image_url: complaint.image_url,
-          architecture: 'resnet50'
-        })
+        body: JSON.stringify({ imageUrl: complaint.image_url })
       });
 
-      if (response) {
-        setGradCamResult(response);
+      if (response?.success) {
+        setAiExplainResult(response);
       } else {
-        Alert.alert('Error', response.error || 'Failed to generate explanation');
-        setShowGradCamModal(false);
+        Alert.alert('Error', response?.error || 'Failed to generate explanation');
+        setShowAiExplainModal(false);
       }
     } catch (error) {
-      console.error('Grad-CAM Error:', error);
+      console.error('AI explanation error:', error);
       Alert.alert('Error', 'Failed to connect to explanation service');
-      setShowGradCamModal(false);
+      setShowAiExplainModal(false);
     } finally {
-      setGradCamLoading(false);
+      setAiExplainLoading(false);
     }
   };
 
@@ -326,7 +323,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Images</Text>
-              <TouchableOpacity style={styles.explainButton} onPress={fetchGradCamExplanation}>
+              <TouchableOpacity style={styles.explainButton} onPress={fetchAiExplanation}>
                 <Ionicons name="scan-outline" size={16} color="#fff" />
                 <Text style={styles.explainButtonText}>Explain AI</Text>
               </TouchableOpacity>
@@ -445,19 +442,19 @@ const AdminComplaintDetails = ({ route, navigation }) => {
 
                 {stage.officers && (
                   <Text style={styles.stageAssignment}>
-                    👮 Officer: {stage.officers.name}
+                    Officer: {stage.officers.name}
                   </Text>
                 )}
 
                 {stage.contractors && (
                   <Text style={styles.stageAssignment}>
-                    🔧 Contractor: {stage.contractors.name}
+                    Contractor: {stage.contractors.name}
                   </Text>
                 )}
 
                 {stage.estimated_cost && (
                   <Text style={styles.stageCost}>
-                    💰 Estimated Cost: ₹{stage.estimated_cost}
+                    Estimated Cost: ₹{stage.estimated_cost}
                   </Text>
                 )}
 
@@ -612,38 +609,32 @@ const AdminComplaintDetails = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      {/* Grad-CAM Modal */}
+      {/* AI Explanation Modal (SAM3 segmentation map) */}
       <Modal
-        visible={showGradCamModal}
+        visible={showAiExplainModal}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowGradCamModal(false)}
+        onRequestClose={() => setShowAiExplainModal(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.stageModal}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>AI Image Explanation</Text>
-              <TouchableOpacity onPress={() => setShowGradCamModal(false)}>
+              <TouchableOpacity onPress={() => setShowAiExplainModal(false)}>
                 <Ionicons name="close" size={24} color="#2c3e50" />
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalContent}>
-              {gradCamLoading ? (
+              {aiExplainLoading ? (
                 <View style={{ padding: 20, alignItems: 'center' }}>
-                  <Text>Generating AI heatmap explanation...</Text>
+                  <Text>Generating SAM3 segmentation map...</Text>
                 </View>
-              ) : gradCamResult ? (
+              ) : aiExplainResult ? (
                 <View>
-                  <Text style={styles.explanationText}>{gradCamResult.explanation_text}</Text>
-                  {gradCamResult.overlay_base64 && (
+                  <Text style={styles.explanationText}>{aiExplainResult.explanationText}</Text>
+                  {aiExplainResult.annotatedImage?.value && (
                     <Image
-                      source={{ uri: `data:image/png;base64,${gradCamResult.overlay_base64}` }}
-                      style={{ width: '100%', height: 250, borderRadius: 8, marginTop: 15, resizeMode: 'contain' }}
-                    />
-                  )}
-                  {gradCamResult.heatmap_base64 && (
-                    <Image
-                      source={{ uri: `data:image/png;base64,${gradCamResult.heatmap_base64}` }}
+                      source={{ uri: `data:image/jpeg;base64,${aiExplainResult.annotatedImage.value}` }}
                       style={{ width: '100%', height: 250, borderRadius: 8, marginTop: 15, resizeMode: 'contain' }}
                     />
                   )}

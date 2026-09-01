@@ -131,19 +131,19 @@ const CitizenDetails = ({ route, navigation }) => {
           
           {stage.officer && (
             <Text style={styles.stageAssignment}>
-              👮 {stage.officer}
+              Officer: {stage.officer}
             </Text>
           )}
           
           {stage.contractor && (
             <Text style={styles.stageAssignment}>
-              🔧 {stage.contractor}
+              Contractor: {stage.contractor}
             </Text>
           )}
           
           {stage.estimatedCost && (
             <Text style={styles.stageAssignment}>
-              💰 Estimated Cost: ₹{stage.estimatedCost}
+              Estimated Cost: ₹{stage.estimatedCost}
             </Text>
           )}
         </View>
@@ -188,10 +188,10 @@ const CitizenDetails = ({ route, navigation }) => {
         
         <View style={styles.complaintMeta}>
           <Text style={styles.complaintDate}>
-            📅 {new Date(complaint.created_at).toLocaleDateString()}
+            {new Date(complaint.created_at).toLocaleDateString()}
           </Text>
           <Text style={styles.complaintLocation}>
-            📍 {complaint.location || 'Location not specified'}
+            {complaint.location || 'Location not specified'}
           </Text>
         </View>
         
@@ -282,7 +282,7 @@ const CitizenDetails = ({ route, navigation }) => {
           </Text>
           <Text style={styles.citizenEmail}>{citizen.email}</Text>
           <Text style={styles.citizenPhone}>
-            📞 {citizen.phone_number || 'No phone number'}
+            {citizen.phone_number || 'No phone number'}
           </Text>
           <Text style={styles.joinDate}>
             Joined: {new Date(citizen.created_at).toLocaleDateString()}
@@ -357,23 +357,23 @@ const CitizenDetails = ({ route, navigation }) => {
                 
                 <View style={styles.complaintModalMeta}>
                   <Text style={styles.modalMetaText}>
-                    📅 Submitted: {new Date(selectedComplaint.created_at).toLocaleDateString()} at {new Date(selectedComplaint.created_at).toLocaleTimeString()}
+                    Submitted: {new Date(selectedComplaint.created_at).toLocaleDateString()} at {new Date(selectedComplaint.created_at).toLocaleTimeString()}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    📍 Location: {selectedComplaint.location || 'Not specified'}
+                    Location: {selectedComplaint.location || 'Not specified'}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    📋 Category: {selectedComplaint.category || 'General'}
+                    Category: {selectedComplaint.category || 'General'}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    ⚡ Priority: {selectedComplaint.priority || 'Medium'}
+                    Priority: {selectedComplaint.priority || 'Medium'}
                   </Text>
                 </View>
               </View>
               
               {/* Amazon-style Tracking */}
               <View style={styles.trackingContainer}>
-                <Text style={styles.trackingTitle}>📦 Complaint Progress</Text>
+                <Text style={styles.trackingTitle}>Complaint Progress</Text>
                 {selectedComplaint.trackingStages?.map((stage, index) => 
                   renderTrackingStage(
                     stage, 

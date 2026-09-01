@@ -92,22 +92,22 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   // Complaint categories
   const complaintCategories = [
     // Urgent Issues
-    { value: 'fire_hazard', label: 'Fire Hazard', urgency: 'urgent', icon: '🚨' },
-    { value: 'electrical_danger', label: 'Electrical Danger', urgency: 'urgent', icon: '⚡' },
-    { value: 'sewage_overflow', label: 'Sewage Overflow', urgency: 'urgent', icon: '🚰' },
+    { value: 'fire_hazard', label: 'Fire Hazard', urgency: 'urgent', icon: 'flame-outline' },
+    { value: 'electrical_danger', label: 'Electrical Danger', urgency: 'urgent', icon: 'flash-outline' },
+    { value: 'sewage_overflow', label: 'Sewage Overflow', urgency: 'urgent', icon: 'warning-outline' },
 
     // Safety Issues
-    { value: 'broken_streetlight', label: 'Broken Streetlight', urgency: 'safety', icon: '💡' },
-    { value: 'traffic_signal', label: 'Traffic Signal Issue', urgency: 'safety', icon: '🚦' },
+    { value: 'broken_streetlight', label: 'Broken Streetlight', urgency: 'safety', icon: 'bulb-outline' },
+    { value: 'traffic_signal', label: 'Traffic Signal Issue', urgency: 'safety', icon: 'alert-circle-outline' },
 
     // General Infrastructure
-    { value: 'pothole', label: 'Pothole', urgency: 'general', icon: '🕳️' },
-    { value: 'road_damage', label: 'Road Damage', urgency: 'general', icon: '�️' },
-    { value: 'water_leakage', label: 'Water Leakage', urgency: 'general', icon: '💧' },
-    { value: 'garbage_collection', label: 'Garbage Collection', urgency: 'general', icon: '🗑️' },
+    { value: 'pothole', label: 'Pothole', urgency: 'general', icon: 'ellipse-outline' },
+    { value: 'road_damage', label: 'Road Damage', urgency: 'general', icon: 'construct-outline' },
+    { value: 'water_leakage', label: 'Water Leakage', urgency: 'general', icon: 'water-outline' },
+    { value: 'garbage_collection', label: 'Garbage Collection', urgency: 'general', icon: 'trash-outline' },
 
     // Other Issues
-    { value: 'others', label: 'Others', urgency: 'general', icon: '�' },
+    { value: 'others', label: 'Others', urgency: 'general', icon: 'help-circle-outline' },
   ];
 
   // Memoized category lookup to prevent re-renders
@@ -339,7 +339,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         const isUrgent = urgencyLevel === 'urgent';
 
         Alert.alert(
-          '📍 Location Required',
+          'Location Required',
           isUrgent
             ? `For ${category} complaints, we need your exact location to prioritize emergency response. This helps us route your complaint to the nearest response team.`
             : `We'll capture your location to help prioritize your complaint and route it to the correct municipal office. Your privacy is protected with street-level accuracy.`,
@@ -378,7 +378,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
         // Show success message with location info
         Alert.alert(
-          '✅ Location Captured Successfully!',
+          'Location Captured Successfully!',
           `Accuracy: ±${location.radiusM}m (${location.precision})\n` +
           `Privacy Level: ${location.privacyLevel}\n` +
           `Your complaint will be prioritized based on nearby infrastructure.`,
@@ -425,7 +425,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           // Show priority notification for high-priority complaints
           if (priorityResult.priorityLevel === 'CRITICAL') {
             Alert.alert(
-              '🚨 High Priority Complaint Detected',
+              'High Priority Complaint Detected',
               `Your complaint has been marked as ${priorityResult.priorityLevel} priority due to proximity to critical infrastructure. It will receive immediate attention.`,
               [{ text: 'Understood', style: 'default' }]
             );
@@ -517,7 +517,12 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                   ]}
                   onPress={() => handleCategorySelect(category.value)}
                 >
-                  <Text style={styles.categoryIcon}>{category.icon}</Text>
+                  <Ionicons
+                    name={category.icon}
+                    size={28}
+                    color={complaintData.category === category.value ? '#1A1A1A' : '#555'}
+                    style={styles.categoryIcon}
+                  />
                   <Text style={[
                     styles.categoryTitle,
                     complaintData.category === category.value && styles.selectedCategoryLabel
@@ -528,8 +533,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                     styles.categoryUrgency,
                     category.urgency === 'urgent' && styles.categoryUrgencyHigh
                   ]}>
-                    {category.urgency === 'urgent' ? '🚨 Urgent' :
-                      category.urgency === 'safety' ? '⚠️ Safety' : '📋 General'}
+                    {category.urgency === 'urgent' ? 'Urgent' :
+                      category.urgency === 'safety' ? 'Safety' : 'General'}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -541,23 +546,23 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         {autoCapturingLocation && (
           <View style={styles.locationStatusContainer}>
             <ActivityIndicator size="small" color="#2E7D32" />
-            <Text style={styles.locationStatusText}>🔍 Capturing your location...</Text>
+            <Text style={styles.locationStatusText}>Capturing your location...</Text>
           </View>
         )}
 
         {locationCaptured && complaintData.locationData && (
           <View style={styles.locationCapturedContainer}>
-            <Text style={styles.locationCapturedTitle}>✅ Location Captured Successfully</Text>
+            <Text style={styles.locationCapturedTitle}>Location Captured Successfully</Text>
             <Text style={styles.locationDetailText}>
-              📍 Accuracy: ±{complaintData.locationData.radiusM}m ({complaintData.locationData.precision})
+              Accuracy: ±{complaintData.locationData.radiusM}m ({complaintData.locationData.precision})
             </Text>
             <Text style={styles.locationDetailText}>
-              🔒 Privacy: {complaintData.locationData.description}
+              Privacy: {complaintData.locationData.description}
             </Text>
             {complaintData.locationPriorityScore && (
               <View style={styles.priorityScoreContainer}>
                 <Text style={styles.priorityScoreText}>
-                  📊 Priority: {complaintData.locationPriorityScore.priorityLevel} ({Math.round((complaintData.locationPriorityScore.priorityScore || 0) * 100)}%)
+                  Priority: {complaintData.locationPriorityScore.priorityLevel} ({Math.round((complaintData.locationPriorityScore.priorityScore || 0) * 100)}%)
                 </Text>
               </View>
             )}
@@ -568,14 +573,14 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         {isLoadingInfrastructure && (
           <View style={styles.infrastructureLoadingContainer}>
             <ActivityIndicator size="small" color="#2E7D32" />
-            <Text style={styles.infrastructureLoadingText}>🏢 Analyzing nearby infrastructure...</Text>
+            <Text style={styles.infrastructureLoadingText}>Analyzing nearby infrastructure...</Text>
           </View>
         )}
 
         {/* Nearby Infrastructure Display */}
         {nearbyInfrastructure && nearbyInfrastructure.places && nearbyInfrastructure.places.length > 0 && (
           <View style={styles.infrastructureContainer}>
-            <Text style={styles.infrastructureTitle}>🏢 Nearby Infrastructure</Text>
+            <Text style={styles.infrastructureTitle}>Nearby Infrastructure</Text>
             <Text style={styles.infrastructureSummary}>{nearbyInfrastructure.summary}</Text>
 
             <View style={styles.infrastructureList}>
@@ -585,7 +590,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                     {place.name} ({place.types[0].replace('_', ' ')})
                   </Text>
                   <Text style={styles.infrastructureDistance}>
-                    📍 {place.distance}m away
+                    {place.distance}m away
                   </Text>
                 </View>
               ))}
@@ -692,8 +697,10 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           <View style={styles.selectedCategoryDisplay}>
             <Text style={styles.selectedCategoryTitle}>Selected Issue Type:</Text>
             <View style={styles.selectedCategoryChip}>
+              {selectedCategory?.icon && (
+                <Ionicons name={selectedCategory.icon} size={16} color="#1A1A1A" style={{ marginRight: 6 }} />
+              )}
               <Text style={styles.selectedCategoryChipText}>
-                {selectedCategory?.icon} {' '}
                 {selectedCategory?.label}
               </Text>
             </View>
@@ -736,7 +743,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               </View>
             </TouchableOpacity>
             <Text style={styles.languageHelper}>
-              🎙️ Voice input will be processed in the selected language
+              Voice input will be processed in the selected language
 
 
 
@@ -784,7 +791,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             {/* Emotion Analysis Score */}
             {complaintData.emotionScore ? (
               <View style={styles.emotionScoreContainer}>
-                <Text style={styles.emotionScoreLabel}>🧠 Emotion Analysis Results</Text>
+                <Text style={styles.emotionScoreLabel}>Emotion Analysis Results</Text>
                 <Text style={styles.emotionScoreValue}>
                   Priority Impact: {complaintData.emotionScore.score}%
                 </Text>
@@ -808,7 +815,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               </View>
             ) : (
               <View style={styles.emotionScoreContainer}>
-                <Text style={styles.emotionScoreLabel}>🧠 Emotion Analysis</Text>
+                <Text style={styles.emotionScoreLabel}>Emotion Analysis</Text>
                 <Text style={styles.emotionScoreMethod}>
                   {complaintData.description.length < 10
                     ? 'Write at least 10 characters for emotion analysis'
@@ -827,7 +834,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
           {voiceError && (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>⚠️ {voiceError}</Text>
+              <Text style={styles.errorText}>{voiceError}</Text>
             </View>
           )}
 
@@ -835,7 +842,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           {isRecording && (
             <View style={styles.recordingIndicator}>
               <ActivityIndicator size="small" color="#2E7D32" />
-              <Text style={styles.recordingText}>🎤 Recording... Speak clearly</Text>
+              <Text style={styles.recordingText}>Recording... Speak clearly</Text>
             </View>
           )}
 
@@ -1029,15 +1036,15 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
         console.log('📋 Validation result:', result);
 
-        // Process validation result
+        // Trust the backend's own allowUpload decision (the SAM3 workflow already
+        // applies its own per-class confidence thresholds server-side).
         const validationData = {
           confidence: result.confidence || 0,
           modelConfidence: result.modelConfidence || 0,
-          openaiConfidence: result.openaiConfidence || 0,
-          allowUpload: result.confidence !== undefined && result.confidence >= 0.7,
+          allowUpload: result.allowUpload === true,
           message: result.message || 'No validation message provided',
-          data: result.data || {},
-          raw: result.raw || null,
+          detections: Array.isArray(result.detections) ? result.detections : [],
+          primaryClass: result.primaryClass || null,
         };
 
         setComplaintData(prev => ({ ...prev, imageValidation: validationData }));
@@ -1047,13 +1054,13 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
         if (validationData.allowUpload) {
           Alert.alert(
-            '✅ Valid Civic Issue Detected!',
+            'Valid Civic Issue Detected!',
             `Confidence Score: ${(displayConfidence * 100).toFixed(1)}%\n\nYour image has been validated and is ready for submission.`,
             [{ text: 'Continue', style: 'default' }]
           );
         } else {
           Alert.alert(
-            '❌ Image Validation Failed',
+            'Image Validation Failed',
             `Confidence Score: ${(displayConfidence * 100).toFixed(1)}%\n\nThe selected image does not appear to show a valid civic issue. Please select a different image showing the actual problem.`,
             [
               { text: 'Change Image', onPress: () => setComplaintData(prev => ({ ...prev, selectedImage: null, imageValidation: null })) },
@@ -1188,7 +1195,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         return (
           <View style={styles.validationStatus}>
             <ActivityIndicator size="small" color="#2E7D32" />
-            <Text style={styles.validationText}>🔍 Validating civic issue...</Text>
+            <Text style={styles.validationText}>Validating civic issue...</Text>
           </View>
         );
       }
@@ -1198,14 +1205,14 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           return (
             <View style={[styles.validationStatus, styles.validationSuccess]}>
               <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
-              <Text style={styles.validationText}>✅ Valid civic issue detected!</Text>
+              <Text style={styles.validationText}>{complaintData.imageValidation.message}</Text>
             </View>
           );
         } else {
           return (
             <View style={[styles.validationStatus, styles.validationError]}>
               <Ionicons name="close-circle" size={20} color="#F44336" />
-              <Text style={styles.validationText}>❌ {complaintData.imageValidation.message}</Text>
+              <Text style={styles.validationText}>{complaintData.imageValidation.message}</Text>
             </View>
           );
         }
@@ -1330,7 +1337,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.complaintDetailsCard}>
-          <Text style={styles.detailsCardTitle}>📋 Complaint Details</Text>
+          <Text style={styles.detailsCardTitle}>Complaint Details</Text>
 
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Complaint ID:</Text>
@@ -1344,10 +1351,17 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Category:</Text>
-            <Text style={styles.detailValue}>
-              {complaintCategories.find(cat => cat.value === complaintData.category)?.icon} {' '}
-              {complaintCategories.find(cat => cat.value === complaintData.category)?.label}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons
+                name={complaintCategories.find(cat => cat.value === complaintData.category)?.icon || 'help-circle-outline'}
+                size={16}
+                color="#333"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.detailValue}>
+                {complaintCategories.find(cat => cat.value === complaintData.category)?.label}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.detailRow}>
@@ -1378,7 +1392,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
         {submissionResult.priorityAnalysis && (
           <View style={styles.priorityAnalysisCard}>
-            <Text style={styles.detailsCardTitle}>🎯 Priority Analysis</Text>
+            <Text style={styles.detailsCardTitle}>Priority Analysis</Text>
             <Text style={styles.reasoningText}>
               {submissionResult.priorityAnalysis.reasoning}
             </Text>
@@ -1386,7 +1400,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         )}
 
         <View style={styles.nextStepsCard}>
-          <Text style={styles.detailsCardTitle}>📅 Next Steps</Text>
+          <Text style={styles.detailsCardTitle}>Next Steps</Text>
           {submissionResult.nextSteps?.map((step, index) => (
             <Text key={index} style={styles.nextStepText}>
               {index + 1}. {step}
@@ -1441,7 +1455,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.infrastructureModal}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>🏢 Nearby Infrastructure Report</Text>
+              <Text style={styles.modalTitle}>Nearby Infrastructure Report</Text>
               <TouchableOpacity
                 onPress={() => setShowInfrastructureModal(false)}
                 style={styles.modalCloseButton}
@@ -1454,7 +1468,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               {nearbyInfrastructure?.infrastructure?.length > 0 ? (
                 <>
                   <Text style={styles.infrastructureModalSubtitle}>
-                    📍 Location captured successfully! Here are the facilities near your location:
+                    Location captured successfully! Here are the facilities near your location:
                   </Text>
 
                   {/* Essential Services */}
@@ -1468,7 +1482,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                     }, [])
                     .length > 0 && (
                       <>
-                        <Text style={styles.infrastructureSectionTitle}>🚨 Essential Services</Text>
+                        <Text style={styles.infrastructureSectionTitle}>Essential Services</Text>
                         {nearbyInfrastructure.infrastructure
                           .filter(infra => infra.priority === 'high')
                           .reduce((unique, infra) => {
@@ -1505,7 +1519,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                     }, [])
                     .length > 0 && (
                       <>
-                        <Text style={styles.infrastructureSectionTitle}>🏢 Other Facilities</Text>
+                        <Text style={styles.infrastructureSectionTitle}>Other Facilities</Text>
                         {nearbyInfrastructure.infrastructure
                           .filter(infra => infra.priority === 'medium')
                           .reduce((unique, infra) => {
@@ -1531,13 +1545,13 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
                   <View style={styles.infrastructureModalFooter}>
                     <Text style={styles.infrastructureModalSummary}>
-                      📊 Total facilities found: {nearbyInfrastructure.totalFound || nearbyInfrastructure.infrastructure.length}
+                      Total facilities found: {nearbyInfrastructure.totalFound || nearbyInfrastructure.infrastructure.length}
                     </Text>
                   </View>
                 </>
               ) : (
                 <Text style={styles.infrastructureModalSubtitle}>
-                  📍 Location captured successfully. No nearby infrastructure detected in the immediate area.
+                  Location captured successfully. No nearby infrastructure detected in the immediate area.
                 </Text>
               )}
             </ScrollView>
@@ -1686,7 +1700,6 @@ const styles = StyleSheet.create({
  borderColor: '#1A1A1A',
  },
  categoryIcon: {
- fontSize: 28,
  marginBottom: 8,
  },
  categoryTitle: {
@@ -1785,6 +1798,8 @@ const styles = StyleSheet.create({
  marginBottom: 8,
  },
  selectedCategoryChip: {
+ flexDirection: 'row',
+ alignItems: 'center',
  backgroundColor: '#F3F4F6',
  borderRadius: 20,
  paddingHorizontal: 12,
