@@ -257,8 +257,8 @@ class LocationService {
    * Determine urgency level based on complaint type
    */
   determineUrgencyLevel(complaintType) {
-    const urgentTypes = ['fire_hazard', 'electrical_danger', 'sewage_overflow'];
-    const safetyTypes = ['pothole', 'broken_streetlight', 'traffic_signal'];
+    const urgentTypes = ['fallen_electric_pole', 'road_waterlogging'];
+    const safetyTypes = ['pothole', 'concrete_structure_damage', 'fallen_tree'];
     
     if (urgentTypes.includes(complaintType)) {
       return 'urgent';
@@ -273,13 +273,12 @@ class LocationService {
    */
   getRecommendedPrivacyLevel(complaintType) {
     const exactCoordinateTypes = [
-      'fire_hazard', 'electrical_danger', 'sewage_overflow',
-      'water_main_break', 'structural_damage', 'hazardous_material'
+      'fallen_electric_pole', 'road_waterlogging'
     ];
-    
+
     const streetLevelTypes = [
-      'pothole', 'broken_streetlight', 'traffic_signal', 'road_damage',
-      'garbage_collection', 'noise_complaint', 'illegal_parking', 'others'
+      'pothole', 'concrete_structure_damage', 'fallen_tree',
+      'garbage_dumping', 'stray_cattle', 'others'
     ];
 
     if (exactCoordinateTypes.includes(complaintType)) {

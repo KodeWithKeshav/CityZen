@@ -316,10 +316,24 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
 
   const getCategoryIcon = (category) => {
     switch (category) {
-      case 'road_damage':
-        return <MaterialCommunityIcons name="road-variant" size={20} color="#ff9800" />;
+      // CityZen SAM3 workflow classes
       case 'pothole':
         return <FontAwesome5 name="dot-circle" size={18} color="#f44336" />;
+      case 'fallen_tree':
+        return <MaterialCommunityIcons name="pine-tree" size={20} color="#4caf50" />;
+      case 'garbage_dumping':
+        return <MaterialCommunityIcons name="delete" size={20} color="#8bc34a" />;
+      case 'stray_cattle':
+        return <MaterialCommunityIcons name="cow" size={20} color="#795548" />;
+      case 'fallen_electric_pole':
+        return <Ionicons name="flash" size={20} color="#ffeb3b" />;
+      case 'concrete_structure_damage':
+        return <MaterialCommunityIcons name="wall" size={20} color="#9e9e9e" />;
+      case 'road_waterlogging':
+        return <MaterialCommunityIcons name="home-flood" size={20} color="#03a9f4" />;
+      // Legacy categories kept for older complaints already in the database
+      case 'road_damage':
+        return <MaterialCommunityIcons name="road-variant" size={20} color="#ff9800" />;
       case 'water_leakage':
       case 'water_issue':
         return <Ionicons name="water" size={20} color="#2196f3" />;

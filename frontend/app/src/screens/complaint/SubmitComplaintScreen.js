@@ -119,17 +119,16 @@ const SubmitComplaintScreen = ({ navigation }) => {
  setFormData(prev => ({ ...prev, location: text }));
  }, []);
 
- // Complaint categories with their types for location privacy
+ // Complaint categories - kept in sync with the civic issue classes the
+ // CityZen SAM3 image workflow can detect and classify.
  const complaintCategories = [
- { value: 'fire_hazard', label: 'Fire Hazard', urgency: 'urgent' },
- { value: 'electrical_danger', label: 'Electrical Danger', urgency: 'urgent' },
- { value: 'sewage_overflow', label: 'Sewage Overflow', urgency: 'urgent' },
+ { value: 'fallen_electric_pole', label: 'Fallen Electric Pole / Line', urgency: 'urgent' },
+ { value: 'road_waterlogging', label: 'Road Waterlogging', urgency: 'urgent' },
+ { value: 'concrete_structure_damage', label: 'Concrete Structure Damage', urgency: 'safety' },
+ { value: 'fallen_tree', label: 'Fallen Tree', urgency: 'safety' },
  { value: 'pothole', label: 'Pothole', urgency: 'general' },
- { value: 'broken_streetlight', label: 'Broken Streetlight', urgency: 'safety' },
- { value: 'traffic_signal', label: 'Traffic Signal Issue', urgency: 'safety' },
- { value: 'garbage_collection', label: 'Garbage Collection', urgency: 'general' },
- { value: 'water_leakage', label: 'Water Leakage', urgency: 'general' },
- { value: 'road_damage', label: 'Road Damage', urgency: 'general' },
+ { value: 'garbage_dumping', label: 'Garbage Dumping', urgency: 'general' },
+ { value: 'stray_cattle', label: 'Stray Cattle on Road', urgency: 'general' },
  { value: 'others', label: 'Others', urgency: 'general' },
  ];
 

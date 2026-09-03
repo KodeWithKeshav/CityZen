@@ -27,6 +27,7 @@ export const apiClient = {
   complaints: {
     all: `${API_BASE_URL}/api/complaints/all`,
     submit: `${API_BASE_URL}/api/complaints/submit`,
+    analyzeText: `${API_BASE_URL}/api/complaints/analyze-text`,
     personalReports: `${API_BASE_URL}/api/complaints/personal-reports`,
     byId: (id) => `${API_BASE_URL}/api/complaint-details/${id}`,
     progress: (id) => `${API_BASE_URL}/api/complaint-details/${id}/progress`,

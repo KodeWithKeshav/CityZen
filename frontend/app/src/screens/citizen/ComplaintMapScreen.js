@@ -443,10 +443,25 @@ const ComplaintMapScreen = ({ navigation, route }) => {
     }
   };
 
-  // Get category icon for map markers
+  // Get category icon for map markers - matches the civic issue classes the
+  // CityZen SAM3 image workflow can detect and classify.
   const getCategoryIcon = (category) => {
     switch (category) {
       case 'pothole':
+        return 'car';
+      case 'fallen_tree':
+        return 'leaf';
+      case 'garbage_dumping':
+        return 'trash';
+      case 'stray_cattle':
+        return 'paw';
+      case 'fallen_electric_pole':
+        return 'flash';
+      case 'concrete_structure_damage':
+        return 'construct';
+      case 'road_waterlogging':
+        return 'rainy';
+      // Legacy categories kept for older complaints already in the database
       case 'road_damage':
         return 'car';
       case 'water_issue':

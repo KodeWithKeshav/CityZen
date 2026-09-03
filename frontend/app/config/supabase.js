@@ -90,6 +90,7 @@ export const apiClient = {
     create: `${API_BASE_URL}/api/complaints/create`,
     submit: `${API_BASE_URL}/api/complaints/submit`,
     personalReports: `${API_BASE_URL}/api/complaints/personal-reports`,
+    analyzeText: `${API_BASE_URL}/api/complaints/analyze-text`,
   },
   // Admin endpoints
   admin: {

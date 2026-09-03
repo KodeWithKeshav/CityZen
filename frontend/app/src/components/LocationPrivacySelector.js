@@ -29,7 +29,7 @@ const LocationPrivacySelector = ({
       icon: 'locate-outline',
       color: '#FF4444',
       description: 'For urgent infrastructure issues requiring immediate emergency response',
-      recommended: ['fire_hazard', 'electrical_danger', 'sewage_overflow']
+      recommended: ['fallen_electric_pole', 'road_waterlogging']
     },
     {
       level: LocationService.privacyLevels.STREET,
@@ -38,7 +38,7 @@ const LocationPrivacySelector = ({
       icon: 'navigate-outline',
       color: '#4CAF50',
       description: 'For general civic complaints and routine maintenance issues',
-      recommended: ['pothole', 'broken_streetlight', 'traffic_signal', 'garbage_collection', 'others']
+      recommended: ['pothole', 'concrete_structure_damage', 'fallen_tree', 'garbage_dumping', 'stray_cattle', 'others']
     }
   ];
 

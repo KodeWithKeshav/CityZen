@@ -43,9 +43,8 @@ const PriorityQueue = ({ navigation }) => {
   const [statusChangeLoading, setStatusChangeLoading] = useState(false);
 
   const categories = [
-    'pothole', 'broken_streetlight', 'drainage_problem', 
-    'garbage_not_collected', 'water_supply_issue', 'road_damage',
-    'public_toilet_issue', 'park_maintenance', 'noise_pollution', 'other'
+    'pothole', 'fallen_tree', 'garbage_dumping', 'stray_cattle',
+    'fallen_electric_pole', 'concrete_structure_damage', 'road_waterlogging', 'others'
   ];
   
   const statusOptions = ['pending', 'in_progress', 'resolved', 'rejected'];

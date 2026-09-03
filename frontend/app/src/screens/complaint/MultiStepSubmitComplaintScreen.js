@@ -16,6 +16,7 @@ import {
 
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,15 +39,16 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     locationData: null,
     locationPriorityScore: null,
 
-    // Step 2: Title and description
+    // Step 2: Photo, validated against the Step 1 category
+    selectedImage: null,
+    imageValidation: null,
+
+    // Step 3: Title, description, emotion + authenticity analysis
     title: '',
     description: '',
     selectedLang: 'hi-IN',
     emotionScore: null,
-
-    // Step 3: Image and validation
-    selectedImage: null,
-    imageValidation: null,
+    contentAnalysis: null,
   });
 
   // Loading states
@@ -89,22 +91,21 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     { value: 'pa-IN', label: 'Punjabi (ਪੰਜਾਬੀ)', nativeName: 'ਪੰਜਾਬੀ' },
   ];
 
-  // Complaint categories
+  // Complaint categories - kept in sync with the civic issue classes the
+  // CityZen SAM3 image workflow can detect and classify.
   const complaintCategories = [
     // Urgent Issues
-    { value: 'fire_hazard', label: 'Fire Hazard', urgency: 'urgent', icon: 'flame-outline' },
-    { value: 'electrical_danger', label: 'Electrical Danger', urgency: 'urgent', icon: 'flash-outline' },
-    { value: 'sewage_overflow', label: 'Sewage Overflow', urgency: 'urgent', icon: 'warning-outline' },
+    { value: 'fallen_electric_pole', label: 'Fallen Electric Pole / Line', urgency: 'urgent', icon: 'flash-outline' },
+    { value: 'road_waterlogging', label: 'Road Waterlogging', urgency: 'urgent', icon: 'water-outline' },
 
     // Safety Issues
-    { value: 'broken_streetlight', label: 'Broken Streetlight', urgency: 'safety', icon: 'bulb-outline' },
-    { value: 'traffic_signal', label: 'Traffic Signal Issue', urgency: 'safety', icon: 'alert-circle-outline' },
+    { value: 'concrete_structure_damage', label: 'Concrete Structure Damage', urgency: 'safety', icon: 'construct-outline' },
+    { value: 'fallen_tree', label: 'Fallen Tree', urgency: 'safety', icon: 'leaf-outline' },
 
     // General Infrastructure
     { value: 'pothole', label: 'Pothole', urgency: 'general', icon: 'ellipse-outline' },
-    { value: 'road_damage', label: 'Road Damage', urgency: 'general', icon: 'construct-outline' },
-    { value: 'water_leakage', label: 'Water Leakage', urgency: 'general', icon: 'water-outline' },
-    { value: 'garbage_collection', label: 'Garbage Collection', urgency: 'general', icon: 'trash-outline' },
+    { value: 'garbage_dumping', label: 'Garbage Dumping', urgency: 'general', icon: 'trash-outline' },
+    { value: 'stray_cattle', label: 'Stray Cattle on Road', urgency: 'general', icon: 'paw-outline' },
 
     // Other Issues
     { value: 'others', label: 'Others', urgency: 'general', icon: 'help-circle-outline' },
@@ -120,80 +121,220 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     setComplaintData(prev => ({ ...prev, title: text }));
   }, []);
 
-  const handleDescriptionChange = useCallback((text) => {
-    setComplaintData(prev => ({ ...prev, description: text }));
-
-    // Debounced emotion analysis
-    if (text.trim().length > 10) {
-      setTimeout(() => {
-        analyzeEmotion(text);
-      }, 1000); // 1 second delay to avoid too many API calls
-    } else {
-      // Clear emotion score for short text
-      setComplaintData(prev => ({ ...prev, emotionScore: null }));
-    }
-  }, [analyzeEmotion]);
-
-  // Emotion analysis function
-  const analyzeEmotion = useCallback(async (text) => {
+  // Description content analysis: runs BOTH the emotion/sentiment analysis and
+  // the authenticity / category-match check in one call against the backend's
+  // analyze-text endpoint (this endpoint internally also computes the same
+  // emotion analysis the old bare /api/emotion/analyze call used to return).
+  const analyzeDescriptionContent = useCallback(async (text) => {
     if (!text || text.trim().length < 10) return;
 
-    console.log('🧠 Starting emotion analysis for text:', text.substring(0, 50) + '...');
+    console.log('🧠 Starting description content analysis for text:', text.substring(0, 50) + '...');
     console.log('🌐 API_BASE_URL:', API_BASE_URL);
 
     try {
-      const apiUrl = `${API_BASE_URL}/api/emotion/analyze`;
-      console.log('📡 Calling emotion API:', apiUrl);
+      console.log('📡 Calling analyze-text API:', apiClient.complaints.analyzeText);
 
-      const response = await fetch(apiUrl, {
+      const result = await makeApiCall(apiClient.complaints.analyzeText, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
-          text: text,
-          translation: lastTranslationRef.current || null,
-          category: complaintData.category || 'general'
+          description: text,
+          category: complaintData.category || 'others',
+          imagePrimaryClass: complaintData.imageValidation?.primaryClass || null,
         }),
       });
 
-      console.log('📊 Emotion API response status:', response.status);
+      console.log('✅ analyze-text result:', result);
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Emotion analysis result:', result);
+      if (result.success) {
+        const emotionData = result.emotion ? {
+          score: (result.emotion.emotionScore * 100).toFixed(1),
+          emotions: result.emotion.emotions,
+          analysisMethod: result.emotion.analysisMethod,
+          language: result.emotion.language,
+        } : null;
 
-        if (result.success && result.data) {
-          const emotionData = {
-            score: (result.data.emotionScore * 100).toFixed(1),
-            emotions: result.data.emotions,
-            analysisMethod: result.data.analysisMethod,
-            language: result.data.language
-          };
+        console.log('💡 Setting content analysis data:', { emotionData, authenticity: result.authenticity });
 
-          console.log('💡 Setting emotion data:', emotionData);
-
-          setComplaintData(prev => ({
-            ...prev,
-            emotionScore: emotionData
-          }));
-        } else {
-          console.log('❌ Emotion analysis failed: Invalid response structure');
-        }
+        setComplaintData(prev => ({
+          ...prev,
+          emotionScore: emotionData,
+          contentAnalysis: result.authenticity || null,
+        }));
       } else {
-        console.log('❌ Emotion API failed with status:', response.status);
-        const errorText = await response.text();
-        console.log('❌ Error response:', errorText);
+        console.log('❌ analyze-text failed: Invalid response structure');
       }
     } catch (error) {
-      console.error('❌ Emotion analysis failed:', error);
+      console.error('❌ Description content analysis failed:', error);
       console.error('❌ Error details:', error.message);
     }
-  }, [complaintData.category]);
+  }, [complaintData.category, complaintData.imageValidation]);
+
+  const handleDescriptionChange = useCallback((text) => {
+    setComplaintData(prev => ({ ...prev, description: text }));
+
+    // Debounced content analysis (emotion + authenticity)
+    if (text.trim().length > 10) {
+      setTimeout(() => {
+        analyzeDescriptionContent(text);
+      }, 1000); // 1 second delay to avoid too many API calls
+    } else {
+      // Clear analysis for short text
+      setComplaintData(prev => ({ ...prev, emotionScore: null, contentAnalysis: null }));
+    }
+  }, [analyzeDescriptionContent]);
 
   const handleLanguageChange = useCallback((itemValue) => {
     setComplaintData(prev => ({ ...prev, selectedLang: itemValue }));
   }, []);
+
+  // ---------------------------------------------------------------------
+  // Location capture logic - fires when the user picks/confirms a category
+  // in the Issue & Location step (Step 1).
+  // ---------------------------------------------------------------------
+  const autoCaptureLocation = async (category) => {
+    if (autoCapturingLocation || locationCaptured) return;
+
+    setAutoCapturingLocation(true);
+
+    try {
+      // Get recommended privacy level for the complaint type
+      const recommendedPrivacy = LocationService.getRecommendedPrivacyLevel(category);
+
+      // Show user-friendly message about location capture
+      const urgencyLevel = LocationService.determineUrgencyLevel(category);
+      const isUrgent = urgencyLevel === 'urgent';
+
+      Alert.alert(
+        'Location Required',
+        isUrgent
+          ? `For ${category} complaints, we need your exact location to prioritize emergency response. This helps us route your complaint to the nearest response team.`
+          : `We'll capture your location to help prioritize your complaint and route it to the correct municipal office. Your privacy is protected with street-level accuracy.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => setAutoCapturingLocation(false)
+          },
+          {
+            text: isUrgent ? 'Allow Exact Location' : 'Allow Location',
+            onPress: () => proceedWithLocationCapture(recommendedPrivacy, category)
+          }
+        ]
+      );
+
+    } catch (error) {
+      console.error('Auto location capture error:', error);
+      setAutoCapturingLocation(false);
+    }
+  };
+
+  const proceedWithLocationCapture = async (privacyLevel, category) => {
+    try {
+      // Capture location with recommended privacy level
+      const location = await LocationService.getLocationWithPrivacy(privacyLevel, category);
+
+      setComplaintData(prev => ({ ...prev, locationData: location }));
+      setLocationCaptured(true);
+
+      // Immediately calculate priority score
+      await calculateLocationPriority(location, category);
+
+      // Get nearby infrastructure after location capture
+      await loadNearbyInfrastructure(location);
+
+      // Show success message with location info
+      Alert.alert(
+        'Location Captured Successfully!',
+        `Accuracy: ±${location.radiusM}m (${location.precision})\n` +
+        `Privacy Level: ${location.privacyLevel}\n` +
+        `Your complaint will be prioritized based on nearby infrastructure.`,
+        [{ text: 'Continue', style: 'default' }]
+      );
+
+    } catch (error) {
+      console.error('Location capture error:', error);
+      Alert.alert(
+        'Location Error',
+        'Unable to capture location. You can try again or submit without location (lower priority).',
+        [
+          { text: 'Retry', onPress: () => proceedWithLocationCapture(privacyLevel, category) },
+          { text: 'Skip Location', style: 'destructive' }
+        ]
+      );
+    } finally {
+      setAutoCapturingLocation(false);
+    }
+  };
+
+  const calculateLocationPriority = async (location, category) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/location-priority/calculate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          latitude: location.latitude,
+          longitude: location.longitude,
+          complaintType: category,
+          locationMeta: {
+            privacyLevel: location.privacyLevel,
+            radiusM: location.radiusM,
+            precision: location.precision,
+            description: location.description
+          }
+        }),
+      });
+
+      if (response.ok) {
+        const priorityResult = await response.json();
+        setComplaintData(prev => ({ ...prev, locationPriorityScore: priorityResult }));
+
+        // Show priority notification for high-priority complaints
+        if (priorityResult.priorityLevel === 'CRITICAL') {
+          Alert.alert(
+            'High Priority Complaint Detected',
+            `Your complaint has been marked as ${priorityResult.priorityLevel} priority due to proximity to critical infrastructure. It will receive immediate attention.`,
+            [{ text: 'Understood', style: 'default' }]
+          );
+        }
+      } else {
+        console.error('Priority calculation failed:', response.status);
+      }
+
+    } catch (error) {
+      console.error('Failed to calculate location priority:', error);
+    }
+  };
+
+  const loadNearbyInfrastructure = async (location) => {
+    if (!location || !location.latitude || !location.longitude) {
+      console.log('Invalid location for infrastructure search');
+      return;
+    }
+
+    setIsLoadingInfrastructure(true);
+    try {
+      console.log('Loading nearby infrastructure for location:', location);
+
+      const infrastructure = await InfrastructureService.getNearbyInfrastructure(
+        location.latitude,
+        location.longitude,
+        2000 // 2km radius
+      );
+
+      console.log('Nearby infrastructure found:', infrastructure);
+      setNearbyInfrastructure(infrastructure);
+
+      // Show infrastructure report to user in a custom modal
+      if (infrastructure && (infrastructure.infrastructure?.length > 0 || infrastructure.summary)) {
+        setShowInfrastructureModal(true);
+      }
+
+    } catch (error) {
+      console.error('Error loading nearby infrastructure:', error);
+    } finally {
+      setIsLoadingInfrastructure(false);
+    }
+  };
 
   // Initialize speech service
   useEffect(() => {
@@ -247,9 +388,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   // Progress indicator
   const renderProgressIndicator = () => {
     const steps = [
-      { number: 1, title: 'Issue Type', icon: 'list-outline' },
-      { number: 2, title: 'Details', icon: 'create-outline' },
-      { number: 3, title: 'Photo', icon: 'camera-outline' },
+      { number: 1, title: 'Issue & Location', icon: 'list-outline' },
+      { number: 2, title: 'Photo', icon: 'camera-outline' },
+      { number: 3, title: 'Details', icon: 'create-outline' },
       { number: 4, title: 'Success', icon: 'checkmark-circle-outline' }
     ];
 
@@ -302,171 +443,38 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   const renderContent = () => {
     switch (currentStep) {
       case 1:
-        return <Step1IssueTypeSelection />;
+        return <Step1IssueAndLocation />;
       case 2:
-        return <Step2TitleAndDescription />;
+        return <Step2PhotoUpload />;
       case 3:
-        return <Step3ImageUpload />;
+        return <Step3Details />;
       case 4:
         return <Step4Success />;
       default:
-        return <Step1IssueTypeSelection />;
+        return <Step1IssueAndLocation />;
     }
   };
 
   // Step 1: Issue Type Selection and Location Capture
-  const Step1IssueTypeSelection = () => {
+  const Step1IssueAndLocation = () => {
     const handleCategorySelect = async (category) => {
-      setComplaintData(prev => ({ ...prev, category }));
+      setComplaintData(prev => {
+        const categoryChanged = !!prev.category && prev.category !== category;
+        return {
+          ...prev,
+          category,
+          // Changing the category after a photo was already validated against
+          // the old one invalidates that validation - force re-validation in
+          // the Photo step so a mismatched photo can't ride along silently.
+          ...(categoryChanged && (prev.selectedImage || prev.imageValidation)
+            ? { selectedImage: null, imageValidation: null }
+            : {}),
+        };
+      });
 
       // Auto-capture location after category selection
       if (!locationCaptured) {
-        await autoCaptureLo‌‌cation(category);
-      }
-    };
-
-    const autoCaptureLo‌‌cation = async (category) => {
-      if (autoCapturingLocation || locationCaptured) return;
-
-      setAutoCapturingLocation(true);
-
-      try {
-        // Get recommended privacy level for the complaint type
-        const recommendedPrivacy = LocationService.getRecommendedPrivacyLevel(category);
-
-        // Show user-friendly message about location capture
-        const urgencyLevel = LocationService.determineUrgencyLevel(category);
-        const isUrgent = urgencyLevel === 'urgent';
-
-        Alert.alert(
-          'Location Required',
-          isUrgent
-            ? `For ${category} complaints, we need your exact location to prioritize emergency response. This helps us route your complaint to the nearest response team.`
-            : `We'll capture your location to help prioritize your complaint and route it to the correct municipal office. Your privacy is protected with street-level accuracy.`,
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => setAutoCapturingLocation(false)
-            },
-            {
-              text: isUrgent ? 'Allow Exact Location' : 'Allow Location',
-              onPress: () => proceedWithLocationCapture(recommendedPrivacy, category)
-            }
-          ]
-        );
-
-      } catch (error) {
-        console.error('Auto location capture error:', error);
-        setAutoCapturingLocation(false);
-      }
-    };
-
-    const proceedWithLocationCapture = async (privacyLevel, category) => {
-      try {
-        // Capture location with recommended privacy level
-        const location = await LocationService.getLocationWithPrivacy(privacyLevel, category);
-
-        setComplaintData(prev => ({ ...prev, locationData: location }));
-        setLocationCaptured(true);
-
-        // Immediately calculate priority score
-        await calculateLocationPriority(location, category);
-
-        // Get nearby infrastructure after location capture
-        await loadNearbyInfrastructure(location);
-
-        // Show success message with location info
-        Alert.alert(
-          'Location Captured Successfully!',
-          `Accuracy: ±${location.radiusM}m (${location.precision})\n` +
-          `Privacy Level: ${location.privacyLevel}\n` +
-          `Your complaint will be prioritized based on nearby infrastructure.`,
-          [{ text: 'Continue', style: 'default' }]
-        );
-
-      } catch (error) {
-        console.error('Location capture error:', error);
-        Alert.alert(
-          'Location Error',
-          'Unable to capture location. You can try again or submit without location (lower priority).',
-          [
-            { text: 'Retry', onPress: () => proceedWithLocationCapture(privacyLevel, category) },
-            { text: 'Skip Location', style: 'destructive' }
-          ]
-        );
-      } finally {
-        setAutoCapturingLocation(false);
-      }
-    };
-
-    const calculateLocationPriority = async (location, category) => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/location-priority/calculate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            latitude: location.latitude,
-            longitude: location.longitude,
-            complaintType: category,
-            locationMeta: {
-              privacyLevel: location.privacyLevel,
-              radiusM: location.radiusM,
-              precision: location.precision,
-              description: location.description
-            }
-          }),
-        });
-
-        if (response.ok) {
-          const priorityResult = await response.json();
-          setComplaintData(prev => ({ ...prev, locationPriorityScore: priorityResult }));
-
-          // Show priority notification for high-priority complaints
-          if (priorityResult.priorityLevel === 'CRITICAL') {
-            Alert.alert(
-              'High Priority Complaint Detected',
-              `Your complaint has been marked as ${priorityResult.priorityLevel} priority due to proximity to critical infrastructure. It will receive immediate attention.`,
-              [{ text: 'Understood', style: 'default' }]
-            );
-          }
-        } else {
-          console.error('Priority calculation failed:', response.status);
-        }
-
-      } catch (error) {
-        console.error('Failed to calculate location priority:', error);
-      }
-    };
-
-    const loadNearbyInfrastructure = async (location) => {
-      if (!location || !location.latitude || !location.longitude) {
-        console.log('Invalid location for infrastructure search');
-        return;
-      }
-
-      setIsLoadingInfrastructure(true);
-      try {
-        console.log('Loading nearby infrastructure for location:', location);
-
-        const infrastructure = await InfrastructureService.getNearbyInfrastructure(
-          location.latitude,
-          location.longitude,
-          2000 // 2km radius
-        );
-
-        console.log('Nearby infrastructure found:', infrastructure);
-        setNearbyInfrastructure(infrastructure);
-
-        // Show infrastructure report to user in a custom modal
-        if (infrastructure && (infrastructure.infrastructure?.length > 0 || infrastructure.summary)) {
-          setShowInfrastructureModal(true);
-        }
-
-      } catch (error) {
-        console.error('Error loading nearby infrastructure:', error);
-      } finally {
-        setIsLoadingInfrastructure(false);
+        await autoCaptureLocation(category);
       }
     };
 
@@ -482,7 +490,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           'Location is required for priority assessment. Would you like to capture your location now?',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Get Location', onPress: () => autoCaptureLo‌‌cation(complaintData.category) }
+            { text: 'Get Location', onPress: () => autoCaptureLocation(complaintData.category) }
           ]
         );
         return;
@@ -501,7 +509,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       >
         <View style={styles.stepHeader}>
           <Text style={styles.stepTitle}>Step 1: Select Issue Type</Text>
-          <Text style={styles.stepSubtitle}>What type of civic issue are you reporting?</Text>
+          <Text style={styles.stepSubtitle}>
+            What type of civic issue are you reporting? We'll ask for a photo of it next.
+          </Text>
         </View>
 
         <View style={styles.categoriesGrid}>
@@ -603,26 +613,320 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           </View>
         )}
 
-        <TouchableOpacity
-          style={[
-            styles.continueButton,
-            (!complaintData.category || !complaintData.locationData || autoCapturingLocation) && styles.continueButtonDisabled
-          ]}
-          onPress={handleContinue}
-          disabled={!complaintData.category || !complaintData.locationData || autoCapturingLocation}
-        >
-          {autoCapturingLocation ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.continueButtonText}>Continue to Details</Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.navigationButtons}>
+          <TouchableOpacity
+            style={styles.backNavigationButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="chevron-back" size={20} color="#666" />
+            <Text style={styles.backNavigationText}>Back</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.continueButton,
+              (!complaintData.category || !complaintData.locationData || autoCapturingLocation) && styles.continueButtonDisabled
+            ]}
+            onPress={handleContinue}
+            disabled={!complaintData.category || !complaintData.locationData || autoCapturingLocation}
+          >
+            {autoCapturingLocation ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.continueButtonText}>Continue to Photo</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </KeyboardAwareScrollView>
     );
   };
 
-  // Step 2: Title and Description with Speech-to-Text
-  const Step2TitleAndDescription = () => {
+  // Step 2: Photo Upload and AI Validation Against the Selected Category
+  const Step2PhotoUpload = () => {
+    const pickImage = async () => {
+      try {
+        // Request permissions
+        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+        if (permissionResult.granted === false) {
+          Alert.alert('Permission Required', 'Please allow access to your photo library to upload images.');
+          return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+          base64: false,
+        });
+
+        if (!result.canceled) {
+          setComplaintData(prev => ({ ...prev, selectedImage: result.assets[0], imageValidation: null }));
+          await validateImage(result.assets[0]);
+        }
+      } catch (error) {
+        console.error('Image picker error:', error);
+        Alert.alert('Error', 'Failed to pick image');
+      }
+    };
+
+    const takePhoto = async () => {
+      try {
+        // Request permissions
+        const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+
+        if (permissionResult.granted === false) {
+          Alert.alert('Permission Required', 'Please allow access to your camera to take photos.');
+          return;
+        }
+
+        const result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [4, 3],
+          quality: 0.8,
+          base64: false,
+        });
+
+        if (!result.canceled) {
+          setComplaintData(prev => ({ ...prev, selectedImage: result.assets[0], imageValidation: null }));
+          await validateImage(result.assets[0]);
+        }
+      } catch (error) {
+        console.error('Camera error:', error);
+        Alert.alert('Error', 'Failed to take photo');
+      }
+    };
+
+    const validateImage = async (imageAsset) => {
+      if (!imageAsset) return;
+      setValidatingImage(true);
+
+      try {
+        console.log('🔍 Starting image validation against category:', complaintData.category);
+
+        // 1. Upload image to Cloudinary
+        const CLOUDINARY_URL = 'https://api.cloudinary.com/v1_1/dsvc9y4rq/image/upload';
+        const UPLOAD_PRESET = 'damage';
+        const data = new FormData();
+        data.append('file', {
+          uri: imageAsset.uri,
+          type: imageAsset.mimeType || 'image/jpeg',
+          name: imageAsset.fileName || 'civic-image.jpg',
+        });
+        data.append('upload_preset', UPLOAD_PRESET);
+
+        const cloudRes = await fetch(CLOUDINARY_URL, {
+          method: 'POST',
+          body: data,
+        });
+        const cloudResult = await cloudRes.json();
+
+        if (!cloudResult.secure_url) throw new Error('Cloudinary upload failed');
+
+        console.log('✅ Image uploaded to Cloudinary:', cloudResult.secure_url);
+
+        // Update selectedImage to use Cloudinary URL
+        setComplaintData(prev => ({
+          ...prev,
+          selectedImage: {
+            ...imageAsset,
+            uri: cloudResult.secure_url,
+            cloudinaryUrl: cloudResult.secure_url,
+            publicId: cloudResult.public_id
+          }
+        }));
+
+        // 2. Send imageUrl + the already-selected category to the backend so
+        // it can check the photo actually matches the chosen issue type.
+        const validateRes = await fetch(`${API_BASE_URL}/api/image-analysis/validate-image`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageUrl: cloudResult.secure_url, category: complaintData.category }),
+        });
+        const result = await validateRes.json();
+
+        console.log('📋 Validation result:', result);
+
+        // Trust the backend's own allowUpload decision (the SAM3 workflow already
+        // applies its own per-class confidence thresholds and category-match
+        // check server-side).
+        const validationData = {
+          confidence: result.confidence || 0,
+          modelConfidence: result.modelConfidence || 0,
+          allowUpload: result.allowUpload === true,
+          categoryMatch: result.categoryMatch !== false,
+          message: result.message || 'No validation message provided',
+          detections: Array.isArray(result.detections) ? result.detections : [],
+          primaryClass: result.primaryClass || null,
+        };
+
+        setComplaintData(prev => ({ ...prev, imageValidation: validationData }));
+
+        if (validationData.allowUpload) {
+          // Category already matches (or the backend accepted it) - move on
+          // automatically, there's nothing left to confirm. (Advance right
+          // away rather than via a delayed timer, so a quick tap on "Back"
+          // can't be overridden by a stale timer firing afterwards.)
+          goToNextStep();
+        }
+        // On failure we deliberately do NOT show a dismissible alert with a
+        // bypass option - renderImageValidationStatus() below surfaces the
+        // backend's message inline and the user must pick a different photo
+        // or go back and change the category. No "Continue/Submit Anyway".
+
+      } catch (error) {
+        console.error('❌ Image validation error:', error);
+        setComplaintData(prev => ({
+          ...prev,
+          imageValidation: {
+            confidence: 0,
+            modelConfidence: 0,
+            allowUpload: false,
+            categoryMatch: false,
+            message: 'Failed to validate image. Please check your connection and try again.',
+            detections: [],
+            primaryClass: null,
+          }
+        }));
+        Alert.alert(
+          'Validation Error',
+          'Failed to validate image. Please check your connection and try again.',
+          [
+            { text: 'Retry', onPress: () => validateImage(imageAsset) },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+      } finally {
+        setValidatingImage(false);
+      }
+    };
+
+    const skipPhoto = () => {
+      // Only a WRONG photo is disallowed, not having no photo at all - clear
+      // any previously-set image/validation so a stale mismatched photo
+      // can never leak into submission.
+      setComplaintData(prev => ({ ...prev, selectedImage: null, imageValidation: null }));
+      goToNextStep();
+    };
+
+    const renderImageValidationStatus = () => {
+      if (validatingImage) {
+        return (
+          <View style={styles.validationStatus}>
+            <ActivityIndicator size="small" color="#2E7D32" />
+            <Text style={styles.validationText}>Validating photo against "{selectedCategory?.label || 'selected issue'}"...</Text>
+          </View>
+        );
+      }
+
+      if (complaintData.imageValidation) {
+        if (complaintData.imageValidation.allowUpload) {
+          return (
+            <View style={[styles.validationStatus, styles.validationSuccess]}>
+              <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+              <Text style={styles.validationText}>{complaintData.imageValidation.message}</Text>
+            </View>
+          );
+        } else {
+          return (
+            <View style={[styles.validationStatus, styles.validationError]}>
+              <Ionicons name="close-circle" size={20} color="#F44336" />
+              <Text style={styles.validationText}>{complaintData.imageValidation.message}</Text>
+            </View>
+          );
+        }
+      }
+
+      return null;
+    };
+
+    const showBlockedActions = !validatingImage
+      && complaintData.imageValidation
+      && !complaintData.imageValidation.allowUpload;
+
+    return (
+      <KeyboardAwareScrollView
+        style={styles.stepContainer}
+        enableOnAndroid={true}
+        keyboardShouldPersistTaps="handled"
+        extraScrollHeight={20}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.stepHeader}>
+          <Text style={styles.stepTitle}>Step 2: Add a Photo</Text>
+          <Text style={styles.stepSubtitle}>
+            Take or upload a clear photo showing "{selectedCategory?.label || 'the issue'}" - we'll verify it matches before you continue
+          </Text>
+        </View>
+
+        <View style={styles.selectedCategoryDisplay}>
+          <Text style={styles.selectedCategoryTitle}>Selected Issue Type:</Text>
+          <View style={styles.selectedCategoryChip}>
+            {selectedCategory?.icon && (
+              <Ionicons name={selectedCategory.icon} size={16} color="#1A1A1A" style={{ marginRight: 6 }} />
+            )}
+            <Text style={styles.selectedCategoryChipText}>
+              {selectedCategory?.label}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.imageSection}>
+          {complaintData.selectedImage ? (
+            <View style={styles.selectedImageContainer}>
+              <Image source={{ uri: complaintData.selectedImage.uri }} style={styles.selectedImage} />
+              <TouchableOpacity
+                style={styles.changeImageButton}
+                onPress={() => setComplaintData(prev => ({ ...prev, selectedImage: null, imageValidation: null }))}
+              >
+                <Text style={styles.changeImageText}>Change Image</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.imagePickerContainer}>
+              <TouchableOpacity style={styles.imagePickerButton} onPress={takePhoto}>
+                <Ionicons name="camera" size={32} color="#2E7D32" />
+                <Text style={styles.imagePickerText}>Take Photo</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.imagePickerButton} onPress={pickImage}>
+                <Ionicons name="images" size={32} color="#2E7D32" />
+                <Text style={styles.imagePickerText}>Choose from Gallery</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {renderImageValidationStatus()}
+
+          {showBlockedActions && (
+            <Text style={styles.blockedPhotoHintText}>
+              Pick a different photo above, or go back and change the issue type if this photo is correct.
+            </Text>
+          )}
+        </View>
+
+        {!validatingImage && (
+          <TouchableOpacity style={styles.skipPhotoLink} onPress={skipPhoto}>
+            <Text style={styles.skipPhotoLinkText}>I don't have a photo — continue without one</Text>
+          </TouchableOpacity>
+        )}
+
+        <View style={styles.navigationButtons}>
+          <TouchableOpacity
+            style={styles.backNavigationButton}
+            onPress={goToPreviousStep}
+          >
+            <Ionicons name="chevron-back" size={20} color="#666" />
+            <Text style={styles.backNavigationText}>Back</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAwareScrollView>
+    );
+  };
+
+  // Step 3: Details (title, description, emotion + authenticity analysis) and final submission
+  const Step3Details = () => {
     const startVoiceInput = async () => {
       setVoiceError(null);
 
@@ -657,7 +961,124 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       }
     };
 
-    const handleContinue = () => {
+    const submitComplaint = async () => {
+      setLoading(true);
+
+      try {
+        // Prepare submission data
+        const submissionData = {
+          title: complaintData.title.trim(),
+          description: complaintData.description.trim(),
+          category: complaintData.category,
+          locationData: {
+            latitude: complaintData.locationData.latitude,
+            longitude: complaintData.locationData.longitude,
+            privacyLevel: complaintData.locationData.privacyLevel || 'street',
+            accuracy: complaintData.locationData.accuracy || complaintData.locationData.radiusM || 25,
+            precision: complaintData.locationData.precision || 'street',
+            description: complaintData.locationData.description || 'User location',
+            address: complaintData.locationData.address || `${complaintData.locationData.latitude.toFixed(4)}, ${complaintData.locationData.longitude.toFixed(4)}`
+          },
+          imageValidation: complaintData.imageValidation || {
+            allowUpload: true,
+            confidence: 0.5,
+            success: true
+          },
+          imageUrl: complaintData.selectedImage?.uri || null,
+          emotionAnalysis: complaintData.emotionScore ? {
+            score: parseFloat(complaintData.emotionScore.score) / 100, // Convert back to 0-1 range
+            emotions: complaintData.emotionScore.emotions,
+            analysisMethod: complaintData.emotionScore.analysisMethod,
+            language: complaintData.emotionScore.language
+          } : null,
+        };
+
+        console.log('📤 Submitting complaint with comprehensive data:', submissionData);
+
+        // Submit directly (rather than via makeApiCall) so we can read the
+        // structured error body the backend now returns on a hard 400 reject
+        // (IMAGE_CATEGORY_MISMATCH / DESCRIPTION_CATEGORY_MISMATCH) instead of
+        // losing it behind a generic "HTTP 400" message.
+        const token = await AsyncStorage.getItem('authToken');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        let response;
+        let result;
+        try {
+          response = await fetch(apiClient.complaints.submit, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token && { Authorization: `Bearer ${token}` }),
+            },
+            body: JSON.stringify(submissionData),
+            signal: controller.signal,
+          });
+          result = await response.json();
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        console.log('📋 Response data:', result);
+
+        if (response.ok && result.success) {
+          setSubmissionResult(result);
+          goToNextStep(); // Go to success page
+          return;
+        }
+
+        console.error('❌ Backend returned error:', result);
+        const submitError = new Error(result?.error || result?.message || `HTTP ${response.status}: Submission failed`);
+        submitError.code = result?.code || null;
+        submitError.httpStatus = response.status;
+        throw submitError;
+
+      } catch (error) {
+        console.error('❌ Submission error:', error);
+
+        let errorMessage = 'Please check your connection and try again.';
+        let errorTitle = 'Submission Failed';
+
+        if (error.code === 'IMAGE_CATEGORY_MISMATCH') {
+          errorTitle = 'Photo Does Not Match Issue Type';
+          errorMessage = error.message || 'The photo does not match the selected issue type. Please go back and add a matching photo, or remove it.';
+        } else if (error.code === 'DESCRIPTION_CATEGORY_MISMATCH') {
+          errorTitle = 'Description Does Not Match Issue Type';
+          errorMessage = error.message || 'The description does not appear to match the selected issue type. Please edit your description.';
+        } else if (error.name === 'AbortError') {
+          errorMessage = 'The request timed out. Please check your connection and try again.';
+          errorTitle = 'Connection Error';
+        } else if (error.message?.includes('Network request failed')) {
+          errorMessage = 'Cannot connect to server. Please check your internet connection.';
+          errorTitle = 'Connection Error';
+        } else if (error.message?.includes('HTTP 404')) {
+          errorMessage = 'API endpoint not found. Please update the app.';
+          errorTitle = 'Service Error';
+        } else if (error.message?.includes('HTTP 400')) {
+          errorMessage = error.message !== 'HTTP 400: Submission failed' ? error.message : 'Invalid data submitted. Please check all fields.';
+          errorTitle = 'Validation Error';
+        } else if (error.message?.includes('HTTP 500')) {
+          errorMessage = 'Server error. Please try again later.';
+          errorTitle = 'Server Error';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        Alert.alert(
+          errorTitle,
+          errorMessage,
+          [
+            { text: 'Retry', onPress: () => submitComplaint() },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handleFinalSubmit = async () => {
       if (!complaintData.title.trim()) {
         Alert.alert('Error', 'Please enter a complaint title');
         return;
@@ -668,7 +1089,36 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         return;
       }
 
-      goToNextStep();
+      // Hard block - the backend no longer accepts a flagged description at
+      // all, so there is no "continue anyway" path here. The only ways
+      // forward are editing the description (re-triggers analysis) or
+      // switching to the suggested category above.
+      if (complaintData.contentAnalysis?.flagged) {
+        Alert.alert(
+          'Description Does Not Match the Issue',
+          'This description does not appear to match the selected issue type. Please edit the description, or use the suggested category button above, before submitting.'
+        );
+        return;
+      }
+
+      // Defense in depth: by the time we're on this step, a photo should
+      // either be absent or already validated (allowUpload: true) against
+      // the current category - the Photo step hard-blocks any mismatch. If
+      // it somehow isn't, block here too rather than letting the submit
+      // call fail on the server. No "Submit Anyway" bypass.
+      if (complaintData.selectedImage && (!complaintData.imageValidation || complaintData.imageValidation.allowUpload !== true)) {
+        Alert.alert(
+          'Photo Not Validated',
+          'Your photo has not been validated against the selected issue type. Please go back to the Photo step to re-validate it, or remove it.',
+          [
+            { text: 'Go to Photo Step', onPress: () => setCurrentStep(2) },
+            { text: 'Cancel', style: 'cancel' }
+          ]
+        );
+        return;
+      }
+
+      await submitComplaint();
     };
 
     return (
@@ -687,7 +1137,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       >
         <View style={styles.stepContainer}>
           <View style={styles.stepHeader}>
-            <Text style={styles.stepTitle}>Step 2: Add Details</Text>
+            <Text style={styles.stepTitle}>Step 3: Add Details</Text>
             <Text style={styles.stepSubtitle}>
               Provide a title and detailed description of the issue
             </Text>
@@ -744,10 +1194,6 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             </TouchableOpacity>
             <Text style={styles.languageHelper}>
               Voice input will be processed in the selected language
-
-
-
-
             </Text>
           </View>
 
@@ -830,6 +1276,75 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                 <Text style={styles.emotionAnalyzingText}>Analyzing emotion...</Text>
               </View>
             )}
+
+            {/* Authenticity / Category-Match Warning */}
+            {complaintData.contentAnalysis && (complaintData.contentAnalysis.mismatchDetected || complaintData.contentAnalysis.flagged) && (
+              <View style={[
+                styles.authenticityWarningContainer,
+                complaintData.contentAnalysis.flagged && styles.authenticityWarningContainerFlagged
+              ]}>
+                <View style={styles.authenticityWarningHeader}>
+                  <Ionicons
+                    name={complaintData.contentAnalysis.flagged ? 'alert-circle' : 'information-circle-outline'}
+                    size={20}
+                    color={complaintData.contentAnalysis.flagged ? '#C62828' : '#B26A00'}
+                  />
+                  <Text style={styles.authenticityWarningTitle}>
+                    {complaintData.contentAnalysis.flagged
+                      ? 'This description may not match the photo'
+                      : 'Description may not fully match the issue type'}
+                  </Text>
+                </View>
+
+                {Array.isArray(complaintData.contentAnalysis.reasons) && complaintData.contentAnalysis.reasons.length > 0 && (
+                  <View style={styles.authenticityReasonsList}>
+                    {complaintData.contentAnalysis.reasons.map((reason, index) => (
+                      <Text key={index} style={styles.authenticityReasonText}>• {reason}</Text>
+                    ))}
+                  </View>
+                )}
+
+                {complaintData.contentAnalysis.suggestedCategory && complaintCategories.some(cat => cat.value === complaintData.contentAnalysis.suggestedCategory) && (
+                  <TouchableOpacity
+                    style={styles.authenticitySuggestionButton}
+                    onPress={() => {
+                      const newCategory = complaintData.contentAnalysis.suggestedCategory;
+                      const categoryChanged = complaintData.category !== newCategory;
+                      const hadPhoto = !!complaintData.selectedImage;
+
+                      setComplaintData(prev => ({
+                        ...prev,
+                        category: newCategory,
+                        // A photo already validated against the old category
+                        // can't be trusted against the new one - clear it.
+                        ...(categoryChanged ? { selectedImage: null, imageValidation: null } : {}),
+                      }));
+
+                      if (categoryChanged && hadPhoto) {
+                        Alert.alert(
+                          'Issue Type Changed',
+                          'Since the issue type changed, your photo needs to be re-checked. Please go back to the Photo step and add a photo that matches the new issue type.',
+                          [
+                            { text: 'Go to Photo Step', onPress: () => setCurrentStep(2) },
+                            { text: 'Later', style: 'cancel' }
+                          ]
+                        );
+                      }
+                    }}
+                  >
+                    <Text style={styles.authenticitySuggestionButtonText}>
+                      Switch category to "{complaintCategories.find(cat => cat.value === complaintData.contentAnalysis.suggestedCategory)?.label}"
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {complaintData.contentAnalysis.flagged && (
+                  <Text style={styles.authenticityBlockedText}>
+                    This description must be edited or the category switched above before you can submit — it can't be submitted as-is.
+                  </Text>
+                )}
+              </View>
+            )}
           </View>
 
           {voiceError && (
@@ -858,13 +1373,17 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
             <TouchableOpacity
               style={[
-                styles.continueButton,
-                (!complaintData.title.trim() || !complaintData.description.trim()) && styles.continueButtonDisabled
+                styles.submitButton,
+                (loading || !complaintData.title.trim() || !complaintData.description.trim() || complaintData.contentAnalysis?.flagged) && styles.submitButtonDisabled
               ]}
-              onPress={handleContinue}
-              disabled={!complaintData.title.trim() || !complaintData.description.trim()}
+              onPress={handleFinalSubmit}
+              disabled={loading || !complaintData.title.trim() || !complaintData.description.trim() || complaintData.contentAnalysis?.flagged}
             >
-              <Text style={styles.continueButtonText}>Continue to Photo</Text>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitButtonText}>Submit Report</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -925,369 +1444,6 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               </View>
             </View>
           </Modal>
-        </View>
-      </KeyboardAwareScrollView>
-    );
-  };
-
-  // Step 3: Image Upload and Validation
-  const Step3ImageUpload = () => {
-    const pickImage = async () => {
-      try {
-        // Request permissions
-        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-        if (permissionResult.granted === false) {
-          Alert.alert('Permission Required', 'Please allow access to your photo library to upload images.');
-          return;
-        }
-
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [4, 3],
-          quality: 0.8,
-          base64: false,
-        });
-
-        if (!result.canceled) {
-          setComplaintData(prev => ({ ...prev, selectedImage: result.assets[0], imageValidation: null }));
-          await validateImage(result.assets[0]);
-        }
-      } catch (error) {
-        console.error('Image picker error:', error);
-        Alert.alert('Error', 'Failed to pick image');
-      }
-    };
-
-    const takePhoto = async () => {
-      try {
-        // Request permissions
-        const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-
-        if (permissionResult.granted === false) {
-          Alert.alert('Permission Required', 'Please allow access to your camera to take photos.');
-          return;
-        }
-
-        const result = await ImagePicker.launchCameraAsync({
-          allowsEditing: true,
-          aspect: [4, 3],
-          quality: 0.8,
-          base64: false,
-        });
-
-        if (!result.canceled) {
-          setComplaintData(prev => ({ ...prev, selectedImage: result.assets[0], imageValidation: null }));
-          await validateImage(result.assets[0]);
-        }
-      } catch (error) {
-        console.error('Camera error:', error);
-        Alert.alert('Error', 'Failed to take photo');
-      }
-    };
-
-    const validateImage = async (imageAsset) => {
-      if (!imageAsset) return;
-      setValidatingImage(true);
-
-      try {
-        console.log('🔍 Starting image validation...');
-
-        // 1. Upload image to Cloudinary
-        const CLOUDINARY_URL = 'https://api.cloudinary.com/v1_1/dsvc9y4rq/image/upload';
-        const UPLOAD_PRESET = 'damage';
-        const data = new FormData();
-        data.append('file', {
-          uri: imageAsset.uri,
-          type: imageAsset.mimeType || 'image/jpeg',
-          name: imageAsset.fileName || 'civic-image.jpg',
-        });
-        data.append('upload_preset', UPLOAD_PRESET);
-
-        const cloudRes = await fetch(CLOUDINARY_URL, {
-          method: 'POST',
-          body: data,
-        });
-        const cloudResult = await cloudRes.json();
-
-        if (!cloudResult.secure_url) throw new Error('Cloudinary upload failed');
-
-        console.log('✅ Image uploaded to Cloudinary:', cloudResult.secure_url);
-
-        // Update selectedImage to use Cloudinary URL
-        setComplaintData(prev => ({
-          ...prev,
-          selectedImage: {
-            ...imageAsset,
-            uri: cloudResult.secure_url,
-            cloudinaryUrl: cloudResult.secure_url,
-            publicId: cloudResult.public_id
-          }
-        }));
-
-        // 2. Send imageUrl to backend for validation
-        const validateRes = await fetch(`${API_BASE_URL}/api/image-analysis/validate-image`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imageUrl: cloudResult.secure_url }),
-        });
-        const result = await validateRes.json();
-
-        console.log('📋 Validation result:', result);
-
-        // Trust the backend's own allowUpload decision (the SAM3 workflow already
-        // applies its own per-class confidence thresholds server-side).
-        const validationData = {
-          confidence: result.confidence || 0,
-          modelConfidence: result.modelConfidence || 0,
-          allowUpload: result.allowUpload === true,
-          message: result.message || 'No validation message provided',
-          detections: Array.isArray(result.detections) ? result.detections : [],
-          primaryClass: result.primaryClass || null,
-        };
-
-        setComplaintData(prev => ({ ...prev, imageValidation: validationData }));
-
-        // Show validation result
-        const displayConfidence = validationData.modelConfidence >= 0.7 ? validationData.modelConfidence : validationData.confidence;
-
-        if (validationData.allowUpload) {
-          Alert.alert(
-            'Valid Civic Issue Detected!',
-            `Confidence Score: ${(displayConfidence * 100).toFixed(1)}%\n\nYour image has been validated and is ready for submission.`,
-            [{ text: 'Continue', style: 'default' }]
-          );
-        } else {
-          Alert.alert(
-            'Image Validation Failed',
-            `Confidence Score: ${(displayConfidence * 100).toFixed(1)}%\n\nThe selected image does not appear to show a valid civic issue. Please select a different image showing the actual problem.`,
-            [
-              { text: 'Change Image', onPress: () => setComplaintData(prev => ({ ...prev, selectedImage: null, imageValidation: null })) },
-              { text: 'Submit Anyway', style: 'destructive' }
-            ]
-          );
-        }
-
-      } catch (error) {
-        console.error('❌ Image validation error:', error);
-        Alert.alert(
-          'Validation Error',
-          'Failed to validate image. Please check your connection and try again.',
-          [
-            { text: 'Retry', onPress: () => validateImage(imageAsset) },
-            { text: 'Skip Validation', style: 'destructive' }
-          ]
-        );
-      } finally {
-        setValidatingImage(false);
-      }
-    };
-
-    const handleSubmit = async () => {
-      if (!complaintData.selectedImage) {
-        Alert.alert('Error', 'Please select an image of the civic issue');
-        return;
-      }
-
-      if (complaintData.imageValidation && !complaintData.imageValidation.allowUpload) {
-        Alert.alert(
-          'Image Validation Failed',
-          `The selected image does not appear to show a valid civic issue. You can still submit anyway for urgent issues.`,
-          [
-            { text: 'Change Image', onPress: () => setComplaintData(prev => ({ ...prev, selectedImage: null, imageValidation: null })) },
-            { text: 'Submit Anyway', style: 'destructive', onPress: () => submitComplaint() }
-          ]
-        );
-        return;
-      }
-
-      await submitComplaint();
-    };
-
-    const submitComplaint = async () => {
-      setLoading(true);
-
-      try {
-        // Prepare submission data
-        const submissionData = {
-          title: complaintData.title.trim(),
-          description: complaintData.description.trim(),
-          category: complaintData.category,
-          locationData: {
-            latitude: complaintData.locationData.latitude,
-            longitude: complaintData.locationData.longitude,
-            privacyLevel: complaintData.locationData.privacyLevel || 'street',
-            accuracy: complaintData.locationData.accuracy || complaintData.locationData.radiusM || 25,
-            precision: complaintData.locationData.precision || 'street',
-            description: complaintData.locationData.description || 'User location',
-            address: complaintData.locationData.address || `${complaintData.locationData.latitude.toFixed(4)}, ${complaintData.locationData.longitude.toFixed(4)}`
-          },
-          imageValidation: complaintData.imageValidation || {
-            allowUpload: true,
-            confidence: 0.5,
-            success: true
-          },
-          imageUrl: complaintData.selectedImage?.uri || null,
-          emotionAnalysis: complaintData.emotionScore ? {
-            score: parseFloat(complaintData.emotionScore.score) / 100, // Convert back to 0-1 range
-            emotions: complaintData.emotionScore.emotions,
-            analysisMethod: complaintData.emotionScore.analysisMethod,
-            language: complaintData.emotionScore.language
-          } : null,
-        };
-
-        console.log('📤 Submitting complaint with comprehensive data:', submissionData);
-
-        // Submit to comprehensive endpoint using makeApiCall
-        const result = await makeApiCall(apiClient.complaints.submit, {
-          method: 'POST',
-          body: JSON.stringify(submissionData),
-        });
-
-        console.log('📋 Response data:', result);
-
-        if (result.success) {
-          setSubmissionResult(result);
-          goToNextStep(); // Go to success page
-        } else {
-          console.error('❌ Backend returned error:', result);
-          throw new Error(result.error || result.message || 'Submission failed');
-        }
-
-      } catch (error) {
-        console.error('❌ Submission error:', error);
-
-        let errorMessage = 'Please check your connection and try again.';
-        let errorTitle = 'Submission Failed';
-
-        if (error.message.includes('Network request failed')) {
-          errorMessage = 'Cannot connect to server. Please check your internet connection.';
-          errorTitle = 'Connection Error';
-        } else if (error.message.includes('HTTP 404')) {
-          errorMessage = 'API endpoint not found. Please update the app.';
-          errorTitle = 'Service Error';
-        } else if (error.message.includes('HTTP 400')) {
-          errorMessage = 'Invalid data submitted. Please check all fields.';
-          errorTitle = 'Validation Error';
-        } else if (error.message.includes('HTTP 500')) {
-          errorMessage = 'Server error. Please try again later.';
-          errorTitle = 'Server Error';
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-
-        Alert.alert(
-          errorTitle,
-          errorMessage,
-          [
-            { text: 'Retry', onPress: () => submitComplaint() },
-            { text: 'Cancel', style: 'cancel' }
-          ]
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const renderImageValidationStatus = () => {
-      if (validatingImage) {
-        return (
-          <View style={styles.validationStatus}>
-            <ActivityIndicator size="small" color="#2E7D32" />
-            <Text style={styles.validationText}>Validating civic issue...</Text>
-          </View>
-        );
-      }
-
-      if (complaintData.imageValidation) {
-        if (complaintData.imageValidation.allowUpload) {
-          return (
-            <View style={[styles.validationStatus, styles.validationSuccess]}>
-              <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
-              <Text style={styles.validationText}>{complaintData.imageValidation.message}</Text>
-            </View>
-          );
-        } else {
-          return (
-            <View style={[styles.validationStatus, styles.validationError]}>
-              <Ionicons name="close-circle" size={20} color="#F44336" />
-              <Text style={styles.validationText}>{complaintData.imageValidation.message}</Text>
-            </View>
-          );
-        }
-      }
-
-      return null;
-    };
-
-    return (
-      <KeyboardAwareScrollView
-        style={styles.stepContainer}
-        enableOnAndroid={true}
-        keyboardShouldPersistTaps="handled"
-        extraScrollHeight={20}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.stepHeader}>
-          <Text style={styles.stepTitle}>Step 3: Add Photo</Text>
-          <Text style={styles.stepSubtitle}>
-            Upload a clear photo showing the civic issue for validation
-          </Text>
-        </View>
-
-        <View style={styles.imageSection}>
-          {complaintData.selectedImage ? (
-            <View style={styles.selectedImageContainer}>
-              <Image source={{ uri: complaintData.selectedImage.uri }} style={styles.selectedImage} />
-              <TouchableOpacity
-                style={styles.changeImageButton}
-                onPress={() => setComplaintData(prev => ({ ...prev, selectedImage: null, imageValidation: null }))}
-              >
-                <Text style={styles.changeImageText}>Change Image</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.imagePickerContainer}>
-              <TouchableOpacity style={styles.imagePickerButton} onPress={takePhoto}>
-                <Ionicons name="camera" size={32} color="#2E7D32" />
-                <Text style={styles.imagePickerText}>Take Photo</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.imagePickerButton} onPress={pickImage}>
-                <Ionicons name="images" size={32} color="#2E7D32" />
-                <Text style={styles.imagePickerText}>Choose from Gallery</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {renderImageValidationStatus()}
-        </View>
-
-        {/* Navigation Buttons */}
-        <View style={styles.navigationButtons}>
-          <TouchableOpacity
-            style={styles.backNavigationButton}
-            onPress={goToPreviousStep}
-          >
-            <Ionicons name="chevron-back" size={20} color="#666" />
-            <Text style={styles.backNavigationText}>Back</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              (loading || validatingImage || !complaintData.selectedImage) && styles.submitButtonDisabled
-            ]}
-            onPress={handleSubmit}
-            disabled={loading || validatingImage || !complaintData.selectedImage}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>Submit Complaint</Text>
-            )}
-          </TouchableOpacity>
         </View>
       </KeyboardAwareScrollView>
     );
@@ -1779,7 +1935,8 @@ const styles = StyleSheet.create({
  fontWeight: '600',
  },
 
- // Step 2: Title and Description
+ // Step 3: Title and Description (selectedCategoryDisplay/Chip is also
+ // reused by the Step 2 photo screen to show the category being validated)
  selectedCategoryDisplay: {
  backgroundColor: '#fff',
  borderRadius: 12,
@@ -2170,7 +2327,7 @@ const styles = StyleSheet.create({
  fontSize: 14,
  },
 
- // Step 3: Image Upload
+ // Step 2: Image Upload
  imageSection: {
  marginBottom: 24,
  },
@@ -2237,6 +2394,116 @@ const styles = StyleSheet.create({
  marginLeft: 8,
  fontSize: 14,
  color: '#333',
+ },
+
+ // Step 2: Photo - manual fallback link
+ skipPhotoLink: {
+ alignSelf: 'center',
+ marginTop: 8,
+ paddingVertical: 8,
+ paddingHorizontal: 12,
+ },
+ skipPhotoLinkText: {
+ fontSize: 13,
+ color: '#888',
+ textDecorationLine: 'underline',
+ textAlign: 'center',
+ },
+ blockedPhotoHintText: {
+ fontSize: 12,
+ color: '#888',
+ textAlign: 'center',
+ marginTop: 8,
+ paddingHorizontal: 8,
+ },
+
+ // Unused since the photo step no longer runs before category selection -
+ // left in place in case a future "detected from photo" affordance returns.
+ detectedCategoryBanner: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ backgroundColor: '#F3F4F6',
+ borderRadius: 8,
+ padding: 12,
+ marginBottom: 16,
+ },
+ detectedCategoryBannerText: {
+ marginLeft: 8,
+ fontSize: 14,
+ color: '#333',
+ flexShrink: 1,
+ },
+ detectedCategoryBannerHighlight: {
+ fontWeight: '700',
+ color: '#1A1A1A',
+ },
+
+ // Step 3: Authenticity / category-match warning
+ authenticityWarningContainer: {
+ backgroundColor: '#FFF8E1',
+ borderRadius: 8,
+ padding: 12,
+ marginTop: 16,
+ borderWidth: 1,
+ borderColor: '#FFE0A3',
+ },
+ authenticityWarningContainerFlagged: {
+ backgroundColor: '#FDECEA',
+ borderColor: '#F5C6C3',
+ },
+ authenticityWarningHeader: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ marginBottom: 8,
+ },
+ authenticityWarningTitle: {
+ marginLeft: 8,
+ fontSize: 14,
+ fontWeight: '700',
+ color: '#333',
+ flexShrink: 1,
+ },
+ authenticityReasonsList: {
+ marginBottom: 8,
+ },
+ authenticityReasonText: {
+ fontSize: 13,
+ color: '#555',
+ marginBottom: 4,
+ },
+ authenticitySuggestionButton: {
+ backgroundColor: '#fff',
+ borderRadius: 8,
+ paddingVertical: 8,
+ paddingHorizontal: 12,
+ alignSelf: 'flex-start',
+ marginBottom: 8,
+ borderWidth: 1,
+ borderColor: '#DDD',
+ },
+ authenticitySuggestionButtonText: {
+ fontSize: 13,
+ fontWeight: '600',
+ color: '#1A1A1A',
+ },
+ // Unused now that the flagged-description override checkbox has been
+ // removed (the backend hard-rejects a flagged description - no bypass).
+ authenticityConfirmRow: {
+ flexDirection: 'row',
+ alignItems: 'center',
+ marginTop: 4,
+ },
+ authenticityConfirmText: {
+ marginLeft: 8,
+ fontSize: 13,
+ color: '#333',
+ flexShrink: 1,
+ },
+ authenticityBlockedText: {
+ fontSize: 12,
+ fontStyle: 'italic',
+ color: '#C62828',
+ marginTop: 4,
  },
 
 
