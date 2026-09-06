@@ -444,16 +444,16 @@ const ComplaintFeedScreen = ({ navigation }) => {
  >
  {/* Card Header */}
  <View style={styles.cardHeader}>
- <View style={styles.userInfo}>
- <View style={styles.userAvatar}>
- <Text style={styles.userAvatarText}>
- {item.user?.full_name ? item.user.full_name.charAt(0).toUpperCase() : 'U'}
- </Text>
- </View>
- <View>
- <Text style={styles.userName}>
- {item.user?.full_name || 'Anonymous User'}
- </Text>
+  <View style={styles.userInfo}>
+  <View style={styles.userAvatar}>
+  <Text style={styles.userAvatarText}>
+  {(item.users?.full_name || item.user?.full_name || item.user_name || item.citizenName || 'Verified Citizen').charAt(0).toUpperCase()}
+  </Text>
+  </View>
+  <View>
+  <Text style={styles.userName}>
+  {item.users?.full_name || item.user?.full_name || item.user_name || item.citizenName || 'Verified Citizen'}
+  </Text>
  <View style={styles.locationRow}>
  <Ionicons name="location" size={12} color="#777" />
  <Text style={styles.locationText} numberOfLines={1}>

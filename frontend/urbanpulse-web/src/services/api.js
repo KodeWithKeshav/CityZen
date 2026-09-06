@@ -1,4 +1,4 @@
-// UrbanPulse API Service Layer
+// CityZen API Service Layer
 // Handles all backend communication for auth, complaints, admin, and AI services
 
 const inferApiBaseUrl = () => {
@@ -45,6 +45,13 @@ export const apiClient = {
 
   imageAnalysis: {
     validate: `${API_BASE_URL}/api/image-analysis/validate-image`,
+    explain: `${API_BASE_URL}/api/image-analysis/explain`,
+    estimateGeometry: `${API_BASE_URL}/api/image-analysis/estimate-geometry`,
+  },
+
+  locationPriority: {
+    calculate: `${API_BASE_URL}/api/location-priority/calculate`,
+    comprehensive: `${API_BASE_URL}/api/location-priority/comprehensive`,
   },
 
   heatMap: {

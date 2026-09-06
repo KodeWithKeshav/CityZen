@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { makeApiCall } from '../../config/supabase';
 
 /**
  * Get guest vote status from local storage
@@ -21,21 +22,15 @@ const getGuestVoteStatus = async (complaintId) => {
 export const refetchComplaintVotes = async (complaintId, apiClient) => {
   try {
     console.log(`🔄 Refetching votes for complaint: ${complaintId}`);
-    
-    const response = await fetch(`${apiClient.baseUrl}/api/complaints/${complaintId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiClient.token || ''}`
-      }
-    });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+    // Was using a raw fetch() with `apiClient.token`, a property that
+    // doesn't exist anywhere in config/supabase.js - every refetch was
+    // sent as "Bearer " (empty), so the backend never recognized the
+    // request as authenticated and userVoted always came back false for
+    // logged-in users right after they'd just voted. makeApiCall() reads
+    // the real stored authToken (the same one the vote POST itself uses).
+    const data = await makeApiCall(`${apiClient.baseUrl}/api/complaints/${complaintId}`);
 
-    const data = await response.json();
-    
     if (data.success && data.complaint) {
       console.log(`✅ Refetched vote count: ${data.complaint.vote_count}`);
       

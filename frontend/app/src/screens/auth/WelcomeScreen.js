@@ -6,6 +6,7 @@ import {
   StyleSheet,
   StatusBar,
   Dimensions,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -19,10 +20,14 @@ const WelcomeScreen = ({ navigation }) => {
       {/* Top brand section */}
       <View style={styles.brandSection}>
         <View style={styles.logoMark}>
-          <Ionicons name="compass-outline" size={36} color="#1A1A1A" />
+          <Image
+            source={require('../../../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
         </View>
 
-        <Text style={styles.brandName}>CIVIC-REZO</Text>
+        <Text style={styles.brandName}>CITYZEN</Text>
         <View style={styles.divider} />
         <Text style={styles.tagline}>Institutional Portal</Text>
       </View>
@@ -69,15 +74,20 @@ const styles = StyleSheet.create({
     marginBottom: 64,
   },
   logoMark: {
-    width: 72,
-    height: 72,
-    borderRadius: 8,
+    width: 100,
+    height: 100,
+    borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#D1D5DB',
+    borderColor: '#E5E7EB',
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
+    padding: 10,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   brandName: {
     fontSize: 34,

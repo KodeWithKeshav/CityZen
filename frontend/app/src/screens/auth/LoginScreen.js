@@ -63,7 +63,7 @@ const LoginScreen = ({ navigation }) => {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>CivicStack Login</Text>
+        <Text style={styles.title}>CityZen Login</Text>
         <Text style={styles.subtitle}>Sign in to your account</Text>
 
         <View style={styles.form}>

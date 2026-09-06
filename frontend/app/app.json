@@ -1,18 +1,17 @@
 {
   "expo": {
-    "name": "CivicRezo",
+    "name": "CityZen",
     "slug": "civic-rezo-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "description": "AI-powered civic complaint management system with location-based priority scoring",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "description": "AI-powered civic complaint management system with location-based priority scoring",
     "plugins": [
       [
         "expo-location",
@@ -28,7 +27,17 @@
           "cameraPermission": "This app needs camera access to capture images of civic issues for complaint submission."
         }
       ],
-      "expo-maps"
+      "expo-maps",
+      "expo-status-bar",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true,
@@ -40,6 +49,7 @@
         "NSLocationWhenInUseUsageDescription": "This app needs location access to calculate priority scores for civic complaints based on nearby infrastructure.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs location access to calculate priority scores for civic complaints based on nearby infrastructure.",
         "NSCameraUsageDescription": "This app needs camera access to capture images of civic issues for complaint submission.",
+        "NSMotionUsageDescription": "This app reads your phone's tilt angle at the moment you photograph an issue, to more accurately estimate the size of potholes.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -47,7 +57,6 @@
     },
     "android": {
       "package": "com.civicrezo",
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -73,7 +82,7 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
       "config": {
-        "googleMapsApiKey": "AIzaSyDB257FqtbNh6mEnV2ZsFfXTbsQmZ7kcjY"
+        "googleMapsApiKey": "AIzaSyBqn-8BPXpdcIAnjaEN9iwNC47epZP6Q6w"
       }
     },
     "extra": {

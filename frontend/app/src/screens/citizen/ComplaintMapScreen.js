@@ -171,7 +171,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
           
           const geocodeResponse = await fetch(geocodeUrl, {
             headers: {
-              'User-Agent': 'CivicRezo App 1.0'
+              'User-Agent': 'CityZen App 1.0'
             }
           });
           

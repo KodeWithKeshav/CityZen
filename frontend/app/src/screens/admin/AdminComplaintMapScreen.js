@@ -47,6 +47,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   const [aiExplainResult, setAiExplainResult] = useState(null);
   const [showAiExplainModal, setShowAiExplainModal] = useState(false);
   const [selectedImageForAiExplain, setSelectedImageForAiExplain] = useState(null);
+  const [geometryRetryLoading, setGeometryRetryLoading] = useState(false);
   const mapRef = useRef(null);
   const regionChangeTimeoutRef = useRef(null);
 
@@ -54,6 +55,11 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   const fetchAiExplanation = async (imageUrl) => {
     if (!imageUrl) return;
 
+    // Two native <Modal>s visible at once causes iOS to visibly flicker
+    // (dismiss/re-present) - the complaint details modal this is opened
+    // from must close before the AI modal opens, never overlap. See
+    // closeAiExplainModal() below for the matching return trip.
+    setShowComplaintModal(false);
     setSelectedImageForAiExplain(imageUrl);
     setAiExplainLoading(true);
     setShowAiExplainModal(true);
@@ -64,7 +70,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ imageUrl })
+        body: JSON.stringify({ imageUrl, category: selectedComplaint?.category, complaintId: selectedComplaint?.id })
       });
 
       const data = await response.json();
@@ -73,14 +79,76 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
         setAiExplainResult(data);
       } else {
         Alert.alert('Error', data.error || 'Failed to generate explanation');
-        setShowAiExplainModal(false);
+        closeAiExplainModal();
       }
     } catch (error) {
       console.error('AI explanation error:', error);
       Alert.alert('Error', 'Failed to connect to explanation service');
-      setShowAiExplainModal(false);
+      closeAiExplainModal();
     } finally {
       setAiExplainLoading(false);
+    }
+  };
+
+  // Single entry point for showing a complaint (marker press, cluster
+  // press, search result) - always clears any leftover AI-explain state
+  // first. Without this, if that state was ever left true (e.g. a fast
+  // double-tap racing the fetch in fetchAiExplanation), selecting a new
+  // complaint could momentarily show both modals at once, which is what
+  // produces the open/close/reopen flicker on marker taps.
+  const openComplaintModal = (complaint) => {
+    setShowAiExplainModal(false);
+    setAiExplainResult(null);
+    setSelectedImageForAiExplain(null);
+    setSelectedComplaint(complaint);
+    setShowComplaintModal(true);
+  };
+
+  // Closes the AI explanation modal and fully clears its state (rather
+  // than just flipping the visible flag) so nothing leaks into the next
+  // marker press, then returns to the complaint details modal it was
+  // opened from - mirrors fetchAiExplanation() above closing that modal
+  // on the way in.
+  const closeAiExplainModal = () => {
+    setShowAiExplainModal(false);
+    setAiExplainResult(null);
+    setSelectedImageForAiExplain(null);
+    if (selectedComplaint) {
+      setShowComplaintModal(true);
+    }
+  };
+
+  // Retry pothole footprint/depth estimation for the currently-selected
+  // complaint (used when geometry_status === 'failed', or to re-estimate
+  // after a mobile update supplies real device tilt). See
+  // services/potholeGeometryService.js on the backend.
+  const retryGeometry = async (imageUrl) => {
+    if (!selectedComplaint?.id || !imageUrl) return;
+    setGeometryRetryLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/image-analysis/estimate-geometry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          complaintId: selectedComplaint.id,
+          imageUrl,
+          category: selectedComplaint.category,
+        }),
+      });
+      const data = await response.json();
+      if (data.success && data.geometry) {
+        setSelectedComplaint((prev) => (prev ? { ...prev, ...data.geometry } : prev));
+        setComplaints((prev) =>
+          prev.map((c) => (c.id === selectedComplaint.id ? { ...c, ...data.geometry } : c))
+        );
+      } else {
+        Alert.alert('Error', data.error || 'Geometry estimation failed');
+      }
+    } catch (error) {
+      console.error('Geometry retry error:', error);
+      Alert.alert('Error', 'Failed to connect to geometry estimation service');
+    } finally {
+      setGeometryRetryLoading(false);
     }
   };
 
@@ -281,8 +349,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
     // If it's a complaint result, show the complaint details
     if (result.complaint) {
       setTimeout(() => {
-        setSelectedComplaint(result.complaint);
-        setShowComplaintModal(true);
+        openComplaintModal(result.complaint);
       }, 500);
     }
   };
@@ -534,10 +601,10 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
           strokeColor={getAdminHeatmapColor(intensity, priority).replace('0.4', '0.7')}
           strokeWidth={priority > 70 ? 3 : 2} // Thicker border for high priority
           onPress={() => {
-            setSelectedComplaint({
+            openComplaintModal({
               id: cluster.id,
               title: `${density} Complaint${density > 1 ? 's' : ''} in this area`,
-              description: `Average Priority: ${Math.round(cluster.avgPriority)}\n\n` + 
+              description: `Average Priority: ${Math.round(cluster.avgPriority)}\n\n` +
                           cluster.complaints.map(c => `• ${c.title} (${c.status})`).join('\n'),
               status: 'cluster',
               complaints: cluster.complaints,
@@ -545,7 +612,6 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
               latitude: cluster.latitude,
               longitude: cluster.longitude,
             });
-            setShowComplaintModal(true);
           }}
         />
       );
@@ -577,9 +643,8 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
           onPress={() => {
             console.log(' Admin marker pressed:', complaint.title);
             setIsMarkerInteracting(true);
-            setSelectedComplaint(complaint);
-            setShowComplaintModal(true);
-            
+            openComplaintModal(complaint);
+
             setTimeout(() => {
               setIsMarkerInteracting(false);
             }, 1000);
@@ -837,13 +902,13 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
       visible={showAiExplainModal}
       transparent={true}
       animationType="fade"
-      onRequestClose={() => setShowAiExplainModal(false)}
+      onRequestClose={closeAiExplainModal}
     >
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { width: '90%' }]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>AI Image Explanation</Text>
-            <TouchableOpacity onPress={() => setShowAiExplainModal(false)}>
+            <TouchableOpacity onPress={closeAiExplainModal}>
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
           </View>
@@ -861,6 +926,74 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
                     source={{ uri: `data:image/jpeg;base64,${aiExplainResult.annotatedImage.value}` }}
                     style={{ width: '100%', height: 250, borderRadius: 8, marginTop: 15, resizeMode: 'contain' }}
                   />
+                )}
+
+                {(selectedComplaint?.geometry_status === 'completed' || (selectedComplaint?.estimated_width_cm != null && selectedComplaint?.estimated_length_cm != null)) && (
+                  <View style={styles.geometryPanel}>
+                    <Text style={styles.geometryTitle}>Estimated Size (AI estimate)</Text>
+                    <Text style={styles.geometryRow}>
+                      Width × Length: {selectedComplaint.estimated_width_cm} × {selectedComplaint.estimated_length_cm} cm
+                    </Text>
+                    <Text style={styles.geometryRow}>Area: {selectedComplaint.estimated_area_cm2} cm²</Text>
+                    <Text style={styles.geometryRow}>Depth: {selectedComplaint.estimated_depth_cm} cm</Text>
+                    <Text style={styles.geometryDisclaimer}>
+                      Confidence {Math.round((selectedComplaint.geometry_confidence || 0) * 100)}% — estimated from a single
+                      photo using an assumed camera height/angle, not a measured value.
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.geometryRetryButton, { backgroundColor: '#34495e', marginTop: 10 }]}
+                      disabled={geometryRetryLoading}
+                      onPress={() => retryGeometry(selectedImageForAiExplain)}
+                    >
+                      {geometryRetryLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.explainButtonText}>Recalculate Size</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {selectedComplaint?.geometry_status === 'pending' && (
+                  <View style={styles.geometryPanel}>
+                    <ActivityIndicator size="small" color="#1A1A1A" />
+                    <Text style={[styles.geometryRow, { marginTop: 6 }]}>Estimating size…</Text>
+                  </View>
+                )}
+                {selectedComplaint?.geometry_status === 'failed' && (
+                  <View style={styles.geometryPanel}>
+                    <Text style={styles.geometryRow}>Size estimate failed{selectedComplaint.geometry_error ? `: ${selectedComplaint.geometry_error}` : '.'}</Text>
+                    <TouchableOpacity
+                      style={styles.geometryRetryButton}
+                      disabled={geometryRetryLoading}
+                      onPress={() => retryGeometry(selectedImageForAiExplain)}
+                    >
+                      {geometryRetryLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.explainButtonText}>Retry size estimate</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {selectedComplaint?.geometry_status !== 'completed' &&
+                  selectedComplaint?.geometry_status !== 'pending' &&
+                  selectedComplaint?.geometry_status !== 'failed' &&
+                  selectedComplaint?.estimated_width_cm == null &&
+                  selectedComplaint?.category?.toLowerCase()?.includes('pothole') && (
+                  <View style={styles.geometryPanel}>
+                    <Text style={styles.geometryRow}>No geometric size estimate yet computed for this pothole.</Text>
+                    <TouchableOpacity
+                      style={styles.geometryRetryButton}
+                      disabled={geometryRetryLoading}
+                      onPress={() => retryGeometry(selectedImageForAiExplain)}
+                    >
+                      {geometryRetryLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.explainButtonText}>Estimate Pothole Geometry</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             ) : (
@@ -1596,6 +1729,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     marginLeft: 4,
+  },
+  geometryPanel: {
+    marginTop: 15,
+    padding: 15,
+    backgroundColor: '#f0f7ff',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  geometryTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 6,
+  },
+  geometryRow: {
+    fontSize: 13,
+    color: '#2c3e50',
+    marginBottom: 3,
+  },
+  geometryDisclaimer: {
+    fontSize: 11,
+    color: '#888',
+    fontStyle: 'italic',
+    marginTop: 6,
+  },
+  geometryRetryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e67e22',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 8,
+    alignSelf: 'flex-start',
   },
   explanationText: {
     fontSize: 15,

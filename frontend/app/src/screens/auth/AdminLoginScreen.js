@@ -78,7 +78,7 @@ const AdminLoginScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <View style={styles.brandContent}>
-          <Text style={styles.brandName}>CIVIC{'\n'}REZO</Text>
+          <Text style={styles.brandName}>CITY{'\n'}ZEN</Text>
           <Text style={styles.brandSub}>INSTITUTIONAL PORTAL</Text>
         </View>
       </View>

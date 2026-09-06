@@ -13,8 +13,21 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import { apiClient, makeApiCall } from '../../../config/supabase';
+import SimpleDropdown from '../../components/SimpleDropdown';
+
+// The complaints table stores photos as image_urls (array, see
+// routes/complaints.js's insert) - there is no image_url column. Some
+// older/alternate API shapes have also been seen returning a singular
+// imageUrl, so check for that too before giving up.
+const getComplaintImageUrl = (complaint) => {
+  if (!complaint) return null;
+  if (complaint.imageUrl) return complaint.imageUrl;
+  if (Array.isArray(complaint.image_urls) && complaint.image_urls.length > 0) {
+    return complaint.image_urls[0];
+  }
+  return null;
+};
 
 const AdminComplaintDetails = ({ route, navigation }) => {
   const { complaintId } = route.params;
@@ -32,6 +45,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
   const [aiExplainLoading, setAiExplainLoading] = useState(false);
   const [aiExplainResult, setAiExplainResult] = useState(null);
   const [showAiExplainModal, setShowAiExplainModal] = useState(false);
+  const [geometryRetryLoading, setGeometryRetryLoading] = useState(false);
 
   useEffect(() => {
     loadComplaintDetails();
@@ -172,7 +186,8 @@ const AdminComplaintDetails = ({ route, navigation }) => {
   };
 
   const fetchAiExplanation = async () => {
-    if (!complaint?.image_url) return;
+    const imageUrl = getComplaintImageUrl(complaint);
+    if (!imageUrl) return;
 
     setAiExplainLoading(true);
     setShowAiExplainModal(true);
@@ -180,7 +195,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
     try {
       const response = await makeApiCall(`${apiClient.baseUrl}/api/image-analysis/explain`, {
         method: 'POST',
-        body: JSON.stringify({ imageUrl: complaint.image_url })
+        body: JSON.stringify({ imageUrl, category: complaint?.category, complaintId: complaint?.id })
       });
 
       if (response?.success) {
@@ -195,6 +210,34 @@ const AdminComplaintDetails = ({ route, navigation }) => {
       setShowAiExplainModal(false);
     } finally {
       setAiExplainLoading(false);
+    }
+  };
+
+  // Retry pothole footprint/depth estimation (used when geometry_status ===
+  // 'failed'). See services/potholeGeometryService.js on the backend.
+  const retryGeometry = async () => {
+    const imageUrl = getComplaintImageUrl(complaint);
+    if (!complaint?.id || !imageUrl) return;
+    setGeometryRetryLoading(true);
+    try {
+      const response = await makeApiCall(`${apiClient.baseUrl}/api/image-analysis/estimate-geometry`, {
+        method: 'POST',
+        body: JSON.stringify({
+          complaintId: complaint.id,
+          imageUrl,
+          category: complaint.category,
+        }),
+      });
+      if (response?.success && response.geometry) {
+        setComplaint((prev) => (prev ? { ...prev, ...response.geometry } : prev));
+      } else {
+        Alert.alert('Error', response?.error || 'Geometry estimation failed');
+      }
+    } catch (error) {
+      console.error('Geometry retry error:', error);
+      Alert.alert('Error', 'Failed to connect to geometry estimation service');
+    } finally {
+      setGeometryRetryLoading(false);
     }
   };
 
@@ -243,10 +286,11 @@ const AdminComplaintDetails = ({ route, navigation }) => {
     );
   }
 
-  const currentStage = complaint.complaint_stages?.find(s => s.stage_status === 'in_progress') || 
+  const currentStage = complaint.complaint_stages?.find(s => s.stage_status === 'in_progress') ||
                      complaint.complaint_stages?.find(s => s.stage_status === 'pending');
   const completedStages = complaint.complaint_stages?.filter(s => s.stage_status === 'completed').length || 0;
   const totalStages = complaint.complaint_stages?.length || 0;
+  const complaintImageUrl = getComplaintImageUrl(complaint);
 
   return (
     <View style={styles.container}>
@@ -294,7 +338,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
 
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Submitted By</Text>
-              <Text style={styles.infoValue}>{complaint.users?.full_name || 'Unknown'}</Text>
+              <Text style={styles.infoValue}>{complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || 'Verified Citizen'}</Text>
             </View>
 
             <View style={styles.infoItem}>
@@ -319,7 +363,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
         </View>
 
         {/* Images */}
-        {complaint.image_url && (
+        {complaintImageUrl ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Images</Text>
@@ -329,8 +373,81 @@ const AdminComplaintDetails = ({ route, navigation }) => {
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <Image source={{ uri: complaint.image_url }} style={styles.complaintImage} />
+              <Image source={{ uri: complaintImageUrl }} style={styles.complaintImage} />
             </ScrollView>
+
+            {/* Pothole size/depth estimate - shown here too (not just
+                inside the Explain AI modal) so it's visible without an
+                extra tap. See services/potholeGeometryService.js. */}
+            {(complaint.geometry_status === 'completed' || (complaint.estimated_width_cm != null && complaint.estimated_length_cm != null)) && (
+              <View style={styles.geometryPanel}>
+                <Text style={styles.geometryTitle}>Estimated Size (AI estimate)</Text>
+                <Text style={styles.geometryRow}>
+                  Width × Length: {complaint.estimated_width_cm} × {complaint.estimated_length_cm} cm
+                </Text>
+                <Text style={styles.geometryRow}>Area: {complaint.estimated_area_cm2} cm²</Text>
+                <Text style={styles.geometryRow}>Depth: {complaint.estimated_depth_cm} cm</Text>
+                <Text style={styles.geometryDisclaimer}>
+                  Confidence {Math.round((complaint.geometry_confidence || 0) * 100)}% — estimated from a single
+                  photo using an assumed camera height/angle, not a measured value.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.geometryRetryButton, { backgroundColor: '#34495e', marginTop: 10 }]}
+                  disabled={geometryRetryLoading}
+                  onPress={retryGeometry}
+                >
+                  <Text style={styles.explainButtonText}>
+                    {geometryRetryLoading ? 'Recalculating…' : 'Recalculate Size'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {complaint.geometry_status === 'pending' && (
+              <View style={styles.geometryPanel}>
+                <Text style={styles.geometryRow}>Estimating size…</Text>
+              </View>
+            )}
+            {complaint.geometry_status === 'failed' && (
+              <View style={styles.geometryPanel}>
+                <Text style={styles.geometryRow}>
+                  Size estimate failed{complaint.geometry_error ? `: ${complaint.geometry_error}` : '.'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.geometryRetryButton}
+                  disabled={geometryRetryLoading}
+                  onPress={retryGeometry}
+                >
+                  <Text style={styles.explainButtonText}>
+                    {geometryRetryLoading ? 'Retrying…' : 'Retry size estimate'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {complaint.geometry_status !== 'completed' &&
+              complaint.geometry_status !== 'pending' &&
+              complaint.geometry_status !== 'failed' &&
+              complaint.estimated_width_cm == null &&
+              complaint.category?.toLowerCase()?.includes('pothole') && (
+              <View style={styles.geometryPanel}>
+                <Text style={styles.geometryRow}>
+                  No geometric size estimate yet computed for this pothole.
+                </Text>
+                <TouchableOpacity
+                  style={styles.geometryRetryButton}
+                  disabled={geometryRetryLoading}
+                  onPress={retryGeometry}
+                >
+                  <Text style={styles.explainButtonText}>
+                    {geometryRetryLoading ? 'Calculating…' : 'Estimate Pothole Geometry'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ) : (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Images</Text>
+            <Text style={styles.noImageText}>No photo was attached to this complaint.</Text>
           </View>
         )}
 
@@ -540,48 +657,44 @@ const AdminComplaintDetails = ({ route, navigation }) => {
 
             <ScrollView style={styles.modalContent}>
               <Text style={styles.modalLabel}>Stage Status</Text>
-              <Picker
-                selectedValue={newStageStatus}
+              <SimpleDropdown
+                value={newStageStatus}
                 onValueChange={setNewStageStatus}
-                style={styles.modalPicker}
-              >
-                <Picker.Item label="Pending" value="pending" />
-                <Picker.Item label="In Progress" value="in_progress" />
-                <Picker.Item label="Completed" value="completed" />
-                <Picker.Item label="Cancelled" value="cancelled" />
-              </Picker>
+                items={[
+                  { label: 'Pending', value: 'pending' },
+                  { label: 'In Progress', value: 'in_progress' },
+                  { label: 'Completed', value: 'completed' },
+                  { label: 'Cancelled', value: 'cancelled' },
+                ]}
+              />
 
               <Text style={styles.modalLabel}>Assign Officer</Text>
-              <Picker
-                selectedValue={selectedOfficer}
+              <SimpleDropdown
+                value={selectedOfficer}
                 onValueChange={setSelectedOfficer}
-                style={styles.modalPicker}
-              >
-                <Picker.Item label="No Officer Assigned" value="" />
-                {officers.map(officer => (
-                  <Picker.Item 
-                    key={officer.id} 
-                    label={`${officer.name} (${officer.department})`} 
-                    value={officer.id} 
-                  />
-                ))}
-              </Picker>
+                placeholder="No Officer Assigned"
+                items={[
+                  { label: 'No Officer Assigned', value: '' },
+                  ...officers.map(officer => ({
+                    label: `${officer.name} (${officer.department})`,
+                    value: officer.id,
+                  })),
+                ]}
+              />
 
               <Text style={styles.modalLabel}>Assign Contractor</Text>
-              <Picker
-                selectedValue={selectedContractor}
+              <SimpleDropdown
+                value={selectedContractor}
                 onValueChange={setSelectedContractor}
-                style={styles.modalPicker}
-              >
-                <Picker.Item label="No Contractor Assigned" value="" />
-                {contractors.map(contractor => (
-                  <Picker.Item 
-                    key={contractor.id} 
-                    label={contractor.name} 
-                    value={contractor.id} 
-                  />
-                ))}
-              </Picker>
+                placeholder="No Contractor Assigned"
+                items={[
+                  { label: 'No Contractor Assigned', value: '' },
+                  ...contractors.map(contractor => ({
+                    label: contractor.name,
+                    value: contractor.id,
+                  })),
+                ]}
+              />
 
               <Text style={styles.modalLabel}>Notes</Text>
               <TextInput
@@ -638,6 +751,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
                       style={{ width: '100%', height: 250, borderRadius: 8, marginTop: 15, resizeMode: 'contain' }}
                     />
                   )}
+
                 </View>
               ) : (
                 <Text style={{ padding: 20 }}>No explanation generated.</Text>
@@ -797,6 +911,11 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 8,
     marginRight: 10,
+  },
+  noImageText: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    fontStyle: 'italic',
   },
   progressOverview: {
     marginBottom: 15,
@@ -1009,12 +1128,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 15,
   },
-  modalPicker: {
-    borderWidth: 1,
-    borderColor: '#bdc3c7',
-    borderRadius: 8,
-    marginBottom: 15,
-  },
   modalTextArea: {
     borderWidth: 1,
     borderColor: '#bdc3c7',
@@ -1070,6 +1183,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     marginLeft: 4,
+  },
+  geometryPanel: {
+    marginTop: 15,
+    padding: 15,
+    backgroundColor: '#f0f7ff',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  geometryTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 6,
+  },
+  geometryRow: {
+    fontSize: 13,
+    color: '#2c3e50',
+    marginBottom: 3,
+  },
+  geometryDisclaimer: {
+    fontSize: 11,
+    color: '#888',
+    fontStyle: 'italic',
+    marginTop: 6,
+  },
+  geometryRetryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e67e22',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 8,
+    alignSelf: 'flex-start',
   },
   explanationText: {
     fontSize: 15,

@@ -97,7 +97,7 @@ const CitizenDashboard = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.brandMark}>CIVIC-REZO</Text>
+          <Text style={styles.brandMark}>CITYZEN</Text>
           <Text style={styles.brandSub}>Institutional Portal</Text>
         </View>
         <View style={styles.headerRight}>

@@ -1,9 +1,8 @@
-// CitizenManagement - Admin view for managing registered citizens
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
-import { HiSearch, HiUsers, HiRefresh } from 'react-icons/hi'
+import { HiSearch, HiUsers, HiRefresh, HiChevronRight } from 'react-icons/hi'
 
 export default function CitizenManagement() {
   const [citizens, setCitizens] = useState([])
@@ -28,106 +27,158 @@ export default function CitizenManagement() {
         setFiltered(dataArray)
       }
     } catch (err) {
-      toast.error('Failed to load citizens')
+      toast.error('Failed to load registered citizens directory')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { fetchCitizens() }, [])
+  useEffect(() => {
+    fetchCitizens()
+  }, [])
 
   useEffect(() => {
-    if (!search) { setFiltered(citizens); return }
+    if (!search.trim()) {
+      setFiltered(citizens)
+      return
+    }
     const q = search.toLowerCase()
-    setFiltered(citizens.filter(c =>
-      (c.fullName || '').toLowerCase().includes(q) ||
-      (c.email || '').toLowerCase().includes(q) ||
-      (c.phoneNumber || '').includes(q)
-    ))
+    setFiltered(
+      citizens.filter(
+        c =>
+          (c.fullName || '').toLowerCase().includes(q) ||
+          (c.email || '').toLowerCase().includes(q) ||
+          (c.phoneNumber || '').includes(q) ||
+          (c._id || c.id || '').toLowerCase().includes(q)
+      )
+    )
   }, [search, citizens])
 
   return (
-    <div className="p-4 max-w-5xl mx-auto pb-8 fade-in">
-      <div className="flex items-center justify-between mb-5">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+      {/* Header */}
+      <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Citizens</h1>
-          <p className="text-sm text-gray-500">{filtered.length} of {citizens.length} registered</p>
+          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+            <span>ADMINISTRATIVE DIRECTORY</span>
+            <span>/</span>
+            <span>VERIFIED CITIZENS</span>
+            <span>/</span>
+            <span className="text-black font-semibold">ROSTER</span>
+          </div>
+          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+            Citizen Registry
+          </h1>
+          <p className="text-sm text-neutral-600 mt-1 font-sans">
+            Authenticated municipal residents, identity records, and historical participation metrics.
+          </p>
         </div>
-        <button onClick={fetchCitizens} className="p-2.5 rounded-xl hover:bg-gray-100">
-          <HiRefresh className="w-5 h-5 text-gray-600" />
+
+        <button
+          onClick={fetchCitizens}
+          className="p-2 border border-neutral-300 hover:border-black transition-colors"
+          title="Refresh Registry"
+        >
+          <HiRefresh className="w-4 h-4 text-neutral-800" />
         </button>
       </div>
 
-      <div className="relative mb-5">
-        <HiSearch className="absolute left-3 top-3.5 text-gray-400 w-5 h-5" />
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, email..." className="input pl-10" />
+      {/* Search Bar */}
+      <div className="border border-neutral-200 bg-white p-4">
+        <div className="relative">
+          <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 w-4 h-4" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by full name, email, phone number, or ID..."
+            className="w-full pl-9 pr-3 py-2 border border-neutral-300 rounded-none text-xs font-mono placeholder-neutral-400 focus:outline-none focus:border-black"
+          />
+        </div>
+
+        <div className="flex justify-between items-center text-xs font-mono text-neutral-500 pt-2 mt-2 border-t border-neutral-100">
+          <span>ENROLLED: <strong className="text-black">{filtered.length}</strong> OF {citizens.length} CITIZENS</span>
+          <span>IDENTITY PROTOCOL: CIVIC ID SHA-256</span>
+        </div>
       </div>
 
+      {/* Table / List */}
       {loading ? (
-        <div className="space-y-3">
-          {[1,2,3,4].map(i => <div key={i} className="h-16 skeleton rounded-2xl" />)}
+        <div className="border border-neutral-200 p-8 text-center font-mono text-xs text-neutral-500 bg-white">
+          LOADING CITIZEN CADASTRE...
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center py-16 text-gray-400">
-          <HiUsers className="w-12 h-12 mb-3" />
-          <p>No citizens found</p>
+        <div className="border border-dashed border-neutral-300 bg-white p-12 text-center">
+          <HiUsers className="w-10 h-10 text-neutral-400 mx-auto mb-3" />
+          <h3 className="font-serif text-lg font-bold text-neutral-900 uppercase">
+            No Citizen Records Found
+          </h3>
+          <p className="text-xs text-neutral-500 font-sans mt-1">
+            No enrolled citizens match your search parameters.
+          </p>
         </div>
       ) : (
-        <>
-          {/* Desktop */}
-          <div className="hidden md:block card p-0 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  {['Citizen', 'Email', 'Phone', 'Address', 'Joined', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map(c => (
-                  <tr key={c._id || c.id} className="hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => navigate(`/admin/citizens/${c._id || c.id}`)}>
-                    <td className="px-4 py-3">
+        <div className="border border-neutral-200 bg-white overflow-x-auto">
+          <table className="w-full text-left font-mono text-xs border-collapse">
+            <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 uppercase text-[10px] tracking-wider">
+              <tr>
+                <th className="p-3 border-r border-neutral-200">CITIZEN IDENTITY</th>
+                <th className="p-3 border-r border-neutral-200">EMAIL CONTACT</th>
+                <th className="p-3 border-r border-neutral-200">PHONE</th>
+                <th className="p-3 border-r border-neutral-200">PRIMARY RESIDENCE / WARD</th>
+                <th className="p-3 border-r border-neutral-200">ENROLLED DATE</th>
+                <th className="p-3 text-right">PROFILE</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-200 text-neutral-800">
+              {filtered.map(c => {
+                const initial = (c.fullName || 'C').charAt(0).toUpperCase()
+                const dateStr = c.createdAt
+                  ? new Date(c.createdAt).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : '—'
+
+                return (
+                  <tr
+                    key={c._id || c.id}
+                    onClick={() => navigate(`/admin/citizens/${c._id || c.id}`)}
+                    className="hover:bg-neutral-50 cursor-pointer transition-colors"
+                  >
+                    <td className="p-3 border-r border-neutral-200">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center font-bold text-violet-700 text-sm flex-shrink-0">
-                          {c.fullName?.charAt(0)?.toUpperCase() || '?'}
+                        <div className="w-7 h-7 bg-neutral-900 text-white flex items-center justify-center font-mono font-bold text-xs flex-shrink-0">
+                          {initial}
                         </div>
-                        <p className="font-medium text-gray-900">{c.fullName || '-'}</p>
+                        <span className="font-bold text-neutral-900 font-sans text-sm">
+                          {c.fullName || 'Anonymous Resident'}
+                        </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{c.email || '-'}</td>
-                    <td className="px-4 py-3 text-gray-600">{c.phoneNumber || '-'}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs max-w-[160px] truncate">{c.address || '-'}</td>
-                    <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">
-                      {c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                    <td className="p-3 border-r border-neutral-200 text-neutral-600">
+                      {c.email || '—'}
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="text-admin-600 text-xs font-medium">View -&gt;</span>
+                    <td className="p-3 border-r border-neutral-200 text-neutral-600">
+                      {c.phoneNumber || '—'}
+                    </td>
+                    <td className="p-3 border-r border-neutral-200 text-neutral-500 max-w-xs truncate">
+                      {c.address || 'Ward Unassigned'}
+                    </td>
+                    <td className="p-3 border-r border-neutral-200 text-neutral-500 whitespace-nowrap">
+                      {dateStr}
+                    </td>
+                    <td className="p-3 text-right whitespace-nowrap font-bold">
+                      <span className="text-black hover:underline inline-flex items-center gap-1 text-[11px]">
+                        DOSSIER <HiChevronRight className="w-3.5 h-3.5" />
+                      </span>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile */}
-          <div className="md:hidden space-y-3">
-            {filtered.map(c => (
-              <div key={c._id || c.id} className="card hover:shadow-md transition cursor-pointer" onClick={() => navigate(`/admin/citizens/${c._id || c.id}`)}>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center font-bold text-violet-700">
-                    {c.fullName?.charAt(0)?.toUpperCase() || '?'}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-800 text-sm">{c.fullName || '-'}</p>
-                    <p className="text-xs text-gray-500">{c.email}</p>
-                    {c.phoneNumber && <p className="text-xs text-gray-400">{c.phoneNumber}</p>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

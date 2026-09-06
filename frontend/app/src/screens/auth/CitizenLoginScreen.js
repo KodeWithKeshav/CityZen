@@ -82,7 +82,7 @@ const CitizenLoginScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <View style={styles.brandContent}>
-          <Text style={styles.brandName}>CIVIC{'\n'}REZO</Text>
+          <Text style={styles.brandName}>CITY{'\n'}ZEN</Text>
           <View style={styles.brandDivider} />
           <View style={styles.accessBadge}>
             <Text style={styles.accessTitle}>Secure Citizen Access</Text>

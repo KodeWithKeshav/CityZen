@@ -3,20 +3,18 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { makeApiCall, apiClient } from '../../services/api'
 import {
-  HiPlusCircle, HiNewspaper, HiMap, HiChartBar,
-  HiDocumentReport, HiChat, HiStar, HiInformationCircle,
-  HiOfficeBuilding, HiClock, HiCheckCircle, HiGlobeAlt
+  HiPlusCircle, HiNewspaper, HiMap, HiDocumentReport,
+  HiChat, HiStar, HiChartBar, HiClock, HiCheckCircle, HiGlobeAlt, HiArrowRight
 } from 'react-icons/hi'
 
 const actions = [
-  { icon: HiPlusCircle, label: 'New Report', sub: 'Submit environmental concern', to: '/citizen/submit', color: 'from-primary-700 to-primary-500' },
-  { icon: HiNewspaper, label: 'Feed', sub: 'Browse all complaints', to: '/citizen/feed', color: 'from-emerald-600 to-teal-500' },
-  { icon: HiMap, label: 'Complaint Map', sub: 'View area status', to: '/citizen/map', color: 'from-teal-600 to-cyan-500' },
-
-  { icon: HiDocumentReport, label: 'My Reports', sub: 'Track your submissions', to: '/citizen/reports', color: 'from-amber-500 to-orange-500' },
-  { icon: HiChat, label: 'AI Chatbot', sub: 'Get help from AI', to: '/citizen/chatbot', color: 'from-violet-600 to-purple-500' },
-  { icon: HiStar, label: 'Feedback', sub: 'Rate our service', to: '/citizen/feedback', color: 'from-pink-500 to-rose-500' },
-  { icon: HiInformationCircle, label: 'About', sub: 'Learn more', to: '/citizen/feed', color: 'from-sky-500 to-blue-500' },
+  { icon: HiPlusCircle, label: 'New Report', sub: 'Submit environmental concern', to: '/citizen/submit' },
+  { icon: HiNewspaper, label: 'Civic Feed', sub: 'Browse all complaints', to: '/citizen/feed' },
+  { icon: HiMap, label: 'Spatial Map', sub: 'View area status', to: '/citizen/map' },
+  { icon: HiDocumentReport, label: 'My Reports', sub: 'Track your submissions', to: '/citizen/reports' },
+  { icon: HiChat, label: 'AI Assistant', sub: 'Get help from AI', to: '/citizen/chatbot' },
+  { icon: HiStar, label: 'Feedback', sub: 'Rate our service', to: '/citizen/feedback' },
+  { icon: HiChartBar, label: 'Transparency', sub: 'Government metrics', to: '/citizen/transparency' },
 ]
 
 export default function CitizenDashboard() {
@@ -43,47 +41,49 @@ export default function CitizenDashboard() {
   }, [])
 
   return (
-    <div className="p-6 max-w-4xl mx-auto fade-in">
-      {/* Hero */}
-      <div className="rounded-3xl bg-gradient-to-br from-primary-800 to-primary-600 text-white p-6 mb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center text-2xl">
-            <HiOfficeBuilding />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">Hello, {user?.fullName?.split(' ')[0] || 'Citizen'}!</h1>
-            <p className="text-primary-200">Making our city better, one report at a time</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: 'Pending', value: stats.pending, icon: HiClock },
-            { label: 'Resolved', value: stats.resolved, icon: HiCheckCircle },
-            { label: 'Impact', value: stats.total, icon: HiGlobeAlt },
-          ].map(s => (
-            <div key={s.label} className="bg-white/10 rounded-xl p-3 text-center">
-              <div className="text-xl flex justify-center"><s.icon /></div>
-              <div className="font-bold text-xl">{s.value}</div>
-              <div className="text-primary-200 text-xs">{s.label}</div>
-            </div>
-          ))}
-        </div>
+    <div className="p-8 max-w-6xl mx-auto fade-in">
+      {/* ─── Header ─── */}
+      <div className="mb-stack-md">
+        <h1 className="text-headline-lg font-epilogue text-on-surface">
+          Hello, {user?.fullName?.split(' ')[0] || 'Citizen'}.
+        </h1>
+        <p className="text-body-md text-on-surface-variant mt-2">
+          Making our city better, one report at a time.
+        </p>
       </div>
 
-      {/* Quick actions grid */}
-      <h2 className="text-lg font-bold text-gray-800 mb-4">Quick Actions</h2>
+      {/* ─── Stats Row ─── */}
+      <div className="grid grid-cols-3 gap-6 mb-stack-md">
+        {[
+          { label: 'PENDING', value: stats.pending, icon: HiClock },
+          { label: 'RESOLVED', value: stats.resolved, icon: HiCheckCircle },
+          { label: 'TOTAL IMPACT', value: stats.total, icon: HiGlobeAlt },
+        ].map(s => (
+          <div key={s.label} className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <s.icon className="w-5 h-5 text-on-surface" />
+              <span className="text-label-sm text-primary-400">{s.label}</span>
+            </div>
+            <p className="font-epilogue text-4xl font-bold text-on-surface">{s.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ─── Quick Actions ─── */}
+      <div className="mb-6">
+        <h2 className="text-label-sm text-primary-400 mb-4">QUICK ACTIONS</h2>
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {actions.map(({ icon: Icon, label, sub, to, color }) => (
+        {actions.map(({ icon: Icon, label, sub, to }) => (
           <button
             key={to + label}
             onClick={() => navigate(to)}
-            className="rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
+            className="card text-left hover:bg-surface-container-low transition-colors group p-5"
           >
-            <div className={`bg-gradient-to-br ${color} p-5 text-white`}>
-              <Icon className="w-7 h-7 mb-2" />
-              <p className="font-bold text-sm leading-tight">{label}</p>
-              <p className="text-white/70 text-xs mt-0.5 leading-tight">{sub}</p>
-            </div>
+            <Icon className="w-6 h-6 text-on-surface mb-4" />
+            <p className="font-semibold text-sm text-on-surface leading-tight mb-1">{label}</p>
+            <p className="text-xs text-on-surface-variant leading-tight">{sub}</p>
+            <HiArrowRight className="w-4 h-4 text-primary-300 mt-3 group-hover:text-on-surface transition-colors" />
           </button>
         ))}
       </div>

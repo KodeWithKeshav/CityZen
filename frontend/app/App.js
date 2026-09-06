@@ -3,7 +3,18 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import { View, Image, Text, StyleSheet, LogBox } from 'react-native';
+
+// Ignore benign non-fatal developer notices in Expo Go
+LogBox.ignoreLogs([
+  'Primary API call failed',
+  'Response.blob()',
+  'No articles in primary response'
+]);
+
+// Keep the splash screen visible while assets/bundle initialize
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // Import screens
 import WelcomeScreen from './src/screens/auth/WelcomeScreen';
@@ -37,14 +48,34 @@ import FeedbackScreen from './src/screens/feedback/FeedbackScreen';
 const Stack = createStackNavigator();
 
 export default function App() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [appIsReady, setAppIsReady] = useState(false);
 
-  // Remove automatic authentication check - always start from Welcome screen
+  useEffect(() => {
+    async function prepare() {
+      try {
+        // Ensure the CityZen logo is prominently visible on initial startup
+        await new Promise(resolve => setTimeout(resolve, 1200));
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setAppIsReady(true);
+        await SplashScreen.hideAsync().catch(() => {});
+      }
+    }
+    prepare();
+  }, []);
 
-  if (isLoading) {
+  if (!appIsReady) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2E7D32" />
+      <View style={styles.splashContainer}>
+        <StatusBar style="dark" />
+        <Image
+          source={require('./assets/logo.png')}
+          style={styles.splashLogo}
+          resizeMode="contain"
+        />
+        <Text style={styles.splashText}>CITYZEN</Text>
+        <Text style={styles.splashSubtext}>Institutional Civic Portal</Text>
       </View>
     );
   }
@@ -103,6 +134,31 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+  },
+  splashLogo: {
+    width: 140,
+    height: 140,
+    marginBottom: 20,
+  },
+  splashText: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    letterSpacing: 3,
+    marginBottom: 6,
+  },
+  splashSubtext: {
+    fontSize: 12,
+    color: '#6B7280',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

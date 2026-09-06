@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import * as ImagePicker from 'expo-image-picker';
-import { Picker } from '@react-native-picker/picker';
+import SimpleDropdown from '../../components/SimpleDropdown';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { API_BASE_URL, makeApiCall, apiClient } from '../../../config/supabase';
@@ -22,6 +22,7 @@ import LocationPrivacySelector from '../../components/LocationPrivacySelector';
 import LocationService from '../../services/LocationService';
 import SarvamSpeechService from '../../services/SarvamSpeechService';
 import StableTextInput from '../../components/StableTextInput';
+import { appendFileToFormData } from '../../utils/formDataHelper';
 
 const SubmitComplaintScreen = ({ navigation }) => {
  const [formData, setFormData] = useState({
@@ -129,7 +130,6 @@ const SubmitComplaintScreen = ({ navigation }) => {
  { value: 'pothole', label: 'Pothole', urgency: 'general' },
  { value: 'garbage_dumping', label: 'Garbage Dumping', urgency: 'general' },
  { value: 'stray_cattle', label: 'Stray Cattle on Road', urgency: 'general' },
- { value: 'others', label: 'Others', urgency: 'general' },
  ];
 
  const getComplaintTypeFromCategory = () => {
@@ -262,9 +262,11 @@ const SubmitComplaintScreen = ({ navigation }) => {
  }
 
  const result = await ImagePicker.launchImageLibraryAsync({
- mediaTypes: ImagePicker.MediaTypeOptions.Images,
- allowsEditing: true,
- aspect: [4, 3],
+ mediaTypes: ['images'],
+ // No forced crop: a fixed aspect ratio auto-trims the frame to fit,
+ // which can cut off the part of the photo the SAM3 workflow needs to
+ // actually recognize the issue.
+ allowsEditing: false,
  quality: 0.8,
  base64: false,
  });
@@ -291,8 +293,10 @@ const SubmitComplaintScreen = ({ navigation }) => {
  }
 
  const result = await ImagePicker.launchCameraAsync({
- allowsEditing: true,
- aspect: [4, 3],
+ // No forced crop: a fixed aspect ratio auto-trims the frame to fit,
+ // which can cut off the part of the photo the SAM3 workflow needs to
+ // actually recognize the issue.
+ allowsEditing: false,
  quality: 0.8,
  base64: false,
  });
@@ -317,11 +321,13 @@ const SubmitComplaintScreen = ({ navigation }) => {
  const CLOUDINARY_URL = 'https://api.cloudinary.com/v1_1/dsvc9y4rq/image/upload';
  const UPLOAD_PRESET = 'damage';
  const data = new FormData();
- data.append('file', {
- uri: imageAsset.uri,
- type: imageAsset.mimeType || 'image/jpeg',
- name: imageAsset.fileName || 'civic-image.jpg',
- });
+ await appendFileToFormData(
+   data,
+   'file',
+   imageAsset.uri,
+   imageAsset.fileName || 'civic-image.jpg',
+   imageAsset.mimeType || 'image/jpeg'
+ );
  data.append('upload_preset', UPLOAD_PRESET);
  const cloudRes = await fetch(CLOUDINARY_URL, {
  method: 'POST',
@@ -746,22 +752,22 @@ const SubmitComplaintScreen = ({ navigation }) => {
 
  {/* Language Picker for Voice Input */}
  <Text style={{ fontWeight: 'bold', marginBottom: 4, marginTop: 15 }}>Select Language for Voice Input:</Text>
- <Picker
- selectedValue={selectedLang}
+ <SimpleDropdown
+ value={selectedLang}
  onValueChange={setSelectedLang}
- style={{ backgroundColor: '#f0f0f0', borderRadius: 8, marginBottom: 12 }}
- >
- <Picker.Item label="Hindi" value="hi-IN" />
- <Picker.Item label="English" value="en-US" />
- <Picker.Item label="Telugu" value="te-IN" />
- <Picker.Item label="Tamil" value="ta-IN" />
- <Picker.Item label="Kannada" value="kn-IN" />
- <Picker.Item label="Marathi" value="mr-IN" />
- <Picker.Item label="Bengali" value="bn-IN" />
- <Picker.Item label="Gujarati" value="gu-IN" />
- <Picker.Item label="Malayalam" value="ml-IN" />
- <Picker.Item label="Punjabi" value="pa-IN" />
- </Picker>
+ items={[
+ { label: 'Hindi', value: 'hi-IN' },
+ { label: 'English', value: 'en-US' },
+ { label: 'Telugu', value: 'te-IN' },
+ { label: 'Tamil', value: 'ta-IN' },
+ { label: 'Kannada', value: 'kn-IN' },
+ { label: 'Marathi', value: 'mr-IN' },
+ { label: 'Bengali', value: 'bn-IN' },
+ { label: 'Gujarati', value: 'gu-IN' },
+ { label: 'Malayalam', value: 'ml-IN' },
+ { label: 'Punjabi', value: 'pa-IN' },
+ ]}
+ />
 
  <Text style={styles.label}>Description *</Text>
  <View style={{ flexDirection: 'row', alignItems: 'center' }}>

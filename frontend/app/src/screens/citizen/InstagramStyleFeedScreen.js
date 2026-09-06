@@ -1041,12 +1041,12 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
               style={styles.modernUserAvatar}
             >
               <Text style={styles.modernUserAvatarText}>
-                {item.user?.full_name ? item.user.full_name.charAt(0).toUpperCase() : 'U'}
+                {(item.users?.full_name || item.user?.full_name || item.user_name || item.citizenName || 'Verified Citizen').charAt(0).toUpperCase()}
               </Text>
             </LinearGradient>
             <View style={styles.userInfo}>
               <Text style={styles.modernUserName}>
-                {item.users?.full_name || 'Anonymous User'}
+                {item.users?.full_name || item.user?.full_name || item.user_name || item.citizenName || 'Verified Citizen'}
               </Text>
               <View style={styles.modernLocationContainer}>
                 <Ionicons name="location" size={11} color="#666" />
@@ -1115,7 +1115,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
         
         {/* Caption */}
         <View style={styles.captionContainer}>
-          <Text style={styles.captionName}>{item.users?.full_name || 'Anonymous User'}</Text>
+          <Text style={styles.captionName}>{item.users?.full_name || item.user?.full_name || item.user_name || item.citizenName || 'Verified Citizen'}</Text>
           <Text style={styles.captionText}>{item.title}</Text>
         </View>
         
@@ -1159,7 +1159,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
         >
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
-              <Text style={styles.modernHeaderTitle}>CIVIC-REZO</Text>
+              <Text style={styles.modernHeaderTitle}>CITYZEN</Text>
               <Text style={styles.headerSubtitle}>Nearby Reports</Text>
             </View>
             <View style={styles.headerRight}>

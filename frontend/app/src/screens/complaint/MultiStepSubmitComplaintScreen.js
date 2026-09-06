@@ -18,7 +18,6 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { API_BASE_URL, makeApiCall, apiClient } from '../../../config/supabase';
@@ -28,6 +27,8 @@ import LocationService from '../../services/LocationService';
 import SarvamSpeechService from '../../services/SarvamSpeechService';
 import CustomTextInput from '../../components/CustomTextInput';
 import InfrastructureService from '../../services/InfrastructureService';
+import { startTiltCapture, stopTiltCapture } from '../../services/DeviceTiltService';
+import { appendFileToFormData } from '../../utils/formDataHelper';
 
 const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
@@ -42,6 +43,11 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     // Step 2: Photo, validated against the Step 1 category
     selectedImage: null,
     imageValidation: null,
+    // Downward camera pitch (degrees) captured from the phone's IMU at the
+    // moment a photo is taken via the in-app camera; null for gallery
+    // picks or if the sensor read failed (backend falls back to an
+    // assumed default in either case). See DeviceTiltService.js.
+    deviceTilt: null,
 
     // Step 3: Title, description, emotion + authenticity analysis
     title: '',
@@ -102,13 +108,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     { value: 'concrete_structure_damage', label: 'Concrete Structure Damage', urgency: 'safety', icon: 'construct-outline' },
     { value: 'fallen_tree', label: 'Fallen Tree', urgency: 'safety', icon: 'leaf-outline' },
 
-    // General Infrastructure
     { value: 'pothole', label: 'Pothole', urgency: 'general', icon: 'ellipse-outline' },
     { value: 'garbage_dumping', label: 'Garbage Dumping', urgency: 'general', icon: 'trash-outline' },
     { value: 'stray_cattle', label: 'Stray Cattle on Road', urgency: 'general', icon: 'paw-outline' },
-
-    // Other Issues
-    { value: 'others', label: 'Others', urgency: 'general', icon: 'help-circle-outline' },
   ];
 
   // Memoized category lookup to prevent re-renders
@@ -138,7 +140,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         method: 'POST',
         body: JSON.stringify({
           description: text,
-          category: complaintData.category || 'others',
+          category: complaintData.category || '',
           imagePrimaryClass: complaintData.imageValidation?.primaryClass || null,
         }),
       });
@@ -467,7 +469,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           // the old one invalidates that validation - force re-validation in
           // the Photo step so a mismatched photo can't ride along silently.
           ...(categoryChanged && (prev.selectedImage || prev.imageValidation)
-            ? { selectedImage: null, imageValidation: null }
+            ? { selectedImage: null, imageValidation: null, deviceTilt: null }
             : {}),
         };
       });
@@ -654,15 +656,20 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         }
 
         const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
-          aspect: [4, 3],
+          mediaTypes: ['images'],
+          // No forced crop: a fixed aspect ratio auto-trims the frame to fit,
+          // which can cut off the part of the photo the SAM3 workflow needs
+          // to actually recognize the issue.
+          allowsEditing: false,
           quality: 0.8,
           base64: false,
         });
 
         if (!result.canceled) {
-          setComplaintData(prev => ({ ...prev, selectedImage: result.assets[0], imageValidation: null }));
+          // Gallery picks have no meaningful device tilt for the moment the
+          // photo was actually taken - clear any tilt from a previous
+          // in-app capture so it can't be misapplied to this photo.
+          setComplaintData(prev => ({ ...prev, selectedImage: result.assets[0], imageValidation: null, deviceTilt: null }));
           await validateImage(result.assets[0]);
         }
       } catch (error) {
@@ -672,6 +679,11 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     };
 
     const takePhoto = async () => {
+      // Start sampling the IMU before the native camera UI even opens, so
+      // there's a reading available for whatever pose the phone settles
+      // into while the citizen frames the shot (see DeviceTiltService.js).
+      const tiltSamplingStarted = await startTiltCapture();
+
       try {
         // Request permissions
         const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
@@ -682,19 +694,25 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         }
 
         const result = await ImagePicker.launchCameraAsync({
-          allowsEditing: true,
-          aspect: [4, 3],
+          // No forced crop: a fixed aspect ratio auto-trims the frame to fit,
+          // which can cut off the part of the photo the SAM3 workflow needs
+          // to actually recognize the issue.
+          allowsEditing: false,
           quality: 0.8,
           base64: false,
         });
 
+        const tilt = tiltSamplingStarted ? await stopTiltCapture() : null;
+
         if (!result.canceled) {
-          setComplaintData(prev => ({ ...prev, selectedImage: result.assets[0], imageValidation: null }));
+          console.log('📐 Captured device tilt at photo time:', tilt);
+          setComplaintData(prev => ({ ...prev, selectedImage: result.assets[0], imageValidation: null, deviceTilt: tilt }));
           await validateImage(result.assets[0]);
         }
       } catch (error) {
         console.error('Camera error:', error);
         Alert.alert('Error', 'Failed to take photo');
+        if (tiltSamplingStarted) await stopTiltCapture();
       }
     };
 
@@ -709,11 +727,13 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         const CLOUDINARY_URL = 'https://api.cloudinary.com/v1_1/dsvc9y4rq/image/upload';
         const UPLOAD_PRESET = 'damage';
         const data = new FormData();
-        data.append('file', {
-          uri: imageAsset.uri,
-          type: imageAsset.mimeType || 'image/jpeg',
-          name: imageAsset.fileName || 'civic-image.jpg',
-        });
+        await appendFileToFormData(
+          data,
+          'file',
+          imageAsset.uri,
+          imageAsset.fileName || 'civic-image.jpg',
+          imageAsset.mimeType || 'image/jpeg'
+        );
         data.append('upload_preset', UPLOAD_PRESET);
 
         const cloudRes = await fetch(CLOUDINARY_URL, {
@@ -806,7 +826,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       // Only a WRONG photo is disallowed, not having no photo at all - clear
       // any previously-set image/validation so a stale mismatched photo
       // can never leak into submission.
-      setComplaintData(prev => ({ ...prev, selectedImage: null, imageValidation: null }));
+      setComplaintData(prev => ({ ...prev, selectedImage: null, imageValidation: null, deviceTilt: null }));
       goToNextStep();
     };
 
@@ -878,7 +898,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               <Image source={{ uri: complaintData.selectedImage.uri }} style={styles.selectedImage} />
               <TouchableOpacity
                 style={styles.changeImageButton}
-                onPress={() => setComplaintData(prev => ({ ...prev, selectedImage: null, imageValidation: null }))}
+                onPress={() => setComplaintData(prev => ({ ...prev, selectedImage: null, imageValidation: null, deviceTilt: null }))}
               >
                 <Text style={styles.changeImageText}>Change Image</Text>
               </TouchableOpacity>
@@ -985,6 +1005,11 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             success: true
           },
           imageUrl: complaintData.selectedImage?.uri || null,
+          // Downward camera pitch captured from the phone's IMU when this
+          // photo was taken in-app (null for gallery picks / unsupported
+          // devices) - backend prefers this over its assumed default for
+          // pothole footprint/depth estimation. See DeviceTiltService.js.
+          deviceTilt: typeof complaintData.deviceTilt === 'number' ? complaintData.deviceTilt : null,
           emotionAnalysis: complaintData.emotionScore ? {
             score: parseFloat(complaintData.emotionScore.score) / 100, // Convert back to 0-1 range
             emotions: complaintData.emotionScore.emotions,
@@ -1317,7 +1342,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                         category: newCategory,
                         // A photo already validated against the old category
                         // can't be trusted against the new one - clear it.
-                        ...(categoryChanged ? { selectedImage: null, imageValidation: null } : {}),
+                        ...(categoryChanged ? { selectedImage: null, imageValidation: null, deviceTilt: null } : {}),
                       }));
 
                       if (categoryChanged && hadPhoto) {
@@ -1456,6 +1481,77 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         <View style={styles.stepContainer}>
           <Text>Error: No submission result available</Text>
         </View>
+      );
+    }
+
+    // The backend found an existing, still-open complaint of the same
+    // category within ~40m and added this submitter's vote to it instead
+    // of creating a duplicate row (see
+    // services/duplicateComplaintService.js + routes/complaints.js's
+    // /submit). Distinct, simpler card - there's no priority
+    // analysis/next-steps for a complaint this screen didn't create.
+    if (submissionResult.duplicate) {
+      return (
+        <KeyboardAwareScrollView
+          style={styles.stepContainer}
+          contentContainerStyle={styles.successContainer}
+          enableOnAndroid={true}
+          keyboardShouldPersistTaps="handled"
+          extraScrollHeight={20}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.successHeader}>
+            <Ionicons name="thumbs-up" size={80} color="#2E7D32" />
+            <Text style={styles.successTitle}>
+              {submissionResult.alreadyVoted ? "You'd Already Reported This" : 'Already Reported — Vote Added!'}
+            </Text>
+            <Text style={styles.successSubtitle}>{submissionResult.message}</Text>
+          </View>
+
+          <View style={styles.complaintDetailsCard}>
+            <Text style={styles.detailsCardTitle}>Existing Complaint</Text>
+
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Title:</Text>
+              <Text style={styles.detailValue}>{submissionResult.complaint.title}</Text>
+            </View>
+
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Status:</Text>
+              <Text style={styles.detailValue}>{submissionResult.complaint.status || 'Pending'}</Text>
+            </View>
+
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Votes:</Text>
+              <Text style={styles.detailValue}>{submissionResult.voteCount ?? 0}</Text>
+            </View>
+          </View>
+
+          <View style={styles.successActions}>
+            <TouchableOpacity
+              style={styles.mapButton}
+              onPress={() =>
+                navigation.navigate('ComplaintMap', {
+                  newComplaint: {
+                    id: submissionResult.complaint.id,
+                    title: submissionResult.complaint.title,
+                    category: submissionResult.complaint.category,
+                    status: submissionResult.complaint.status || 'pending',
+                    latitude: complaintData.locationData.latitude,
+                    longitude: complaintData.locationData.longitude,
+                  },
+                })
+              }
+            >
+              <Ionicons name="map" size={20} color="#fff" />
+              <Text style={styles.mapButtonText}>View on Map</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.doneButton} onPress={() => navigation.goBack()}>
+              <Text style={styles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAwareScrollView>
       );
     }
 

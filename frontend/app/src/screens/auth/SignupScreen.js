@@ -9,7 +9,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import SimpleDropdown from '../../components/SimpleDropdown';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiClient, makeApiCall } from '../../../config/supabase';
 
@@ -90,7 +90,7 @@ const SignupScreen = ({ navigation }) => {
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Join CivicStack Community</Text>
+        <Text style={styles.subtitle}>Join CityZen Community</Text>
 
         <View style={styles.form}>
           <TextInput
@@ -119,14 +119,14 @@ const SignupScreen = ({ navigation }) => {
 
           <View style={styles.pickerContainer}>
             <Text style={styles.pickerLabel}>User Type *</Text>
-            <Picker
-              selectedValue={formData.userType}
-              style={styles.picker}
+            <SimpleDropdown
+              value={formData.userType}
               onValueChange={(value) => handleInputChange('userType', value)}
-            >
-              <Picker.Item label="Citizen" value="citizen" />
-              <Picker.Item label="Admin" value="admin" />
-            </Picker>
+              items={[
+                { label: 'Citizen', value: 'citizen' },
+                { label: 'Admin', value: 'admin' },
+              ]}
+            />
           </View>
 
           <TextInput
@@ -227,9 +227,6 @@ const styles = StyleSheet.create({
     color: '#666',
     paddingHorizontal: 15,
     paddingTop: 10,
-  },
-  picker: {
-    height: 50,
   },
   button: {
     backgroundColor: '#2E7D32',

@@ -4,7 +4,7 @@
  */
 class InfrastructureService {
   constructor() {
-    this.apiKey = process.env.EXPO_PUBLIC_GOOGLE_MOBILE_API_KEY || 'AIzaSyDB257FqtbNh6mEnV2ZsFfXTbsQmZ7kcjY';
+    this.apiKey = process.env.EXPO_PUBLIC_GOOGLE_MOBILE_API_KEY || 'AIzaSyBqn-8BPXpdcIAnjaEN9iwNC47epZP6Q6w';
     console.log('🏗️ InfrastructureService initialized, API key:', this.apiKey ? 'SET' : 'NOT SET');
   }
 
@@ -78,9 +78,55 @@ class InfrastructureService {
   }
 
   /**
-   * Search for places by type using Google Places API
+   * Search for places by type using Google Places API (Places API New with legacy fallback)
    */
   async searchPlacesByType(lat, lng, type, radius) {
+    if (!this.apiKey) return [];
+
+    // 1. Try modern Places API (New) [searchNearby]
+    try {
+      const newApiUrl = 'https://places.googleapis.com/v1/places:searchNearby';
+      const response = await fetch(newApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': this.apiKey,
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.location,places.rating,places.formattedAddress'
+        },
+        body: JSON.stringify({
+          includedTypes: [type],
+          maxResultCount: 3,
+          locationRestriction: {
+            circle: {
+              center: { latitude: parseFloat(lat), longitude: parseFloat(lng) },
+              radius: parseFloat(radius)
+            }
+          }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.places && data.places.length > 0) {
+          return data.places.map(place => ({
+            id: place.id,
+            name: place.displayName?.text || 'Unknown Place',
+            distance: this.calculateDistance(lat, lng, place.location?.latitude || lat, place.location?.longitude || lng),
+            rating: place.rating || 0,
+            vicinity: place.formattedAddress || '',
+            location: {
+              lat: place.location?.latitude,
+              lng: place.location?.longitude
+            },
+            isOpen: true
+          }));
+        }
+      }
+    } catch (newErr) {
+      console.log(`Places API (New) search fallback for ${type}:`, newErr.message);
+    }
+
+    // 2. Fallback to legacy nearbysearch
     const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radius}&type=${type}&key=${this.apiKey}`;
 
     try {

@@ -12,7 +12,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
+import SimpleDropdown from '../../components/SimpleDropdown';
 import { apiClient, makeApiCall } from '../../../config/supabase';
 
 const { width, height } = Dimensions.get('window');
@@ -309,8 +309,14 @@ const PriorityQueue = ({ navigation }) => {
             {complaint.location_address || 'Location not specified'}
           </Text>
 
+          {complaint.geometry_status === 'completed' && (
+            <Text style={styles.geometrySummary} numberOfLines={1}>
+              ~{complaint.estimated_width_cm}×{complaint.estimated_length_cm}cm, {complaint.estimated_depth_cm}cm deep (est.)
+            </Text>
+          )}
+
           <Text style={styles.complaintUser}>
-            {complaint.users?.full_name || complaint.user_name || 'Unknown User'}
+            {complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || 'Verified Citizen'}
           </Text>
 
           {/* Progress Bar */}
@@ -568,111 +574,68 @@ const PriorityQueue = ({ navigation }) => {
               {/* Category Filter */}
               <View style={styles.filterSection}>
                 <Text style={styles.filterLabel}>Complaint Category</Text>
-                <View style={styles.modernPickerContainer}>
-                  <Picker
-                    selectedValue={filterCategory}
-                    onValueChange={setFilterCategory}
-                    style={styles.modernPicker}
-                  >
-                    <Picker.Item label="All Categories" value="" color="#bdc3c7" />
-                    {categories.map(cat => (
-                      <Picker.Item 
-                        key={cat} 
-                        label={cat.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} 
-                        value={cat} 
-                      />
-                    ))}
-                  </Picker>
-                  <Ionicons name="chevron-down" size={20} color="#7f8c8d" style={styles.pickerIcon} />
-                </View>
+                <SimpleDropdown
+                  value={filterCategory}
+                  onValueChange={setFilterCategory}
+                  placeholder="All Categories"
+                  items={[
+                    { label: 'All Categories', value: '' },
+                    ...categories.map(cat => ({
+                      label: cat.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      value: cat,
+                    })),
+                  ]}
+                />
               </View>
 
               {/* Status Filter */}
               <View style={styles.filterSection}>
                 <Text style={styles.filterLabel}>Complaint Status</Text>
-                <View style={styles.modernPickerContainer}>
-                  <Picker
-                    selectedValue={filterStatus}
-                    onValueChange={setFilterStatus}
-                    style={styles.modernPicker}
-                  >
-                    <Picker.Item label="All Statuses" value="" color="#bdc3c7" />
-                    {statusOptions.map(status => (
-                      <Picker.Item 
-                        key={status} 
-                        label={status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} 
-                        value={status} 
-                      />
-                    ))}
-                  </Picker>
-                  <Ionicons name="chevron-down" size={20} color="#7f8c8d" style={styles.pickerIcon} />
-                </View>
+                <SimpleDropdown
+                  value={filterStatus}
+                  onValueChange={setFilterStatus}
+                  placeholder="All Statuses"
+                  items={[
+                    { label: 'All Statuses', value: '' },
+                    ...statusOptions.map(status => ({
+                      label: status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      value: status,
+                    })),
+                  ]}
+                />
               </View>
 
               {/* Priority Filter */}
               <View style={styles.filterSection}>
                 <Text style={styles.filterLabel}>Priority Level</Text>
-                <View style={styles.modernPickerContainer}>
-                  <Picker
-                    selectedValue={filterPriority}
-                    onValueChange={setFilterPriority}
-                    style={styles.modernPicker}
-                  >
-                    <Picker.Item label="All Priority Levels" value="" color="#bdc3c7" />
-                    {priorityOptions.map(priority => (
-                      <Picker.Item 
-                        key={priority.value} 
-                        label={priority.label} 
-                        value={priority.value} 
-                      />
-                    ))}
-                  </Picker>
-                  <Ionicons name="chevron-down" size={20} color="#7f8c8d" style={styles.pickerIcon} />
-                </View>
+                <SimpleDropdown
+                  value={filterPriority}
+                  onValueChange={setFilterPriority}
+                  placeholder="All Priority Levels"
+                  items={[{ label: 'All Priority Levels', value: '' }, ...priorityOptions]}
+                />
               </View>
 
               {/* Date Range Filter */}
               <View style={styles.filterSection}>
                 <Text style={styles.filterLabel}>Date Range</Text>
-                <View style={styles.modernPickerContainer}>
-                  <Picker
-                    selectedValue={filterDateRange}
-                    onValueChange={setFilterDateRange}
-                    style={styles.modernPicker}
-                  >
-                    <Picker.Item label="All Time" value="" color="#bdc3c7" />
-                    {dateRangeOptions.map(range => (
-                      <Picker.Item 
-                        key={range.value} 
-                        label={range.label} 
-                        value={range.value} 
-                      />
-                    ))}
-                  </Picker>
-                  <Ionicons name="chevron-down" size={20} color="#7f8c8d" style={styles.pickerIcon} />
-                </View>
+                <SimpleDropdown
+                  value={filterDateRange}
+                  onValueChange={setFilterDateRange}
+                  placeholder="All Time"
+                  items={[{ label: 'All Time', value: '' }, ...dateRangeOptions]}
+                />
               </View>
 
               {/* Assignment Filter */}
               <View style={styles.filterSection}>
                 <Text style={styles.filterLabel}>Assignment Status</Text>
-                <View style={styles.modernPickerContainer}>
-                  <Picker
-                    selectedValue={filterAssigned}
-                    onValueChange={setFilterAssigned}
-                    style={styles.modernPicker}
-                  >
-                    <Picker.Item label="All Assignments" value="" color="#bdc3c7" />
-                    {assignmentOptions.map(assignment => (
-                      <Picker.Item 
-                        key={assignment.value} 
-                        label={assignment.label} 
-                        value={assignment.value} 
-                      />
-                    ))}
-                  </Picker>
-                  <Ionicons name="chevron-down" size={20} color="#7f8c8d" style={styles.pickerIcon} />
-                </View>
+                <SimpleDropdown
+                  value={filterAssigned}
+                  onValueChange={setFilterAssigned}
+                  placeholder="All Assignments"
+                  items={[{ label: 'All Assignments', value: '' }, ...assignmentOptions]}
+                />
               </View>
 
               {/* Filter Summary */}
@@ -755,20 +718,17 @@ const PriorityQueue = ({ navigation }) => {
                   <Ionicons name="flag-outline" size={16} color="#1A1A1A" />
                   <Text style={styles.modernFieldLabel}>New Status *</Text>
                 </View>
-                <View style={styles.modernPickerContainer}>
-                  <Picker
-                    selectedValue={newStatus}
-                    onValueChange={setNewStatus}
-                    style={styles.modernPicker}
-                  >
-                    <Picker.Item label="Choose New Status" value="" color="#bdc3c7" />
-                    <Picker.Item label="Pending" value="pending" />
-                    <Picker.Item label="In Progress" value="in_progress" />
-                    <Picker.Item label="Resolved" value="resolved" />
-                    <Picker.Item label="Rejected" value="rejected" />
-                  </Picker>
-                  <Ionicons name="chevron-down-outline" size={20} color="#7f8c8d" style={styles.pickerIcon} />
-                </View>
+                <SimpleDropdown
+                  value={newStatus}
+                  onValueChange={setNewStatus}
+                  placeholder="Choose New Status"
+                  items={[
+                    { label: 'Pending', value: 'pending' },
+                    { label: 'In Progress', value: 'in_progress' },
+                    { label: 'Resolved', value: 'resolved' },
+                    { label: 'Rejected', value: 'rejected' },
+                  ]}
+                />
               </View>
 
               {/* Officer Assignment */}
@@ -777,23 +737,18 @@ const PriorityQueue = ({ navigation }) => {
                   <Ionicons name="person-outline" size={16} color="#1A1A1A" />
                   <Text style={styles.modernFieldLabel}>Assign Officer</Text>
                 </View>
-                <View style={styles.modernPickerContainer}>
-                  <Picker
-                    selectedValue={selectedOfficer}
-                    onValueChange={setSelectedOfficer}
-                    style={styles.modernPicker}
-                  >
-                    <Picker.Item label="Select Officer (Optional)" value="" color="#bdc3c7" />
-                    {officers.map(officer => (
-                      <Picker.Item 
-                        key={officer.id} 
-                        label={`${officer.name} - ${officer.department || 'No Dept'}`} 
-                        value={officer.id.toString()} 
-                      />
-                    ))}
-                  </Picker>
-                  <Ionicons name="chevron-down-outline" size={20} color="#7f8c8d" style={styles.pickerIcon} />
-                </View>
+                <SimpleDropdown
+                  value={selectedOfficer}
+                  onValueChange={setSelectedOfficer}
+                  placeholder="Select Officer (Optional)"
+                  items={[
+                    { label: 'Select Officer (Optional)', value: '' },
+                    ...officers.map(officer => ({
+                      label: `${officer.name} - ${officer.department || 'No Dept'}`,
+                      value: officer.id.toString(),
+                    })),
+                  ]}
+                />
               </View>
 
               {/* Contractor Assignment */}
@@ -802,23 +757,18 @@ const PriorityQueue = ({ navigation }) => {
                   <Ionicons name="construct-outline" size={16} color="#1A1A1A" />
                   <Text style={styles.modernFieldLabel}>Assign Contractor</Text>
                 </View>
-                <View style={styles.modernPickerContainer}>
-                  <Picker
-                    selectedValue={selectedContractor}
-                    onValueChange={setSelectedContractor}
-                    style={styles.modernPicker}
-                  >
-                    <Picker.Item label="Select Contractor (Optional)" value="" color="#bdc3c7" />
-                    {contractors.map(contractor => (
-                      <Picker.Item 
-                        key={contractor.id} 
-                        label={`${contractor.name}${contractor.specialization ? ` - ${contractor.specialization}` : ''}`} 
-                        value={contractor.id.toString()} 
-                      />
-                    ))}
-                  </Picker>
-                  <Ionicons name="chevron-down-outline" size={20} color="#7f8c8d" style={styles.pickerIcon} />
-                </View>
+                <SimpleDropdown
+                  value={selectedContractor}
+                  onValueChange={setSelectedContractor}
+                  placeholder="Select Contractor (Optional)"
+                  items={[
+                    { label: 'Select Contractor (Optional)', value: '' },
+                    ...contractors.map(contractor => ({
+                      label: `${contractor.name}${contractor.specialization ? ` - ${contractor.specialization}` : ''}`,
+                      value: contractor.id.toString(),
+                    })),
+                  ]}
+                />
               </View>
 
               {/* Notes Section */}
@@ -1067,6 +1017,12 @@ const styles = StyleSheet.create({
   complaintLocation: {
     fontSize: 14,
     color: '#7f8c8d',
+    marginBottom: 4,
+  },
+  geometrySummary: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontStyle: 'italic',
     marginBottom: 4,
   },
   complaintUser: {
@@ -1455,36 +1411,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2c3e50',
     marginLeft: 8,
-  },
-  modernPickerContainer: {
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    minHeight: 50,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  pickerIcon: {
-    position: 'absolute',
-    right: 15,
-    top: 15,
-    zIndex: 1,
-    pointerEvents: 'none',
-  },
-  modernPicker: {
-    height: 50,
-    color: '#2c3e50',
-    paddingHorizontal: 12,
-  },
-  pickerItem: {
-    fontSize: 16,
-    color: '#2c3e50',
-    height: 50,
   },
   modernTextInputContainer: {
     borderWidth: 1,

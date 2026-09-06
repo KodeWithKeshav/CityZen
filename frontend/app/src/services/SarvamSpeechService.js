@@ -1,6 +1,7 @@
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
+import { appendFileToFormData } from '../utils/formDataHelper';
 
 // Get API base URL from environment - avoid potential import cycles
 const getApiBaseUrl = () => {
@@ -235,11 +236,13 @@ export default class SarvamSpeechService {
       const formData = new FormData();
 
       // Always send as WAV to the backend (let backend handle format conversion if needed)
-      formData.append('audio', {
-        uri: audioUri,
-        type: 'audio/wav',
-        name: 'recording.wav',
-      });
+      await appendFileToFormData(
+        formData,
+        'audio',
+        audioUri,
+        'recording.wav',
+        'audio/wav'
+      );
       formData.append('language', sarvamLang);
 
       console.log(`📁 Uploading audio file: ${audioUri}`);

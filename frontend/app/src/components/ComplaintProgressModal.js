@@ -341,7 +341,7 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
                     { label: 'Submitted', value: progressData.complaint.formatted_created_date, icon: 'calendar-outline' },
                     { label: 'Category',  value: progressData.complaint.category?.replace(/_/g, ' '), icon: 'pricetag-outline' },
                     { label: 'Priority',  value: progressData.complaint.priority_score ? `${progressData.complaint.priority_score.toFixed(1)} / 10` : 'N/A', icon: 'speedometer-outline', highlight: true },
-                    { label: 'Reporter',  value: progressData.complaint.user?.full_name || 'Anonymous', icon: 'person-outline' },
+                    { label: 'Reporter',  value: progressData.complaint.users?.full_name || progressData.complaint.user?.full_name || progressData.complaint.user_name || progressData.complaint.citizenName || 'Verified Citizen', icon: 'person-outline' },
                   ].map((row, i, arr) => (
                     <View key={row.label} style={[styles.infoRow, i < arr.length - 1 && styles.infoRowBorder]}>
                       <View style={styles.infoLabelGroup}>

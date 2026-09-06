@@ -32,7 +32,7 @@ const CivicChatbotScreen = ({ navigation }) => {
   useEffect(() => {
     const welcomeMessage = {
       id: Date.now().toString(),
-      text: "Hello! I'm your CivicStack Assistant. I can help you with:\n\n• How to submit complaints\n• Understanding civic issues\n• App features and navigation\n• Troubleshooting problems\n• Learning about voting and priorities\n\nWhat would you like to know?",
+      text: "Hello! I'm your CityZen Assistant. I can help you with:\n\n• How to submit complaints\n• Understanding civic issues\n• App features and navigation\n• Troubleshooting problems\n• Learning about voting and priorities\n\nWhat would you like to know?",
       isBot: true,
       timestamp: new Date(),
       type: 'welcome'
@@ -276,7 +276,7 @@ const CivicChatbotScreen = ({ navigation }) => {
         <View style={styles.headerContent}>
           <MaterialCommunityIcons name="robot" size={28} color="#fff" />
           <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>CivicStack Assistant</Text>
+            <Text style={styles.headerTitle}>CityZen Assistant</Text>
             <Text style={styles.headerSubtitle}>
               {isLoading ? 'Thinking...' : 'Always here to help'}
             </Text>
