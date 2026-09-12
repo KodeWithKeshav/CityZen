@@ -313,7 +313,7 @@ export default function ComplaintDetail() {
         </div>
       </div>
 
-      {/* Geometry & Pothole Depth Estimation */}
+      {/* Geometry Estimation */}
       <GeometryEstimateCard
         complaint={complaint}
         onGeometryUpdated={(updatedGeom) => {

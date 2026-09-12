@@ -311,7 +311,7 @@ const PriorityQueue = ({ navigation }) => {
 
           {complaint.geometry_status === 'completed' && (
             <Text style={styles.geometrySummary} numberOfLines={1}>
-              ~{complaint.estimated_width_cm}×{complaint.estimated_length_cm}cm, {complaint.estimated_depth_cm}cm deep (est.)
+              ~{complaint.estimated_width_cm}×{complaint.estimated_length_cm}cm (est.)
             </Text>
           )}
 

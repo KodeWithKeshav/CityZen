@@ -542,6 +542,8 @@ export default function SubmitComplaint() {
                   <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700">
                     DESCRIPTION NARRATIVE *
                   </label>
+                  {/* Voice dictation temporarily disabled */}
+                  {/*
                   <button
                     type="button"
                     onClick={handleVoiceInput}
@@ -554,6 +556,7 @@ export default function SubmitComplaint() {
                     <HiMicrophone className="w-3.5 h-3.5" />
                     <span>{isRecording ? 'RECORDING... (STOP)' : 'VOICE DICTATE'}</span>
                   </button>
+                  */}
                 </div>
                 <textarea
                   value={form.description}

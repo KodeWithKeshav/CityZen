@@ -935,7 +935,6 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
                       Width × Length: {selectedComplaint.estimated_width_cm} × {selectedComplaint.estimated_length_cm} cm
                     </Text>
                     <Text style={styles.geometryRow}>Area: {selectedComplaint.estimated_area_cm2} cm²</Text>
-                    <Text style={styles.geometryRow}>Depth: {selectedComplaint.estimated_depth_cm} cm</Text>
                     <Text style={styles.geometryDisclaimer}>
                       Confidence {Math.round((selectedComplaint.geometry_confidence || 0) * 100)}% — estimated from a single
                       photo using an assumed camera height/angle, not a measured value.

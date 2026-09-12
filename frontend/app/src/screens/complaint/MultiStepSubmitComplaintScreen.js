@@ -784,11 +784,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         setComplaintData(prev => ({ ...prev, imageValidation: validationData }));
 
         if (validationData.allowUpload) {
-          // Category already matches (or the backend accepted it) - move on
-          // automatically, there's nothing left to confirm. (Advance right
-          // away rather than via a delayed timer, so a quick tap on "Back"
-          // can't be overridden by a stale timer firing afterwards.)
-          goToNextStep();
+          // Image validated successfully against selected category.
+          // User will manually tap "Next" to continue.
         }
         // On failure we deliberately do NOT show a dismissible alert with a
         // bypass option - renderImageValidationStatus() below surfaces the
@@ -939,6 +936,21 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           >
             <Ionicons name="chevron-back" size={20} color="#666" />
             <Text style={styles.backNavigationText}>Back</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.continueButton,
+              (!complaintData.imageValidation?.allowUpload || validatingImage) && styles.continueButtonDisabled
+            ]}
+            onPress={goToNextStep}
+            disabled={!complaintData.imageValidation?.allowUpload || validatingImage}
+          >
+            {validatingImage ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.continueButtonText}>Next</Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAwareScrollView>
@@ -1195,7 +1207,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             <Text style={styles.characterCount}>{complaintData.title.length}/100</Text>
           </View>
 
-          {/* Language Picker - Enhanced */}
+          {/* Language Picker for Voice Input - Temporarily hidden */}
+          {/*
           <View style={styles.inputSection}>
             <Text style={styles.inputLabel}>Select Language for Voice Input</Text>
             <TouchableOpacity
@@ -1221,6 +1234,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               Voice input will be processed in the selected language
             </Text>
           </View>
+          */}
 
           {/* Description Input - Custom Component */}
           <View style={styles.inputSection}>
@@ -1236,7 +1250,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               />
             </View>
 
-            {/* Voice Button - Separate from input */}
+            {/* Voice Button - Temporarily hidden */}
+            {/*
             <View style={styles.voiceButtonContainer}>
               <TouchableOpacity
                 style={styles.voiceButtonEnhanced}
@@ -1256,6 +1271,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                 </Text>
               </TouchableOpacity>
             </View>
+            */}
 
             <Text style={styles.characterCount}>{complaintData.description.length}/500</Text>
 
@@ -1372,19 +1388,21 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             )}
           </View>
 
+          {/* Voice recording indicators - Temporarily hidden */}
+          {/*
           {voiceError && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{voiceError}</Text>
             </View>
           )}
 
-          {/* Voice Recording Status */}
           {isRecording && (
             <View style={styles.recordingIndicator}>
               <ActivityIndicator size="small" color="#2E7D32" />
               <Text style={styles.recordingText}>Recording... Speak clearly</Text>
             </View>
           )}
+          */}
 
           {/* Navigation Buttons */}
           <View style={styles.navigationButtons}>

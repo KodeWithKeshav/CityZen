@@ -750,7 +750,8 @@ const SubmitComplaintScreen = ({ navigation }) => {
  onSubmitEditing={() => descriptionInputRef.current?.focus()}
  />
 
- {/* Language Picker for Voice Input */}
+ {/* Language Picker for Voice Input - Temporarily hidden */}
+ {/*
  <Text style={{ fontWeight: 'bold', marginBottom: 4, marginTop: 15 }}>Select Language for Voice Input:</Text>
  <SimpleDropdown
  value={selectedLang}
@@ -768,6 +769,7 @@ const SubmitComplaintScreen = ({ navigation }) => {
  { label: 'Punjabi', value: 'pa-IN' },
  ]}
  />
+ */}
 
  <Text style={styles.label}>Description *</Text>
  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -781,6 +783,8 @@ const SubmitComplaintScreen = ({ navigation }) => {
  numberOfLines={4}
  textAlignVertical="top"
  />
+ {/* Voice Input Button - Temporarily hidden */}
+ {/*
  <TouchableOpacity 
  onPress={isRecording ? stopVoiceInput : startVoiceInput} 
  style={{ marginLeft: 10 }}
@@ -793,10 +797,13 @@ const SubmitComplaintScreen = ({ navigation }) => {
  />
  {isRecording && <Text style={{fontSize: 10, color: '#1A1A1A', textAlign: 'center'}}>Recording</Text>}
  </TouchableOpacity>
+ */}
  </View>
+ {/*
  {voiceError && (
  <Text style={styles.errorText}>Error: {voiceError}</Text>
  )}
+ */}
 
  <Text style={styles.label}>Location</Text>
  <TextInput

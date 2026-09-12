@@ -82,12 +82,15 @@ const CitizenDashboard = ({ navigation }) => {
       subtitle: 'Get instant help',
       onPress: () => navigation.navigate('CivicChatbot'),
     },
+    // Temporarily hidden: Voice Report
+    /*
     {
       icon: 'mic-outline',
       title: 'Voice Report',
       subtitle: 'Speak your concern',
       onPress: () => navigation.navigate('SubmitComplaint', { useVoice: true }),
     },
+    */
   ];
 
   return (

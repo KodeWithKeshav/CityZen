@@ -56,7 +56,7 @@ export default function GeometryEstimateCard({ complaint, onGeometryUpdated }) {
       <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
         <div className="flex items-center gap-2 font-serif font-bold text-sm uppercase text-neutral-900">
           <HiCubeTransparent className="w-5 h-5 text-neutral-800" />
-          <span>Volumetric Geometry &amp; Depth Profile</span>
+          <span>Geometric Dimensions Profile</span>
         </div>
         <span className="font-mono text-[10px] uppercase px-2 py-0.5 border border-neutral-300 bg-neutral-50 text-neutral-600">
           {status ? `STATUS: ${status}` : 'GEOMETRIC ESTIMATION'}
@@ -65,7 +65,7 @@ export default function GeometryEstimateCard({ complaint, onGeometryUpdated }) {
 
       {status === 'completed' || complaint.estimated_width_cm ? (
         <div className="space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
             <div className="border border-neutral-200 p-3 bg-neutral-50">
               <span className="text-[10px] text-neutral-500 uppercase block">SURFACE FOOTPRINT</span>
               <span className="font-bold text-neutral-900 text-sm">
@@ -79,12 +79,6 @@ export default function GeometryEstimateCard({ complaint, onGeometryUpdated }) {
               </span>
             </div>
             <div className="border border-neutral-200 p-3 bg-neutral-50">
-              <span className="text-[10px] text-neutral-500 uppercase block">ESTIMATED DEPTH</span>
-              <span className="font-bold text-neutral-900 text-sm">
-                {complaint.estimated_depth_cm} <span className="text-[10px] font-normal text-neutral-500">cm</span>
-              </span>
-            </div>
-            <div className="border border-neutral-200 p-3 bg-neutral-50">
               <span className="text-[10px] text-neutral-500 uppercase block">CONFIDENCE METRIC</span>
               <span className="font-bold text-neutral-900 text-sm">
                 {Math.round((complaint.geometry_confidence || 0.85) * 100)}%
@@ -93,12 +87,12 @@ export default function GeometryEstimateCard({ complaint, onGeometryUpdated }) {
           </div>
 
           <p className="font-mono text-[11px] text-neutral-500 leading-relaxed border-t border-neutral-100 pt-2">
-            * Dimensions computed via computer-vision monocular depth estimation and standard asphalt reference perspective.
+            * Dimensions computed via computer-vision segmentation and standard asphalt reference perspective.
           </p>
         </div>
       ) : status === 'pending' ? (
         <div className="py-4 text-center font-mono text-xs text-neutral-600 animate-pulse">
-          COMPUTING VOLUMETRIC DEPTH &amp; SPATIAL BOUNDARIES...
+          COMPUTING GEOMETRIC DIMENSIONS &amp; SPATIAL BOUNDARIES...
         </div>
       ) : (
         <div className="space-y-3 font-mono text-xs">

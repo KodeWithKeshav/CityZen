@@ -632,7 +632,6 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     Dimensions: {complaint.estimated_width_cm} × {complaint.estimated_length_cm} cm
                   </Text>
                   <Text style={styles.geometryRow}>Estimated Area: {complaint.estimated_area_cm2} cm²</Text>
-                  <Text style={styles.geometryRow}>Estimated Depth: {complaint.estimated_depth_cm} cm</Text>
                   <Text style={styles.geometryDisclaimer}>
                     Confidence {Math.round((complaint.geometry_confidence || 0) * 100)}% — estimated from photographic computer vision analysis.
                   </Text>
@@ -681,7 +680,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                 complaint.category?.toLowerCase()?.includes('pothole') && (
                 <>
                   <Text style={styles.geometryRow}>
-                    Estimate pothole dimensions (width, length, depth, area) using AI computer vision.
+                    Estimate pothole dimensions (width, length, area) using AI computer vision.
                   </Text>
                   <TouchableOpacity
                     style={styles.geometryRetryButton}
