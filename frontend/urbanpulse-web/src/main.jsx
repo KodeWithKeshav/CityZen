@@ -15,7 +15,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           position="top-right"
           toastOptions={{
             duration: 3000,
-            style: { fontFamily: 'Inter, sans-serif', fontSize: '14px' },
+            style: {
+              borderRadius: '0px',
+              border: '1px solid #111827',
+              background: '#FFFFFF',
+              color: '#111827',
+              fontFamily: 'Inter, sans-serif',
+              fontSize: '13px',
+              boxShadow: 'none',
+            },
           }}
         />
       </AuthProvider>

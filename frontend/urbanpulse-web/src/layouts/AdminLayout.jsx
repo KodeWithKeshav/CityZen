@@ -1,99 +1,110 @@
-// AdminLayout - Sidebar navigation for administrative panel
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import toast from 'react-hot-toast'
 import {
-  HiViewGrid, HiDocumentText, HiMap, HiSortDescending,
-  HiUsers, HiLogout, HiMenu
+  HiViewGrid, HiDocumentText, HiExclamationCircle, HiMap,
+  HiUsers, HiCog, HiLogout, HiSearch,
+  HiBell, HiQuestionMarkCircle
 } from 'react-icons/hi'
-import { useState } from 'react'
 
-const navItems = [
-  { to: '/admin/dashboard',   icon: HiViewGrid,       label: 'Dashboard' },
-  { to: '/admin/complaints',  icon: HiDocumentText,   label: 'Complaints' },
-  { to: '/admin/priority',    icon: HiSortDescending, label: 'Priority Queue' },
-  { to: '/admin/map',         icon: HiMap,            label: 'Complaint Map' },
-  { to: '/admin/citizens',    icon: HiUsers,          label: 'Citizens' },
+const navLinks = [
+  { to: '/admin/dashboard', label: 'Dashboard', icon: HiViewGrid },
+  { to: '/admin/complaints', label: 'All Complaints', icon: HiDocumentText },
+  { to: '/admin/priority', label: 'Priority Queue', icon: HiExclamationCircle },
+  { to: '/admin/map', label: 'Complaint Map', icon: HiMap },
+  { to: '/admin/citizens', label: 'Citizens', icon: HiUsers },
 ]
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
-    toast.success('Logged out')
-    navigate('/')
+    navigate('/login')
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/40 z-20 md:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      <aside className={`
-        fixed md:static inset-y-0 left-0 z-30
-        w-64 bg-white border-r border-gray-200 flex flex-col
-        transform transition-transform duration-300
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-gray-100">
-          <div className="w-9 h-9 bg-admin-700 rounded-xl flex items-center justify-center text-white text-sm font-bold">AP</div>
-          <div>
-            <h1 className="font-bold text-gray-900 text-base leading-none">UrbanPulse</h1>
-            <p className="text-xs text-admin-600 font-medium mt-0.5">Admin Panel</p>
+    <div className="flex h-screen bg-surface-bright overflow-hidden">
+      {/* ─── Sidebar ─── */}
+      <aside className="w-[220px] flex-shrink-0 border-r border-black/10 bg-white flex flex-col">
+        {/* Brand */}
+        <div className="px-5 pt-6 pb-6">
+          <div className="flex items-center gap-2.5 mb-2">
+            <img src="/logo.png" alt="CityZen" className="w-8 h-8 object-contain border border-black/10" />
+            <h1 className="font-epilogue text-lg font-bold tracking-tight text-on-surface leading-none">
+              CITYZEN
+            </h1>
           </div>
+          <p className="text-label-sm text-primary-400">
+            ADMIN CONSOLE
+          </p>
         </div>
 
-        <div className="px-4 py-3 mx-3 my-3 bg-blue-50 rounded-xl">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-admin-200 rounded-full flex items-center justify-center font-bold text-admin-800 text-sm">
-              {user?.fullName?.charAt(0)?.toUpperCase() || 'A'}
-            </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-gray-800 text-sm truncate">{user?.fullName || 'Admin'}</p>
-              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-            </div>
-          </div>
-        </div>
-
-        <nav className="flex-1 px-3 overflow-y-auto">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-4 mb-2">Navigation</p>
-          {navItems.map(({ to, icon: Icon, label }) => (
+        {/* Navigation */}
+        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
+          {navLinks.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) =>
-                `sidebar-link mb-1 ${isActive ? 'bg-blue-50 text-admin-700 font-semibold' : ''}`
+                `sidebar-link ${isActive ? 'active' : ''}`
               }
-              onClick={() => setSidebarOpen(false)}
             >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              <span className="text-sm">{label}</span>
+              <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+              <span>{label}</span>
             </NavLink>
           ))}
         </nav>
 
-        <div className="p-3 border-t border-gray-100">
+        {/* Settings */}
+        <div className="px-3 pb-2">
+          <button className="sidebar-link w-full">
+            <HiCog className="w-[18px] h-[18px]" />
+            <span>Settings</span>
+          </button>
+        </div>
+
+        {/* Logout */}
+        <div className="border-t border-black/10 px-3 py-3">
           <button
             onClick={handleLogout}
-            className="sidebar-link w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+            className="sidebar-link w-full text-primary-400 hover:text-civic-error"
           >
-            <HiLogout className="w-5 h-5" />
-            <span className="text-sm">Logout</span>
+            <HiLogout className="w-[18px] h-[18px]" />
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200">
-          <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-gray-100">
-            <HiMenu className="w-6 h-6 text-gray-700" />
-          </button>
-          <span className="font-bold text-admin-700">UrbanPulse Admin</span>
+      {/* ─── Main Area ─── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Bar */}
+        <header className="h-14 flex-shrink-0 border-b border-black/10 bg-white flex items-center justify-between px-6">
+          {/* Search */}
+          <div className="relative w-80">
+            <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary-400" />
+            <input
+              type="text"
+              placeholder="Search..."
+              className="w-full border border-black/10 pl-10 pr-4 py-2 text-sm text-on-surface placeholder:text-primary-300 focus:outline-none focus:border-black bg-surface-container-low"
+            />
+          </div>
+
+          {/* Right actions */}
+          <div className="flex items-center gap-4">
+            <button className="w-8 h-8 flex items-center justify-center border border-black/10 hover:bg-surface-container-high transition-colors">
+              <HiBell className="w-4 h-4 text-on-surface" />
+            </button>
+            <button className="w-8 h-8 flex items-center justify-center border border-black/10 hover:bg-surface-container-high transition-colors">
+              <HiQuestionMarkCircle className="w-4 h-4 text-on-surface" />
+            </button>
+            <div className="w-8 h-8 bg-primary-800 flex items-center justify-center text-white text-xs font-bold border border-black/10">
+              {user?.fullName?.charAt(0)?.toUpperCase() || 'A'}
+            </div>
+          </div>
         </header>
+
+        {/* Content */}
         <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
@@ -101,4 +112,3 @@ export default function AdminLayout() {
     </div>
   )
 }
-

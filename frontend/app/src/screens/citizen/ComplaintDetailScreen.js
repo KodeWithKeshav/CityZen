@@ -34,7 +34,39 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [breakdownData, setBreakdownData] = useState(null);
   const [loadingBreakdown, setLoadingBreakdown] = useState(false);
+  const [geometryRetryLoading, setGeometryRetryLoading] = useState(false);
   const insets = useSafeAreaInsets();
+
+  // Retry pothole footprint/depth estimation
+  const retryGeometry = async () => {
+    const imageUrl = complaint?.image_urls && complaint.image_urls.length > 0 ? complaint.image_urls[0] : complaint?.image_url;
+    if (!complaint?.id || !imageUrl) {
+      Alert.alert('Notice', 'An image is required to estimate geometry.');
+      return;
+    }
+    setGeometryRetryLoading(true);
+    try {
+      const response = await makeApiCall(`${apiClient.baseUrl}/api/image-analysis/estimate-geometry`, {
+        method: 'POST',
+        body: JSON.stringify({
+          complaintId: complaint.id,
+          imageUrl,
+          category: complaint.category,
+        }),
+      });
+      if (response?.success && response.geometry) {
+        setComplaint((prev) => (prev ? { ...prev, ...response.geometry } : prev));
+        Alert.alert('Success', 'Geometric estimation updated successfully.');
+      } else {
+        Alert.alert('Error', response?.error || 'Geometry estimation failed');
+      }
+    } catch (error) {
+      console.error('Geometry retry error:', error);
+      Alert.alert('Error', 'Failed to connect to geometry estimation service');
+    } finally {
+      setGeometryRetryLoading(false);
+    }
+  };
 
   // Animation values
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -133,17 +165,20 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
       );
       
       if (response.success && response.complaint) {
-        // Calculate time ago
-        const timeAgo = getTimeAgo(new Date(response.complaint.created_at));
-        
+        const submitterUser = response.complaint.users || response.complaint.user || {
+          full_name: response.complaint.user_name || response.complaint.citizenName || 'Verified Citizen'
+        };
+
         setComplaint({
           ...response.complaint,
+          users: submitterUser,
+          user: submitterUser,
           timeAgo,
           voteCount: response.complaint.vote_count || 0,
           userVoted: response.complaint.userVoted || false,
         });
       } else {
-        console.error('âŒ Error fetching complaint details:', response);
+        console.error('❌ Error fetching complaint details:', response);
         Alert.alert(
           "Error",
           "Could not load complaint details. Please try again later.",
@@ -151,7 +186,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
         );
       }
     } catch (error) {
-      console.error('âŒ Error fetching complaint details:', error);
+      console.error('❌ Error fetching complaint details:', error);
       Alert.alert(
         "Error",
         "An error occurred while loading the complaint. Please try again.",
@@ -202,10 +237,10 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
       if (response.success && response.breakdown) {
         setBreakdownData(response.breakdown);
       } else {
-        console.error('âŒ Error fetching breakdown data:', response);
+        console.error('❌ Error fetching breakdown data:', response);
       }
     } catch (error) {
-      console.error('âŒ Error fetching breakdown data:', error);
+      console.error('❌ Error fetching breakdown data:', error);
     } finally {
       setLoadingBreakdown(false);
     }
@@ -235,7 +270,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
       const voteResponse = await handleVoting(complaintId, apiClient, makeApiCall);
       
       if (!voteResponse.success) {
-        console.error('âŒ Vote failed:', voteResponse);
+        console.error('❌ Vote failed:', voteResponse);
         Alert.alert(
           "Vote Failed",
           "There was a problem recording your vote. Please try again.",
@@ -254,12 +289,12 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
           userVoted: refetchResponse.userVoted
         });
         
-        console.log(`âœ… Vote updated: ${refetchResponse.userVoted ? 'Voted' : 'Unvoted'}, Count: ${refetchResponse.voteCount}`);
+        console.log(`✅ Vote updated: ${refetchResponse.userVoted ? 'Voted' : 'Unvoted'}, Count: ${refetchResponse.voteCount}`);
       } else {
-        console.error('âŒ Failed to refetch vote count');
+        console.error('❌ Failed to refetch vote count');
       }
     } catch (error) {
-      console.error('âŒ Error voting for complaint:', error);
+      console.error('❌ Error voting for complaint:', error);
       Alert.alert(
         "Vote Failed", 
         "There was a problem recording your vote. Please try again.",
@@ -273,8 +308,8 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
   const handleShare = async () => {
     try {
       const result = await Share.share({
-        message: `Check out this civic issue: ${complaint.title} - Reported via UrbanPulse App`,
-        url: `https://urbanpulse.org/complaints/${complaintId}`,
+        message: `Check out this civic issue: ${complaint.title} - Reported via CityZen App`,
+        url: `https://cityzen.org/complaints/${complaintId}`,
         title: 'Share Civic Issue',
       });
     } catch (error) {
@@ -316,10 +351,24 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
 
   const getCategoryIcon = (category) => {
     switch (category) {
-      case 'road_damage':
-        return <MaterialCommunityIcons name="road-variant" size={20} color="#ff9800" />;
+      // CityZen SAM3 workflow classes
       case 'pothole':
         return <FontAwesome5 name="dot-circle" size={18} color="#f44336" />;
+      case 'fallen_tree':
+        return <MaterialCommunityIcons name="pine-tree" size={20} color="#4caf50" />;
+      case 'garbage_dumping':
+        return <MaterialCommunityIcons name="delete" size={20} color="#8bc34a" />;
+      case 'stray_cattle':
+        return <MaterialCommunityIcons name="cow" size={20} color="#795548" />;
+      case 'fallen_electric_pole':
+        return <Ionicons name="flash" size={20} color="#ffeb3b" />;
+      case 'concrete_structure_damage':
+        return <MaterialCommunityIcons name="wall" size={20} color="#9e9e9e" />;
+      case 'road_waterlogging':
+        return <MaterialCommunityIcons name="home-flood" size={20} color="#03a9f4" />;
+      // Legacy categories kept for older complaints already in the database
+      case 'road_damage':
+        return <MaterialCommunityIcons name="road-variant" size={20} color="#ff9800" />;
       case 'water_leakage':
       case 'water_issue':
         return <Ionicons name="water" size={20} color="#2196f3" />;
@@ -397,7 +446,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color="#3498db" />
+        <ActivityIndicator size="large" color="#1A1A1A" />
         <Text style={styles.loadingText}>Loading complaint details...</Text>
       </View>
     );
@@ -534,12 +583,12 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
             <View style={styles.userInfo}>
               <View style={styles.userAvatar}>
                 <Text style={styles.userAvatarText}>
-                  {complaint.user?.full_name ? complaint.user.full_name.charAt(0).toUpperCase() : 'U'}
+                  {(complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || 'Verified Citizen').charAt(0).toUpperCase()}
                 </Text>
               </View>
               <View>
                 <Text style={styles.userName}>
-                  {complaint.user?.full_name || 'Anonymous User'}
+                  {complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || 'Verified Citizen'}
                 </Text>
                 <Text style={styles.timeAgo}>{complaint.timeAgo}</Text>
               </View>
@@ -554,7 +603,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                 <Ionicons 
                   name={complaint.userVoted ? "arrow-up-circle" : "arrow-up-circle-outline"} 
                   size={30} 
-                  color={complaint.userVoted ? "#3498db" : "#777"} 
+                  color={complaint.userVoted ? "#1A1A1A" : "#777"} 
                 />
               </Animated.View>
               <Text style={[styles.voteCount, complaint.userVoted && styles.userVotedText]}>
@@ -568,6 +617,85 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
             <Text style={styles.descriptionTitle}>Description</Text>
             <Text style={styles.descriptionText}>{complaint.description}</Text>
           </View>
+
+          {/* Geometric Estimation (Potholes) */}
+          {((complaint.geometry_status === 'completed' || (complaint.estimated_width_cm != null && complaint.estimated_length_cm != null)) || complaint.category?.toLowerCase()?.includes('pothole')) && (
+            <View style={styles.geometryPanel}>
+              <View style={styles.geometryHeader}>
+                <Ionicons name="cube-outline" size={18} color="#1A1A1A" />
+                <Text style={styles.geometryTitle}>Geometric Estimation (AI)</Text>
+              </View>
+
+              {(complaint.geometry_status === 'completed' || (complaint.estimated_width_cm != null && complaint.estimated_length_cm != null)) && (
+                <>
+                  <Text style={styles.geometryRow}>
+                    Dimensions: {complaint.estimated_width_cm} × {complaint.estimated_length_cm} cm
+                  </Text>
+                  <Text style={styles.geometryRow}>Estimated Area: {complaint.estimated_area_cm2} cm²</Text>
+                  <Text style={styles.geometryDisclaimer}>
+                    Confidence {Math.round((complaint.geometry_confidence || 0) * 100)}% — estimated from photographic computer vision analysis.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.geometryRetryButtonSecondary}
+                    disabled={geometryRetryLoading}
+                    onPress={retryGeometry}
+                  >
+                    <Ionicons name="refresh" size={13} color="#1A1A1A" style={{ marginRight: 4 }} />
+                    <Text style={styles.geometryRetrySecondaryText}>
+                      {geometryRetryLoading ? 'Recalculating…' : 'Recalculate Size'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {complaint.geometry_status === 'pending' && (
+                <View style={styles.geometryLoadingRow}>
+                  <ActivityIndicator size="small" color="#1A1A1A" />
+                  <Text style={[styles.geometryRow, { marginLeft: 8 }]}>Computing geometric dimensions…</Text>
+                </View>
+              )}
+
+              {complaint.geometry_status === 'failed' && (
+                <>
+                  <Text style={[styles.geometryRow, { color: '#c0392b' }]}>
+                    Geometric estimation failed{complaint.geometry_error ? `: ${complaint.geometry_error}` : '.'}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.geometryRetryButton}
+                    disabled={geometryRetryLoading}
+                    onPress={retryGeometry}
+                  >
+                    <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
+                    <Text style={styles.geometryRetryText}>
+                      {geometryRetryLoading ? 'Recalculating…' : 'Retry Size Estimate'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {complaint.geometry_status !== 'completed' &&
+                complaint.geometry_status !== 'pending' &&
+                complaint.geometry_status !== 'failed' &&
+                complaint.estimated_width_cm == null &&
+                complaint.category?.toLowerCase()?.includes('pothole') && (
+                <>
+                  <Text style={styles.geometryRow}>
+                    Estimate pothole dimensions (width, length, area) using AI computer vision.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.geometryRetryButton}
+                    disabled={geometryRetryLoading}
+                    onPress={retryGeometry}
+                  >
+                    <Ionicons name="calculator-outline" size={14} color="#fff" style={{ marginRight: 4 }} />
+                    <Text style={styles.geometryRetryText}>
+                      {geometryRetryLoading ? 'Calculating…' : 'Estimate Geometric Dimensions'}
+                    </Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          )}
           
           {/* Location */}
           <View style={styles.locationContainer}>
@@ -621,7 +749,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                   onPress={handleNavigateToMap}
                 >
                   <Text style={styles.viewOnMapText}>View on Full Map</Text>
-                  <Ionicons name="map-outline" size={16} color="#3498db" />
+                  <Ionicons name="map-outline" size={16} color="#1A1A1A" />
                 </TouchableOpacity>
               </View>
             )}
@@ -770,7 +898,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
               <View style={styles.breakdownContent}>
                 {loadingBreakdown ? (
                   <View style={styles.breakdownLoading}>
-                    <ActivityIndicator size="small" color="#3498db" />
+                    <ActivityIndicator size="small" color="#1A1A1A" />
                     <Text style={styles.loadingText}>Loading breakdown...</Text>
                   </View>
                 ) : breakdownData ? (
@@ -778,7 +906,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     {/* Infrastructure Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>ðŸ¢ Infrastructure</Text>
+                        <Text style={styles.scoreName}>Infrastructure</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.infrastructureScore || 0) * 100)}%
                         </Text>
@@ -799,7 +927,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     {/* Image Analysis Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>ðŸ“· Image Analysis</Text>
+                        <Text style={styles.scoreName}>Image Analysis</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.imageValidationScore || 0) * 100)}%
                         </Text>
@@ -820,7 +948,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     {/* Emotion Analysis Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>ðŸ§  Emotion Analysis</Text>
+                        <Text style={styles.scoreName}>Emotion Analysis</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.emotionScore || 0) * 100)}%
                         </Text>
@@ -841,7 +969,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     {/* Community Voting Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>ðŸ—³ï¸ Community Votes</Text>
+                        <Text style={styles.scoreName}>Community Votes</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.voteScore || 0) * 100)}%
                         </Text>
@@ -860,7 +988,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     </View>
 
                     <Text style={styles.weightingNote}>
-                      Weighting: Infrastructure (40%) â€¢ Image (30%) â€¢ Emotion (20%) â€¢ Votes (10%)
+                      Weighting: Infrastructure (40%) • Image (30%) • Emotion (20%) • Votes (10%)
                     </Text>
                   </View>
                 ) : (
@@ -949,7 +1077,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: Platform.OS === 'ios' ? 90 : 60,
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1116,7 +1244,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -1150,7 +1278,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   userVotedText: {
-    color: '#3498db',
+    color: '#1A1A1A',
   },
   descriptionContainer: {
     backgroundColor: '#fff',
@@ -1218,7 +1346,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#3498db',
+    borderColor: '#1A1A1A',
   },
   markerArrow: {
     width: 0,
@@ -1228,7 +1356,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 5,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: '#3498db',
+    borderTopColor: '#1A1A1A',
   },
   viewOnMapButton: {
     position: 'absolute',
@@ -1247,7 +1375,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   viewOnMapText: {
-    color: '#3498db',
+    color: '#1A1A1A',
     fontSize: 12,
     marginRight: 4,
     fontWeight: '500',
@@ -1486,7 +1614,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   backButton: {
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
@@ -1610,7 +1738,76 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
   },
+  geometryPanel: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 14,
+    marginTop: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderLeftWidth: 4,
+    borderLeftColor: '#1A1A1A',
+  },
+  geometryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  geometryTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginLeft: 6,
+  },
+  geometryRow: {
+    fontSize: 13,
+    color: '#334155',
+    marginBottom: 4,
+  },
+  geometryDisclaimer: {
+    fontSize: 11,
+    color: '#64748b',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  geometryLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  geometryRetryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1A1A1A',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  geometryRetryText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  geometryRetryButtonSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  geometryRetrySecondaryText: {
+    color: '#1A1A1A',
+    fontSize: 11,
+    fontWeight: '600',
+  },
 });
 
 export default ComplaintDetailScreen;
-

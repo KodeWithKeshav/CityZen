@@ -86,8 +86,8 @@ const CitizenDetails = ({ route, navigation }) => {
 
   const renderTrackingStage = (stage, isActive, isCompleted, isLast) => {
     const getStageColor = () => {
-      if (isCompleted) return '#27ae60';
-      if (isActive) return '#3498db';
+      if (isCompleted) return '#1A1A1A';
+      if (isActive) return '#1A1A1A';
       return '#bdc3c7';
     };
 
@@ -108,7 +108,7 @@ const CitizenDetails = ({ route, navigation }) => {
           {!isLast && (
             <View style={[
               styles.stageLine, 
-              { backgroundColor: isCompleted ? '#27ae60' : '#bdc3c7' }
+              { backgroundColor: isCompleted ? '#1A1A1A' : '#bdc3c7' }
             ]} />
           )}
         </View>
@@ -131,19 +131,19 @@ const CitizenDetails = ({ route, navigation }) => {
           
           {stage.officer && (
             <Text style={styles.stageAssignment}>
-              👮 {stage.officer}
+              Officer: {stage.officer}
             </Text>
           )}
           
           {stage.contractor && (
             <Text style={styles.stageAssignment}>
-              🔧 {stage.contractor}
+              Contractor: {stage.contractor}
             </Text>
           )}
           
           {stage.estimatedCost && (
             <Text style={styles.stageAssignment}>
-              💰 Estimated Cost: ₹{stage.estimatedCost}
+              Estimated Cost: ₹{stage.estimatedCost}
             </Text>
           )}
         </View>
@@ -154,9 +154,9 @@ const CitizenDetails = ({ route, navigation }) => {
   const renderComplaintCard = (complaint) => {
     const getStatusColor = (status) => {
       const colors = {
-        'pending': '#f39c12',
-        'in_progress': '#3498db',
-        'resolved': '#27ae60',
+        'pending': '#1A1A1A',
+        'in_progress': '#1A1A1A',
+        'resolved': '#1A1A1A',
         'cancelled': '#95a5a6'
       };
       return colors[status] || '#95a5a6';
@@ -188,10 +188,10 @@ const CitizenDetails = ({ route, navigation }) => {
         
         <View style={styles.complaintMeta}>
           <Text style={styles.complaintDate}>
-            📅 {new Date(complaint.created_at).toLocaleDateString()}
+            {new Date(complaint.created_at).toLocaleDateString()}
           </Text>
           <Text style={styles.complaintLocation}>
-            📍 {complaint.location || 'Location not specified'}
+            {complaint.location || 'Location not specified'}
           </Text>
         </View>
         
@@ -240,7 +240,7 @@ const CitizenDetails = ({ route, navigation }) => {
     >
       {/* Header */}
       <LinearGradient
-        colors={['#2c3e50', '#3498db']}
+        colors={['#1A1A1A', '#1A1A1A']}
         style={styles.header}
       >
         <View style={styles.headerContent}>
@@ -257,7 +257,7 @@ const CitizenDetails = ({ route, navigation }) => {
             style={styles.deleteButton}
             onPress={() => setShowDeleteConfirm(true)}
           >
-            <Ionicons name="trash-outline" size={24} color="#e74c3c" />
+            <Ionicons name="trash-outline" size={24} color="#1A1A1A" />
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -282,7 +282,7 @@ const CitizenDetails = ({ route, navigation }) => {
           </Text>
           <Text style={styles.citizenEmail}>{citizen.email}</Text>
           <Text style={styles.citizenPhone}>
-            📞 {citizen.phone_number || 'No phone number'}
+            {citizen.phone_number || 'No phone number'}
           </Text>
           <Text style={styles.joinDate}>
             Joined: {new Date(citizen.created_at).toLocaleDateString()}
@@ -297,15 +297,15 @@ const CitizenDetails = ({ route, navigation }) => {
           <Text style={styles.statLabel}>Total</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statNumber, { color: '#27ae60' }]}>{stats.resolved}</Text>
+          <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.resolved}</Text>
           <Text style={styles.statLabel}>Resolved</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statNumber, { color: '#3498db' }]}>{stats.inProgress}</Text>
+          <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.inProgress}</Text>
           <Text style={styles.statLabel}>In Progress</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statNumber, { color: '#f39c12' }]}>{stats.pending}</Text>
+          <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.pending}</Text>
           <Text style={styles.statLabel}>Pending</Text>
         </View>
       </View>
@@ -357,23 +357,23 @@ const CitizenDetails = ({ route, navigation }) => {
                 
                 <View style={styles.complaintModalMeta}>
                   <Text style={styles.modalMetaText}>
-                    📅 Submitted: {new Date(selectedComplaint.created_at).toLocaleDateString()} at {new Date(selectedComplaint.created_at).toLocaleTimeString()}
+                    Submitted: {new Date(selectedComplaint.created_at).toLocaleDateString()} at {new Date(selectedComplaint.created_at).toLocaleTimeString()}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    📍 Location: {selectedComplaint.location || 'Not specified'}
+                    Location: {selectedComplaint.location || 'Not specified'}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    📋 Category: {selectedComplaint.category || 'General'}
+                    Category: {selectedComplaint.category || 'General'}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    ⚡ Priority: {selectedComplaint.priority || 'Medium'}
+                    Priority: {selectedComplaint.priority || 'Medium'}
                   </Text>
                 </View>
               </View>
               
               {/* Amazon-style Tracking */}
               <View style={styles.trackingContainer}>
-                <Text style={styles.trackingTitle}>📦 Complaint Progress</Text>
+                <Text style={styles.trackingTitle}>Complaint Progress</Text>
                 {selectedComplaint.trackingStages?.map((stage, index) => 
                   renderTrackingStage(
                     stage, 
@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     borderRadius: 2,
   },
   modalContainer: {
@@ -732,7 +732,7 @@ const styles = StyleSheet.create({
   },
   stageAssignment: {
     fontSize: 12,
-    color: '#3498db',
+    color: '#1A1A1A',
     marginBottom: 2,
   },
   deleteModalOverlay: {
@@ -751,7 +751,7 @@ const styles = StyleSheet.create({
   deleteModalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#e74c3c',
+    color: '#1A1A1A',
     marginBottom: 10,
   },
   deleteModalMessage: {
@@ -779,7 +779,7 @@ const styles = StyleSheet.create({
   confirmDeleteButton: {
     flex: 1,
     padding: 12,
-    backgroundColor: '#e74c3c',
+    backgroundColor: '#1A1A1A',
     borderRadius: 8,
   },
   confirmDeleteButtonText: {

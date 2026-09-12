@@ -13,8 +13,21 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import { apiClient, makeApiCall } from '../../../config/supabase';
+import SimpleDropdown from '../../components/SimpleDropdown';
+
+// The complaints table stores photos as image_urls (array, see
+// routes/complaints.js's insert) - there is no image_url column. Some
+// older/alternate API shapes have also been seen returning a singular
+// imageUrl, so check for that too before giving up.
+const getComplaintImageUrl = (complaint) => {
+  if (!complaint) return null;
+  if (complaint.imageUrl) return complaint.imageUrl;
+  if (Array.isArray(complaint.image_urls) && complaint.image_urls.length > 0) {
+    return complaint.image_urls[0];
+  }
+  return null;
+};
 
 const AdminComplaintDetails = ({ route, navigation }) => {
   const { complaintId } = route.params;
@@ -29,6 +42,10 @@ const AdminComplaintDetails = ({ route, navigation }) => {
   const [contractors, setContractors] = useState([]);
   const [selectedOfficer, setSelectedOfficer] = useState('');
   const [selectedContractor, setSelectedContractor] = useState('');
+  const [aiExplainLoading, setAiExplainLoading] = useState(false);
+  const [aiExplainResult, setAiExplainResult] = useState(null);
+  const [showAiExplainModal, setShowAiExplainModal] = useState(false);
+  const [geometryRetryLoading, setGeometryRetryLoading] = useState(false);
 
   useEffect(() => {
     loadComplaintDetails();
@@ -168,14 +185,70 @@ const AdminComplaintDetails = ({ route, navigation }) => {
     }
   };
 
+  const fetchAiExplanation = async () => {
+    const imageUrl = getComplaintImageUrl(complaint);
+    if (!imageUrl) return;
+
+    setAiExplainLoading(true);
+    setShowAiExplainModal(true);
+
+    try {
+      const response = await makeApiCall(`${apiClient.baseUrl}/api/image-analysis/explain`, {
+        method: 'POST',
+        body: JSON.stringify({ imageUrl, category: complaint?.category, complaintId: complaint?.id })
+      });
+
+      if (response?.success) {
+        setAiExplainResult(response);
+      } else {
+        Alert.alert('Error', response?.error || 'Failed to generate explanation');
+        setShowAiExplainModal(false);
+      }
+    } catch (error) {
+      console.error('AI explanation error:', error);
+      Alert.alert('Error', 'Failed to connect to explanation service');
+      setShowAiExplainModal(false);
+    } finally {
+      setAiExplainLoading(false);
+    }
+  };
+
+  // Retry pothole footprint/depth estimation (used when geometry_status ===
+  // 'failed'). See services/potholeGeometryService.js on the backend.
+  const retryGeometry = async () => {
+    const imageUrl = getComplaintImageUrl(complaint);
+    if (!complaint?.id || !imageUrl) return;
+    setGeometryRetryLoading(true);
+    try {
+      const response = await makeApiCall(`${apiClient.baseUrl}/api/image-analysis/estimate-geometry`, {
+        method: 'POST',
+        body: JSON.stringify({
+          complaintId: complaint.id,
+          imageUrl,
+          category: complaint.category,
+        }),
+      });
+      if (response?.success && response.geometry) {
+        setComplaint((prev) => (prev ? { ...prev, ...response.geometry } : prev));
+      } else {
+        Alert.alert('Error', response?.error || 'Geometry estimation failed');
+      }
+    } catch (error) {
+      console.error('Geometry retry error:', error);
+      Alert.alert('Error', 'Failed to connect to geometry estimation service');
+    } finally {
+      setGeometryRetryLoading(false);
+    }
+  };
+
   const getStatusColor = (status) => {
     const colors = {
-      'pending': '#f39c12',
-      'in_progress': '#3498db',
-      'completed': '#27ae60',
-      'cancelled': '#e74c3c',
-      'resolved': '#27ae60',
-      'rejected': '#e74c3c'
+      'pending': '#1A1A1A',
+      'in_progress': '#1A1A1A',
+      'completed': '#1A1A1A',
+      'cancelled': '#1A1A1A',
+      'resolved': '#1A1A1A',
+      'rejected': '#1A1A1A'
     };
     return colors[status] || '#95a5a6';
   };
@@ -213,15 +286,16 @@ const AdminComplaintDetails = ({ route, navigation }) => {
     );
   }
 
-  const currentStage = complaint.complaint_stages?.find(s => s.stage_status === 'in_progress') || 
+  const currentStage = complaint.complaint_stages?.find(s => s.stage_status === 'in_progress') ||
                      complaint.complaint_stages?.find(s => s.stage_status === 'pending');
   const completedStages = complaint.complaint_stages?.filter(s => s.stage_status === 'completed').length || 0;
   const totalStages = complaint.complaint_stages?.length || 0;
+  const complaintImageUrl = getComplaintImageUrl(complaint);
 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <LinearGradient colors={['#3498db', '#2980b9']} style={styles.header}>
+      <LinearGradient colors={['#1A1A1A', '#1A1A1A']} style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
@@ -264,7 +338,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
 
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Submitted By</Text>
-              <Text style={styles.infoValue}>{complaint.users?.full_name || 'Unknown'}</Text>
+              <Text style={styles.infoValue}>{complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || 'Verified Citizen'}</Text>
             </View>
 
             <View style={styles.infoItem}>
@@ -289,12 +363,90 @@ const AdminComplaintDetails = ({ route, navigation }) => {
         </View>
 
         {/* Images */}
-        {complaint.image_url && (
+        {complaintImageUrl ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Images</Text>
+              <TouchableOpacity style={styles.explainButton} onPress={fetchAiExplanation}>
+                <Ionicons name="scan-outline" size={16} color="#fff" />
+                <Text style={styles.explainButtonText}>Explain AI</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <Image source={{ uri: complaintImageUrl }} style={styles.complaintImage} />
+            </ScrollView>
+
+            {/* Pothole size/depth estimate - shown here too (not just
+                inside the Explain AI modal) so it's visible without an
+                extra tap. See services/potholeGeometryService.js. */}
+            {(complaint.geometry_status === 'completed' || (complaint.estimated_width_cm != null && complaint.estimated_length_cm != null)) && (
+              <View style={styles.geometryPanel}>
+                <Text style={styles.geometryTitle}>Estimated Size (AI estimate)</Text>
+                <Text style={styles.geometryRow}>
+                  Width × Length: {complaint.estimated_width_cm} × {complaint.estimated_length_cm} cm
+                </Text>
+                <Text style={styles.geometryRow}>Area: {complaint.estimated_area_cm2} cm²</Text>
+                <Text style={styles.geometryDisclaimer}>
+                  Confidence {Math.round((complaint.geometry_confidence || 0) * 100)}% — estimated from a single
+                  photo using an assumed camera height/angle, not a measured value.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.geometryRetryButton, { backgroundColor: '#34495e', marginTop: 10 }]}
+                  disabled={geometryRetryLoading}
+                  onPress={retryGeometry}
+                >
+                  <Text style={styles.explainButtonText}>
+                    {geometryRetryLoading ? 'Recalculating…' : 'Recalculate Size'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {complaint.geometry_status === 'pending' && (
+              <View style={styles.geometryPanel}>
+                <Text style={styles.geometryRow}>Estimating size…</Text>
+              </View>
+            )}
+            {complaint.geometry_status === 'failed' && (
+              <View style={styles.geometryPanel}>
+                <Text style={styles.geometryRow}>
+                  Size estimate failed{complaint.geometry_error ? `: ${complaint.geometry_error}` : '.'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.geometryRetryButton}
+                  disabled={geometryRetryLoading}
+                  onPress={retryGeometry}
+                >
+                  <Text style={styles.explainButtonText}>
+                    {geometryRetryLoading ? 'Retrying…' : 'Retry size estimate'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {complaint.geometry_status !== 'completed' &&
+              complaint.geometry_status !== 'pending' &&
+              complaint.geometry_status !== 'failed' &&
+              complaint.estimated_width_cm == null &&
+              complaint.category?.toLowerCase()?.includes('pothole') && (
+              <View style={styles.geometryPanel}>
+                <Text style={styles.geometryRow}>
+                  No geometric size estimate yet computed for this pothole.
+                </Text>
+                <TouchableOpacity
+                  style={styles.geometryRetryButton}
+                  disabled={geometryRetryLoading}
+                  onPress={retryGeometry}
+                >
+                  <Text style={styles.explainButtonText}>
+                    {geometryRetryLoading ? 'Calculating…' : 'Estimate Pothole Geometry'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ) : (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Images</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <Image source={{ uri: complaint.image_url }} style={styles.complaintImage} />
-            </ScrollView>
+            <Text style={styles.noImageText}>No photo was attached to this complaint.</Text>
           </View>
         )}
 
@@ -324,7 +476,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
               
               {currentStage.officers && (
                 <View style={styles.assignmentInfo}>
-                  <Ionicons name="person-outline" size={16} color="#3498db" />
+                  <Ionicons name="person-outline" size={16} color="#1A1A1A" />
                   <Text style={styles.assignmentText}>
                     Officer: {currentStage.officers.name} ({currentStage.officers.department})
                   </Text>
@@ -333,7 +485,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
 
               {currentStage.contractors && (
                 <View style={styles.assignmentInfo}>
-                  <Ionicons name="build-outline" size={16} color="#e67e22" />
+                  <Ionicons name="build-outline" size={16} color="#1A1A1A" />
                   <Text style={styles.assignmentText}>
                     Contractor: {currentStage.contractors.name}
                   </Text>
@@ -357,7 +509,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
             <Text style={styles.sectionTitle}>Stages Timeline</Text>
             {complaint.status !== 'resolved' && complaint.status !== 'rejected' && (
               <TouchableOpacity style={styles.addStageButton} onPress={addNextStage}>
-                <Ionicons name="add" size={20} color="#27ae60" />
+                <Ionicons name="add" size={20} color="#1A1A1A" />
                 <Text style={styles.addStageText}>Add Next Stage</Text>
               </TouchableOpacity>
             )}
@@ -406,19 +558,19 @@ const AdminComplaintDetails = ({ route, navigation }) => {
 
                 {stage.officers && (
                   <Text style={styles.stageAssignment}>
-                    👮 Officer: {stage.officers.name}
+                    Officer: {stage.officers.name}
                   </Text>
                 )}
 
                 {stage.contractors && (
                   <Text style={styles.stageAssignment}>
-                    🔧 Contractor: {stage.contractors.name}
+                    Contractor: {stage.contractors.name}
                   </Text>
                 )}
 
                 {stage.estimated_cost && (
                   <Text style={styles.stageCost}>
-                    💰 Estimated Cost: ₹{stage.estimated_cost}
+                    Estimated Cost: ₹{stage.estimated_cost}
                   </Text>
                 )}
 
@@ -438,7 +590,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
           <Text style={styles.sectionTitle}>Actions</Text>
           <View style={styles.actionButtons}>
             <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: '#3498db' }]}
+              style={[styles.actionButton, { backgroundColor: '#1A1A1A' }]}
               onPress={() => Alert.alert(
                 'Contact User', 
                 'Contact user feature coming soon!\n\nThis will allow direct communication with the citizen who submitted this complaint.',
@@ -450,7 +602,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: '#27ae60' }]}
+              style={[styles.actionButton, { backgroundColor: '#1A1A1A' }]}
               onPress={() => {
                 Alert.alert(
                   'Mark as Resolved',
@@ -467,7 +619,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: '#e74c3c' }]}
+              style={[styles.actionButton, { backgroundColor: '#1A1A1A' }]}
               onPress={() => {
                 Alert.alert(
                   'Reject Complaint',
@@ -504,48 +656,44 @@ const AdminComplaintDetails = ({ route, navigation }) => {
 
             <ScrollView style={styles.modalContent}>
               <Text style={styles.modalLabel}>Stage Status</Text>
-              <Picker
-                selectedValue={newStageStatus}
+              <SimpleDropdown
+                value={newStageStatus}
                 onValueChange={setNewStageStatus}
-                style={styles.modalPicker}
-              >
-                <Picker.Item label="Pending" value="pending" />
-                <Picker.Item label="In Progress" value="in_progress" />
-                <Picker.Item label="Completed" value="completed" />
-                <Picker.Item label="Cancelled" value="cancelled" />
-              </Picker>
+                items={[
+                  { label: 'Pending', value: 'pending' },
+                  { label: 'In Progress', value: 'in_progress' },
+                  { label: 'Completed', value: 'completed' },
+                  { label: 'Cancelled', value: 'cancelled' },
+                ]}
+              />
 
               <Text style={styles.modalLabel}>Assign Officer</Text>
-              <Picker
-                selectedValue={selectedOfficer}
+              <SimpleDropdown
+                value={selectedOfficer}
                 onValueChange={setSelectedOfficer}
-                style={styles.modalPicker}
-              >
-                <Picker.Item label="No Officer Assigned" value="" />
-                {officers.map(officer => (
-                  <Picker.Item 
-                    key={officer.id} 
-                    label={`${officer.name} (${officer.department})`} 
-                    value={officer.id} 
-                  />
-                ))}
-              </Picker>
+                placeholder="No Officer Assigned"
+                items={[
+                  { label: 'No Officer Assigned', value: '' },
+                  ...officers.map(officer => ({
+                    label: `${officer.name} (${officer.department})`,
+                    value: officer.id,
+                  })),
+                ]}
+              />
 
               <Text style={styles.modalLabel}>Assign Contractor</Text>
-              <Picker
-                selectedValue={selectedContractor}
+              <SimpleDropdown
+                value={selectedContractor}
                 onValueChange={setSelectedContractor}
-                style={styles.modalPicker}
-              >
-                <Picker.Item label="No Contractor Assigned" value="" />
-                {contractors.map(contractor => (
-                  <Picker.Item 
-                    key={contractor.id} 
-                    label={contractor.name} 
-                    value={contractor.id} 
-                  />
-                ))}
-              </Picker>
+                placeholder="No Contractor Assigned"
+                items={[
+                  { label: 'No Contractor Assigned', value: '' },
+                  ...contractors.map(contractor => ({
+                    label: contractor.name,
+                    value: contractor.id,
+                  })),
+                ]}
+              />
 
               <Text style={styles.modalLabel}>Notes</Text>
               <TextInput
@@ -572,13 +720,53 @@ const AdminComplaintDetails = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* AI Explanation Modal (SAM3 segmentation map) */}
+      <Modal
+        visible={showAiExplainModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAiExplainModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.stageModal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>AI Image Explanation</Text>
+              <TouchableOpacity onPress={() => setShowAiExplainModal(false)}>
+                <Ionicons name="close" size={24} color="#2c3e50" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalContent}>
+              {aiExplainLoading ? (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text>Generating SAM3 segmentation map...</Text>
+                </View>
+              ) : aiExplainResult ? (
+                <View>
+                  <Text style={styles.explanationText}>{aiExplainResult.explanationText}</Text>
+                  {aiExplainResult.annotatedImage?.value && (
+                    <Image
+                      source={{ uri: `data:image/jpeg;base64,${aiExplainResult.annotatedImage.value}` }}
+                      style={{ width: '100%', height: 250, borderRadius: 8, marginTop: 15, resizeMode: 'contain' }}
+                    />
+                  )}
+
+                </View>
+              ) : (
+                <Text style={{ padding: 20 }}>No explanation generated.</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 
   function getPriorityColor(score) {
-    if (score >= 8) return '#e74c3c';
-    if (score >= 6) return '#f39c12';
-    if (score >= 4) return '#3498db';
+    if (score >= 8) return '#1A1A1A';
+    if (score >= 6) return '#1A1A1A';
+    if (score >= 4) return '#1A1A1A';
     return '#95a5a6';
   }
 
@@ -637,7 +825,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backButton: {
-    color: '#3498db',
+    color: '#1A1A1A',
     fontSize: 16,
     marginTop: 10,
   },
@@ -723,6 +911,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginRight: 10,
   },
+  noImageText: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    fontStyle: 'italic',
+  },
   progressOverview: {
     marginBottom: 15,
   },
@@ -735,7 +928,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#27ae60',
+    backgroundColor: '#1A1A1A',
     borderRadius: 4,
   },
   progressText: {
@@ -748,7 +941,7 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: '#3498db',
+    borderLeftColor: '#1A1A1A',
   },
   currentStageLabel: {
     fontSize: 12,
@@ -780,7 +973,7 @@ const styles = StyleSheet.create({
   updateStageButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 20,
@@ -798,7 +991,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addStageText: {
-    color: '#27ae60',
+    color: '#1A1A1A',
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 5,
@@ -870,7 +1063,7 @@ const styles = StyleSheet.create({
   },
   stageCost: {
     fontSize: 12,
-    color: '#e67e22',
+    color: '#1A1A1A',
     fontWeight: '600',
     marginBottom: 4,
   },
@@ -934,12 +1127,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 15,
   },
-  modalPicker: {
-    borderWidth: 1,
-    borderColor: '#bdc3c7',
-    borderRadius: 8,
-    marginBottom: 15,
-  },
   modalTextArea: {
     borderWidth: 1,
     borderColor: '#bdc3c7',
@@ -971,7 +1158,7 @@ const styles = StyleSheet.create({
   },
   modalUpdateButton: {
     flex: 1,
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     paddingVertical: 12,
     borderRadius: 8,
     marginLeft: 10,
@@ -982,6 +1169,66 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  explainButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3b82f6', // Blue color for AI explanation
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  explainButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginLeft: 4,
+  },
+  geometryPanel: {
+    marginTop: 15,
+    padding: 15,
+    backgroundColor: '#f0f7ff',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  geometryTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 6,
+  },
+  geometryRow: {
+    fontSize: 13,
+    color: '#2c3e50',
+    marginBottom: 3,
+  },
+  geometryDisclaimer: {
+    fontSize: 11,
+    color: '#888',
+    fontStyle: 'italic',
+    marginTop: 6,
+  },
+  geometryRetryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e67e22',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  explanationText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#2c3e50',
+    padding: 15,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+  }
 });
 
 export default AdminComplaintDetails;

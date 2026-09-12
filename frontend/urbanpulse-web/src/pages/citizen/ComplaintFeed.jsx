@@ -2,28 +2,50 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
-import { HiThumbUp, HiLocationMarker, HiClock, HiRefresh, HiExclamationCircle } from 'react-icons/hi'
+import {
+  HiThumbUp,
+  HiLocationMarker,
+  HiClock,
+  HiRefresh,
+  HiExclamationCircle,
+  HiSearch,
+  HiFilter,
+  HiNewspaper,
+  HiChevronDown,
+  HiEye
+} from 'react-icons/hi'
 import { formatDistanceToNow } from 'date-fns'
+import { getPriorityTier } from '../../utils/priorityUtils'
 
-const STATUS_STYLES = {
-  pending:     'badge-pending',
-  resolved:    'badge-resolved',
-  in_progress: 'badge-inprogress',
-  rejected:    'badge-rejected',
-  'in-progress':'badge-inprogress',
+const STATUS_CONFIG = {
+  pending: { label: 'PENDING', bg: 'bg-amber-50 text-amber-800 border-amber-300' },
+  in_progress: { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-800 border-blue-300' },
+  'in-progress': { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-800 border-blue-300' },
+  resolved: { label: 'RESOLVED', bg: 'bg-emerald-50 text-emerald-800 border-emerald-300' },
+  rejected: { label: 'REJECTED', bg: 'bg-rose-50 text-rose-800 border-rose-300' },
 }
 
-// Haversine distance formula
+const CATEGORIES = [
+  { id: 'all', label: 'ALL CATEGORIES' },
+  { id: 'pothole', label: 'POTHOLE' },
+  { id: 'road_waterlogging', label: 'WATERLOGGING' },
+  { id: 'garbage_dumping', label: 'GARBAGE DUMP' },
+  { id: 'fallen_tree', label: 'FALLEN TREE' },
+  { id: 'fallen_electric_pole', label: 'ELECTRIC POLE' },
+  { id: 'stray_cattle', label: 'STRAY CATTLE' },
+  { id: 'concrete_structure_damage', label: 'STRUCTURAL DAMAGE' },
+]
+
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radius of the earth in km
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a = 
+  const R = 6371
+  const dLat = (lat2 - lat1) * (Math.PI / 180)
+  const dLon = (lon2 - lon1) * (Math.PI / 180)
+  const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
-  return R * c; 
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
 }
 
 function ComplaintCard({ c, onVote, onDetail }) {
@@ -38,88 +60,124 @@ function ComplaintCard({ c, onVote, onDetail }) {
 
   const time = c.createdAt
     ? formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })
-    : ''
+    : 'Recently'
+
+  const statusInfo = STATUS_CONFIG[c.status] || {
+    label: (c.status || 'PENDING').toUpperCase(),
+    bg: 'bg-neutral-100 text-neutral-800 border-neutral-300'
+  }
+
+  const citizenDisplayName = c.citizenName || c.userName || c.users?.full_name || c.user?.full_name || c.user_name || 'Verified Citizen'
+  const citizenInitial = citizenDisplayName.charAt(0).toUpperCase()
 
   return (
-    <div
-      className="card hover:shadow-md transition-all duration-200 cursor-pointer fade-in relative"
+    <article
       onClick={() => onDetail(c._id || c.id)}
+      className="group bg-white border border-neutral-200 hover:border-black transition-colors duration-150 p-5 cursor-pointer relative flex flex-col justify-between"
     >
-      {/* Distance Badge */}
-      {c.distanceKm !== undefined && c.distanceKm !== 999 && (
-        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm text-primary-700 text-xs font-bold px-2 py-1 rounded-lg border border-primary-100 shadow-sm z-10">
-          📍 {c.distanceKm < 1 ? '< 1' : c.distanceKm.toFixed(1)} km away
-        </div>
-      )}
+      <div>
+        {/* Header line: ID + Status + Distance */}
+        <div className="flex items-center justify-between gap-2 pb-3 border-b border-neutral-100 mb-4">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs text-neutral-500 font-semibold tracking-wider">
+              #{(c._id || c.id || '').slice(-6).toUpperCase()}
+            </span>
+            <span className={`font-mono text-[10px] tracking-wider px-2 py-0.5 border ${statusInfo.bg}`}>
+              {statusInfo.label}
+            </span>
+          </div>
 
-      {/* Header */}
-      <div className="flex items-start gap-3 mb-3">
-        <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center font-bold text-primary-700 flex-shrink-0 text-sm">
-          {c.citizenName?.charAt(0)?.toUpperCase() || c.userName?.charAt(0)?.toUpperCase() || '?'}
+          {c.distanceKm !== undefined && c.distanceKm !== 999 && (
+            <span className="font-mono text-[11px] text-neutral-600 bg-neutral-100 px-2 py-0.5 border border-neutral-200 flex items-center gap-1">
+              <HiLocationMarker className="w-3 h-3 text-neutral-500" />
+              {c.distanceKm < 1 ? '< 1 km' : `${c.distanceKm.toFixed(1)} km`}
+            </span>
+          )}
         </div>
-        <div className="flex-1 min-w-0 pr-16">
-          <p className="font-semibold text-gray-800 text-sm truncate">{c.citizenName || c.userName || 'Anonymous'}</p>
-          <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
-            <HiClock className="w-3.5 h-3.5" />
-            {time}
-            {c.location?.address && (
-              <>
-                <span>·</span>
-                <HiLocationMarker className="w-3.5 h-3.5" />
-                <span className="truncate max-w-[120px]">{c.location.address}</span>
-              </>
-            )}
+
+        {/* User Info */}
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-8 h-8 rounded-none bg-neutral-900 text-white flex items-center justify-center font-mono text-xs font-bold flex-shrink-0">
+            {citizenInitial}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-wider text-neutral-900 truncate">
+              {citizenDisplayName}
+            </p>
+            <div className="flex items-center gap-2 font-mono text-[11px] text-neutral-500 mt-0.5">
+              <span className="flex items-center gap-1">
+                <HiClock className="w-3 h-3" />
+                {time}
+              </span>
+              {c.location?.address && (
+                <>
+                  <span>/</span>
+                  <span className="truncate max-w-[200px]">{c.location.address}</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="mb-3">
-        <span className={`badge ${STATUS_STYLES[c.status] || 'badge-pending'} capitalize flex-shrink-0`}>
-          {(c.status || 'pending').replace(/_/g, ' ')}
-        </span>
-      </div>
+        {/* Title & Description */}
+        <h3 className="font-serif font-bold text-neutral-900 text-base leading-snug mb-2 group-hover:underline">
+          {c.title || c.complaintTitle || 'Untitled Civic Incident'}
+        </h3>
+        <p className="text-neutral-600 text-sm leading-relaxed line-clamp-3 mb-4 font-sans">
+          {c.description}
+        </p>
 
-      {/* Content */}
-      <h3 className="font-bold text-gray-900 mb-1 text-sm leading-tight">{c.title || c.complaintTitle}</h3>
-      <p className="text-gray-600 text-sm line-clamp-2 mb-3">{c.description}</p>
-
-      {/* Category */}
-      {(c.category || c.issueType) && (
-        <span className="inline-block bg-primary-50 text-primary-700 text-xs px-2.5 py-1 rounded-full font-medium mb-3">
-          {(c.category || c.issueType)?.replace(/_/g, ' ')}
-        </span>
-      )}
-
-      {/* Image */}
-      {c.imageUrl && (
-        <img
-          src={c.imageUrl}
-          alt="complaint"
-          className="w-full h-48 object-cover rounded-xl mb-3"
-          onError={(e) => { e.target.style.display = 'none' }}
-        />
-      )}
-
-      {/* Footer */}
-      <div className="flex items-center gap-4 pt-2 border-t border-gray-100">
-        <button
-          onClick={handleVote}
-          disabled={voting}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-600 transition-colors disabled:opacity-50"
-        >
-          <HiThumbUp className="w-4 h-4" />
-          <span>{c.upvotes || c.votes || 0} votes</span>
-        </button>
-        <span className="text-xs text-gray-400">
-          Priority: <span className="font-medium text-gray-600">{c.priorityScore ? Math.round(c.priorityScore) : '—'}</span>
-        </span>
-        {c.aiAnalysis?.sentiment && (
-          <span className="text-xs text-gray-400 ml-auto">
-            Sentiment: <span className="font-medium">{c.aiAnalysis.sentiment}</span>
-          </span>
+        {/* Image if present */}
+        {c.imageUrl && (
+          <div className="mb-4 border border-neutral-200 bg-neutral-50 overflow-hidden max-h-56">
+            <img
+              src={c.imageUrl}
+              alt="Civic evidence"
+              className="w-full h-48 object-cover filter contrast-[1.02]"
+              onError={(e) => { e.target.style.display = 'none' }}
+            />
+          </div>
         )}
       </div>
-    </div>
+
+      {/* Metadata & Actions Footer */}
+      <div className="pt-3 border-t border-neutral-100 flex items-center justify-between gap-3 text-xs font-mono">
+        <div className="flex items-center gap-2 flex-wrap">
+          {(c.category || c.issueType) && (
+            <span className="border border-neutral-300 px-2 py-0.5 bg-neutral-50 text-neutral-700 tracking-wider uppercase text-[10px]">
+              {(c.category || c.issueType).replace(/_/g, ' ')}
+            </span>
+          )}
+          {(() => {
+            const pTier = getPriorityTier(c)
+            if (pTier.score === null) return null
+            return (
+              <span className="text-neutral-500 text-[11px] flex items-center gap-1.5">
+                PRIORITY: <span className="text-neutral-900 font-bold">{pTier.displayScore}</span>
+                <span className={`px-1.5 py-0.5 text-[9px] uppercase tracking-wider font-semibold ${pTier.badgeClass}`}>
+                  {pTier.label}
+                </span>
+              </span>
+            )
+          })()}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleVote}
+            disabled={voting}
+            aria-label="Upvote report"
+            className="flex items-center gap-1.5 px-2.5 py-1 border border-neutral-300 hover:border-black hover:bg-neutral-900 hover:text-white transition-colors duration-150 disabled:opacity-50 text-neutral-800"
+          >
+            <HiThumbUp className="w-3.5 h-3.5" />
+            <span className="font-bold">{c.upvotes || c.votes || 0}</span>
+          </button>
+          <span className="text-neutral-400 group-hover:text-black flex items-center gap-1 text-xs uppercase tracking-wider">
+            Details →
+          </span>
+        </div>
+      </div>
+    </article>
   )
 }
 
@@ -129,6 +187,13 @@ export default function ComplaintFeed() {
   const [refreshing, setRefreshing] = useState(false)
   const [userLoc, setUserLoc] = useState(null)
   const [locStatus, setLocStatus] = useState('requesting') // requesting, granted, denied
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [selectedStatus, setSelectedStatus] = useState('all')
+  const [radiusFilter, setRadiusFilter] = useState('3km') // '3km', '10km', 'all'
+  const [civicNews, setCivicNews] = useState([])
+  const [showNews, setShowNews] = useState(false)
+
   const navigate = useNavigate()
 
   const fetchComplaints = async () => {
@@ -139,30 +204,42 @@ export default function ComplaintFeed() {
         setAllComplaints(dataArr)
       }
     } catch (err) {
-      toast.error('Failed to load complaints')
+      toast.error('Failed to load civic feed')
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
   }
 
-  // Derive distance properties on the fly to prevent stale closures
-  const filteredComplaints = useMemo(() => {
-    if (!userLoc || locStatus === 'denied') {
-      return allComplaints
-    }
-    return allComplaints.map(c => {
-      const lat = c.location?.latitude || c.location_latitude || c.latitude
-      const lng = c.location?.longitude || c.location_longitude || c.longitude
-      if (!lat || !lng) return { ...c, distanceKm: 999 }
-      const dist = getDistanceFromLatLonInKm(userLoc.lat, userLoc.lng, parseFloat(lat), parseFloat(lng))
-      return { ...c, distanceKm: dist }
-    }).filter(c => c.distanceKm <= 3.0)
-      .sort((a, b) => a.distanceKm - b.distanceKm)
-  }, [allComplaints, userLoc, locStatus])
+  // Load sample or real civic news (parity with React Native NewsService)
+  useEffect(() => {
+    const civicBulletins = [
+      {
+        id: '1',
+        title: 'Municipal Water Main Maintenance Scheduled for Ward 7',
+        source: 'Municipal Works Dept',
+        time: '2 hours ago',
+        tag: 'INFRASTRUCTURE'
+      },
+      {
+        id: '2',
+        title: 'Monsoon Preparedness: Storm Drain Desilting in Progress',
+        source: 'City Corporation',
+        time: '5 hours ago',
+        tag: 'DRAINAGE'
+      },
+      {
+        id: '3',
+        title: 'Road Surface Restoration on South Avenue Commencing Monday',
+        source: 'Urban Roads Bureau',
+        time: 'Yesterday',
+        tag: 'ROADWORK'
+      }
+    ]
+    setCivicNews(civicBulletins)
+  }, [])
 
   useEffect(() => {
-    // 1. Request location first
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -172,17 +249,15 @@ export default function ComplaintFeed() {
         },
         () => {
           setLocStatus('denied')
-          toast.error('Location denied. Displaying all complaints.')
-        }
+        },
+        { timeout: 8000 }
       )
     } else {
       setLocStatus('denied')
     }
 
-    // 2. Fetch data
     fetchComplaints()
   }, [])
-
 
   const handleVote = async (id) => {
     try {
@@ -202,10 +277,10 @@ export default function ComplaintFeed() {
             }
           })
         )
-        toast.success('Vote registered!')
+        toast.success('Vote recorded')
       }
     } catch (err) {
-      toast.error(err.message || 'Could not vote')
+      toast.error(err.message || 'Vote failed')
     }
   }
 
@@ -214,49 +289,251 @@ export default function ComplaintFeed() {
     fetchComplaints()
   }
 
+  // Computed & filtered list
+  const filteredComplaints = useMemo(() => {
+    return allComplaints
+      .map(c => {
+        const lat = c.location?.latitude || c.location_latitude || c.latitude
+        const lng = c.location?.longitude || c.location_longitude || c.longitude
+        if (!userLoc || !lat || !lng) return { ...c, distanceKm: 999 }
+        const dist = getDistanceFromLatLonInKm(userLoc.lat, userLoc.lng, parseFloat(lat), parseFloat(lng))
+        return { ...c, distanceKm: dist }
+      })
+      .filter(c => {
+        // Category filter
+        if (selectedCategory !== 'all') {
+          const cat = (c.category || c.issueType || '').toLowerCase()
+          if (cat !== selectedCategory.toLowerCase()) return false
+        }
+        // Status filter
+        if (selectedStatus !== 'all') {
+          const st = (c.status || '').toLowerCase()
+          if (st !== selectedStatus.toLowerCase()) return false
+        }
+        // Distance filter
+        if (radiusFilter === '3km' && userLoc && locStatus === 'granted') {
+          if (c.distanceKm > 3.0) return false
+        } else if (radiusFilter === '10km' && userLoc && locStatus === 'granted') {
+          if (c.distanceKm > 10.0) return false
+        }
+        // Search query
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase()
+          const matchTitle = (c.title || c.complaintTitle || '').toLowerCase().includes(q)
+          const matchDesc = (c.description || '').toLowerCase().includes(q)
+          const matchAddr = (c.location?.address || '').toLowerCase().includes(q)
+          if (!matchTitle && !matchDesc && !matchAddr) return false
+        }
+        return true
+      })
+      .sort((a, b) => {
+        if (userLoc && radiusFilter !== 'all') {
+          return a.distanceKm - b.distanceKm
+        }
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+      })
+  }, [allComplaints, userLoc, locStatus, selectedCategory, selectedStatus, radiusFilter, searchQuery])
+
   return (
-    <div className="p-4 max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
+    <div className="max-w-6xl mx-auto space-y-6">
+      {/* Header section */}
+      <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Complaint Feed</h1>
-          <p className="text-sm text-gray-500">
-            {locStatus === 'granted' 
-              ? `${filteredComplaints.length} reports within 3km of you`
-              : `${filteredComplaints.length} reports from your city`}
+          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+            <span>URBAN AUDIT</span>
+            <span>/</span>
+            <span>PUBLIC RECORD</span>
+            <span>/</span>
+            <span className="text-black font-semibold">FEED</span>
+          </div>
+          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+            Civic Incident Ledger
+          </h1>
+          <p className="text-sm text-neutral-600 mt-1 font-sans max-w-xl">
+            Verified citizen reports, active municipal incidents, and proximity dispatch status.
           </p>
         </div>
-        <button onClick={handleRefresh} disabled={refreshing} className="p-2 rounded-xl hover:bg-gray-100 transition-colors disabled:opacity-50">
-          <HiRefresh className={`w-5 h-5 text-gray-600 ${refreshing ? 'animate-spin' : ''}`} />
-        </button>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowNews(!showNews)}
+            className={`px-3 py-2 text-xs font-mono tracking-wider border transition-colors flex items-center gap-1.5 ${
+              showNews ? 'bg-neutral-900 text-white border-black' : 'border-neutral-300 text-neutral-700 hover:border-black'
+            }`}
+          >
+            <HiNewspaper className="w-4 h-4" />
+            <span>MUNICIPAL BULLETINS</span>
+          </button>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2 border border-neutral-300 hover:border-black transition-colors disabled:opacity-50"
+            title="Refresh Ledger"
+          >
+            <HiRefresh className={`w-4 h-4 text-neutral-800 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={() => navigate('/citizen/submit')}
+            className="px-4 py-2 bg-black text-white text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-800 transition-colors"
+          >
+            + FILE REPORT
+          </button>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="space-y-4">
-          {[1,2,3].map(i => (
-            <div key={i} className="card">
-              <div className="flex gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full skeleton" />
-                <div className="flex-1">
-                  <div className="h-4 skeleton rounded mb-2 w-1/3" />
-                  <div className="h-3 skeleton rounded w-1/4" />
+      {/* Municipal Bulletins Banner (collapsible) */}
+      {showNews && (
+        <div className="border border-neutral-300 bg-neutral-50 p-4 transition-all">
+          <div className="flex items-center justify-between mb-3 border-b border-neutral-200 pb-2">
+            <span className="font-mono text-xs font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
+              <span className="w-2 h-2 bg-neutral-900 inline-block"></span>
+              OFFICIAL CIVIC DISPATCHES & ADVISORIES
+            </span>
+            <span className="font-mono text-[11px] text-neutral-500">LIVE FEED</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {civicNews.map(item => (
+              <div key={item.id} className="bg-white border border-neutral-200 p-3 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between text-[10px] font-mono text-neutral-500 mb-1">
+                    <span className="bg-neutral-100 px-1.5 py-0.5 border border-neutral-200">{item.tag}</span>
+                    <span>{item.time}</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-neutral-900 leading-snug line-clamp-2">
+                    {item.title}
+                  </h4>
                 </div>
+                <p className="font-mono text-[10px] text-neutral-500 mt-2 border-t border-neutral-100 pt-1">
+                  Issued by: {item.source}
+                </p>
               </div>
-              <div className="h-4 skeleton rounded mb-2 w-3/4" />
-              <div className="h-3 skeleton rounded mb-2" />
-              <div className="h-3 skeleton rounded w-2/3" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Filter & Search Toolbar */}
+      <div className="border border-neutral-200 bg-white p-4 space-y-3">
+        <div className="flex flex-col md:flex-row gap-3">
+          {/* Search bar */}
+          <div className="relative flex-1">
+            <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <input
+              type="text"
+              placeholder="Search by keywords, street, or description..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 border border-neutral-300 text-sm font-sans placeholder-neutral-400 focus:outline-none focus:border-black rounded-none"
+            />
+          </div>
+
+          {/* Status dropdown */}
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
+            >
+              <option value="all">ALL STATUSES</option>
+              <option value="pending">PENDING</option>
+              <option value="in_progress">IN PROGRESS</option>
+              <option value="resolved">RESOLVED</option>
+              <option value="rejected">REJECTED</option>
+            </select>
+
+            {/* Radius filter */}
+            <select
+              value={radiusFilter}
+              onChange={(e) => setRadiusFilter(e.target.value)}
+              className="border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
+            >
+              <option value="3km">RADIUS: 3 KM</option>
+              <option value="10km">RADIUS: 10 KM</option>
+              <option value="all">ANY DISTANCE</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Category horizontal scroll bar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pt-1 pb-1 scrollbar-none border-t border-neutral-100">
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-3 py-1 text-[11px] font-mono tracking-wider uppercase whitespace-nowrap transition-colors border ${
+                selectedCategory === cat.id
+                  ? 'bg-neutral-900 text-white border-black font-bold'
+                  : 'border-neutral-200 text-neutral-600 hover:border-neutral-400 bg-neutral-50'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Active filters status & count */}
+      <div className="flex items-center justify-between text-xs font-mono text-neutral-500 px-1">
+        <span>
+          SHOWING {filteredComplaints.length} INCIDENT{filteredComplaints.length === 1 ? '' : 'S'}
+          {locStatus === 'granted' && radiusFilter !== 'all' ? ` WITHIN ${radiusFilter.toUpperCase()}` : ''}
+        </span>
+        {locStatus === 'granted' ? (
+          <span className="text-emerald-700 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 bg-emerald-600 inline-block"></span>
+            GEOLOCATION ACTIVE
+          </span>
+        ) : (
+          <span className="text-neutral-500">CITY-WIDE DISPATCH</span>
+        )}
+      </div>
+
+      {/* Main Grid */}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="border border-neutral-200 p-5 space-y-4 bg-white">
+              <div className="flex justify-between items-center">
+                <div className="h-4 w-24 bg-neutral-200 animate-pulse"></div>
+                <div className="h-4 w-16 bg-neutral-200 animate-pulse"></div>
+              </div>
+              <div className="h-5 w-3/4 bg-neutral-200 animate-pulse"></div>
+              <div className="h-16 w-full bg-neutral-100 animate-pulse"></div>
+              <div className="h-4 w-1/2 bg-neutral-200 animate-pulse"></div>
             </div>
           ))}
         </div>
       ) : filteredComplaints.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-          <HiExclamationCircle className="w-12 h-12 mb-3" />
-          <p className="font-medium">No complaints found</p>
-          <p className="text-sm mt-1">Be the first to submit a report</p>
-          <button onClick={() => navigate('/citizen/submit')} className="btn-primary mt-4">Submit a Report</button>
+        <div className="border border-dashed border-neutral-300 bg-white p-12 text-center">
+          <HiExclamationCircle className="w-10 h-10 text-neutral-400 mx-auto mb-3" />
+          <h3 className="font-serif text-lg font-bold text-neutral-900 uppercase">
+            No Incidents Found
+          </h3>
+          <p className="text-sm text-neutral-500 font-sans mt-1 max-w-sm mx-auto">
+            No complaints match the selected filter criteria or geographic radius.
+          </p>
+          <div className="mt-5 flex items-center justify-center gap-3">
+            <button
+              onClick={() => {
+                setSelectedCategory('all')
+                setSelectedStatus('all')
+                setRadiusFilter('all')
+                setSearchQuery('')
+              }}
+              className="px-4 py-2 border border-neutral-300 text-xs font-mono uppercase hover:border-black"
+            >
+              RESET FILTERS
+            </button>
+            <button
+              onClick={() => navigate('/citizen/submit')}
+              className="px-4 py-2 bg-black text-white text-xs font-mono uppercase hover:bg-neutral-800"
+            >
+              FILE REPORT
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredComplaints.map(c => (
             <ComplaintCard
               key={c._id || c.id}

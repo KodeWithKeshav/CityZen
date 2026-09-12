@@ -105,21 +105,49 @@ class NewsService {
         throw new Error(`NewsAPI error: ${data.message || 'Unknown error'}`);
       }
 
-      // Check if we have articles - if not, try fallback searches
-      if (!data.articles || data.articles.length === 0) {
-        console.log('📰 No articles in primary response, trying fallback searches...');
-        throw new Error('No articles in primary response - triggering fallback');
+      // Check if we have articles
+      if (data.articles && data.articles.length > 0) {
+        // Transform NewsAPI data to our format
+        const transformedNews = this.transformNewsAPIData(data.articles, userLocation);
+        console.log(`📰 SUCCESS: Fetched ${transformedNews.length} real news articles`);
+        console.log('📰 Sample headlines:', transformedNews.slice(0, 3).map(n => n.headline));
+        return transformedNews;
       }
 
-      // Transform NewsAPI data to our format
-      const transformedNews = this.transformNewsAPIData(data.articles, userLocation);
+      console.log('📰 No articles in primary response, trying fallback searches...');
+      const fallbackQueries = [
+        { name: 'India Search', url: `${this.NEWS_API_URL}/everything?apiKey=${this.NEWS_API_KEY}&q=India&language=en&sortBy=publishedAt&pageSize=20` },
+        { name: 'General News', url: `${this.NEWS_API_URL}/everything?apiKey=${this.NEWS_API_KEY}&q=news&language=en&sortBy=publishedAt&pageSize=20` },
+        { name: 'Technology', url: `${this.NEWS_API_URL}/everything?apiKey=${this.NEWS_API_KEY}&q=technology&language=en&sortBy=publishedAt&pageSize=20` },
+        { name: 'US Headlines', url: `${this.NEWS_API_URL}/top-headlines?country=us&pageSize=20&apiKey=${this.NEWS_API_KEY}` }
+      ];
       
-      console.log(`📰 SUCCESS: Fetched ${transformedNews.length} real news articles`);
-      console.log('📰 Sample headlines:', transformedNews.slice(0, 3).map(n => n.headline));
-      return transformedNews;
+      for (const fallback of fallbackQueries) {
+        try {
+          console.log(`📰 Trying ${fallback.name}...`);
+          const fallbackResponse = await fetch(fallback.url, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+          });
+          
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json();
+            if (fallbackData.status === 'ok' && fallbackData.articles && fallbackData.articles.length > 0) {
+              console.log(`📰 ${fallback.name} SUCCESS: Got ${fallbackData.articles.length} articles`);
+              const transformedNews = this.transformNewsAPIData(fallbackData.articles, userLocation || { country: 'India' });
+              return transformedNews;
+            }
+          }
+        } catch (fallbackError) {
+          console.log(`📰 ${fallback.name} fallback failed:`, fallbackError.message);
+        }
+      }
+      
+      console.log('📰 Fallback completed - Returning placeholder news');
+      return this.getPlaceholderNews();
 
     } catch (error) {
-      console.error('📰 Primary API call failed:', error.message);
+      console.log('📰 Primary news fetch notice, attempting fallbacks:', error.message);
       
       // Try multiple fallback approaches
       const fallbackQueries = [
@@ -146,7 +174,7 @@ class NewsService {
             }
           }
         } catch (fallbackError) {
-          console.error(`📰 ${fallback.name} failed:`, fallbackError.message);
+          console.log(`📰 ${fallback.name} failed:`, fallbackError.message);
         }
       }
       

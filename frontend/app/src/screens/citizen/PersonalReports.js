@@ -85,67 +85,91 @@ const PersonalReports = ({ navigation }) => {
     setShowTrackingModal(true);
   };
 
-  const renderTrackingStage = (stage, isActive, isCompleted, isLast) => {
-    const getStageColor = () => {
-      if (isCompleted) return '#27ae60';
-      if (isActive) return '#3498db';
-      return '#bdc3c7';
-    };
+  const getStageTypeIcon = (stageName) => {
+    const n = (stageName || '').toLowerCase();
+    if (n.includes('submit') || n.includes('receiv')) return 'document-text-outline';
+    if (n.includes('review') || n.includes('assess')) return 'eye-outline';
+    if (n.includes('assign') || n.includes('officer')) return 'person-add-outline';
+    if (n.includes('inspect') || n.includes('site')) return 'search-outline';
+    if (n.includes('work') || n.includes('repair') || n.includes('fix')) return 'construct-outline';
+    if (n.includes('complet') || n.includes('resolv') || n.includes('close')) return 'checkmark-done-outline';
+    return 'ellipse-outline';
+  };
 
-    const getStageIcon = () => {
-      if (isCompleted) return 'checkmark-circle';
-      if (isActive) return 'radio-button-on';
-      return 'radio-button-off';
-    };
+  const renderTrackingStage = (stage, isActive, isCompleted, isLast) => {
+    const circleStyle = isCompleted
+      ? { bg: '#1A1A1A', border: '#1A1A1A', iconColor: '#fff' }
+      : isActive
+      ? { bg: '#374151', border: '#374151', iconColor: '#fff' }
+      : { bg: '#F9FAFB', border: '#E5E7EB', iconColor: '#9CA3AF' };
+
+    const nameColor = isCompleted ? '#111827' : isActive ? '#1A1A1A' : '#9CA3AF';
+    const cardBg    = isActive ? '#F8FAFC' : '#FAFAFA';
+    const cardBorder = isActive ? '#D1D5DB' : '#F3F4F6';
 
     return (
       <View key={stage.id} style={styles.trackingStage}>
+        {/* Left: circle + connector */}
         <View style={styles.stageIconContainer}>
-          <Ionicons 
-            name={getStageIcon()} 
-            size={24} 
-            color={getStageColor()} 
-          />
+          <View style={[
+            styles.stageCircle,
+            { backgroundColor: circleStyle.bg, borderColor: circleStyle.border },
+          ]}>
+            <Ionicons
+              name={isCompleted ? 'checkmark' : getStageTypeIcon(stage.name)}
+              size={14}
+              color={circleStyle.iconColor}
+            />
+          </View>
           {!isLast && (
             <View style={[
-              styles.stageLine, 
-              { backgroundColor: isCompleted ? '#27ae60' : '#bdc3c7' }
+              styles.stageLine,
+              { backgroundColor: isCompleted ? '#1A1A1A' : '#E5E7EB' },
             ]} />
           )}
         </View>
-        
-        <View style={styles.stageContent}>
+
+        {/* Right: card */}
+        <View style={[styles.stageCard, { backgroundColor: cardBg, borderColor: cardBorder }]}>
           <View style={styles.stageHeader}>
-            <Text style={[styles.stageName, { color: getStageColor() }]}>
-              {stage.icon} {stage.name}
+            <Text style={[styles.stageName, { color: nameColor, flex: 1 }]}>
+              {stage.name}
             </Text>
-            {stage.date && (
+            {isActive && (
+              <View style={styles.activeChip}>
+                <Text style={styles.activeChipText}>Active</Text>
+              </View>
+            )}
+            {isCompleted && stage.date && (
               <Text style={styles.stageDate}>
-                {new Date(stage.date).toLocaleDateString()}
+                {new Date(stage.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
               </Text>
             )}
           </View>
-          
-          <Text style={styles.stageDescription}>
-            {stage.description}
-          </Text>
-          
-          {stage.officer && (
-            <Text style={styles.stageAssignment}>
-              👮 {stage.officer}
-            </Text>
-          )}
-          
-          {stage.contractor && (
-            <Text style={styles.stageAssignment}>
-              🔧 {stage.contractor}
-            </Text>
-          )}
-          
-          {stage.estimatedCost && (
-            <Text style={styles.stageAssignment}>
-              💰 Estimated Cost: ₹{stage.estimatedCost}
-            </Text>
+
+          <Text style={styles.stageDescription}>{stage.description}</Text>
+
+          {(stage.officer || stage.contractor || stage.estimatedCost) && (
+            <View style={styles.stageMetaGroup}>
+              {stage.officer && (
+                <View style={styles.stageMetaRow}>
+                  <Ionicons name="person-circle-outline" size={12} color="#6B7280" />
+                  <Text style={styles.stageAssignment}>Officer: {stage.officer}</Text>
+                </View>
+              )}
+              {stage.contractor && (
+                <View style={styles.stageMetaRow}>
+                  <Ionicons name="construct-outline" size={12} color="#6B7280" />
+                  <Text style={styles.stageAssignment}>Contractor: {stage.contractor}</Text>
+                </View>
+              )}
+              {stage.estimatedCost && (
+                <View style={styles.stageMetaRow}>
+                  <Ionicons name="cash-outline" size={12} color="#6B7280" />
+                  <Text style={styles.stageAssignment}>Est. Cost: ₹{stage.estimatedCost}</Text>
+                </View>
+              )}
+            </View>
           )}
         </View>
       </View>
@@ -155,9 +179,9 @@ const PersonalReports = ({ navigation }) => {
   const renderReportCard = (report) => {
     const getStatusColor = (status) => {
       const colors = {
-        'pending': '#f39c12',
-        'in_progress': '#3498db',
-        'resolved': '#27ae60',
+        'pending': '#1A1A1A',
+        'in_progress': '#1A1A1A',
+        'resolved': '#1A1A1A',
         'cancelled': '#95a5a6'
       };
       return colors[status] || '#95a5a6';
@@ -206,33 +230,35 @@ const PersonalReports = ({ navigation }) => {
         
         <View style={styles.reportMeta}>
           <Text style={styles.reportDate}>
-            📅 Submitted: {new Date(report.created_at).toLocaleDateString()}
+            Submitted: {new Date(report.created_at).toLocaleDateString()}
           </Text>
           <Text style={styles.reportLocation}>
-            📍 {report.location_address || 'Location not specified'}
+            {report.location_address || 'Location not specified'}
           </Text>
           <Text style={styles.reportCategory}>
-            📋 {report.category || 'General'}
+            {report.category || 'General'}
           </Text>
+
         </View>
         
         <View style={styles.progressIndicator}>
-          <Text style={styles.progressText}>
-            Stage {report.currentStage}/5
-          </Text>
+          <View style={styles.progressLabelRow}>
+            <Ionicons name="layers-outline" size={12} color="#6B7280" />
+            <Text style={styles.progressText}>Stage {report.currentStage} of 5</Text>
+          </View>
           <View style={styles.progressBar}>
             <View style={[
               styles.progressFill,
-              { 
+              {
                 width: `${(report.currentStage / 5) * 100}%`,
-                backgroundColor: getStatusColor(report.status)
+                backgroundColor: getStatusColor(report.status),
               }
             ]} />
           </View>
         </View>
         
         <View style={styles.trackingButton}>
-          <Ionicons name="eye-outline" size={16} color="#3498db" />
+          <Ionicons name="eye-outline" size={16} color="#374151" />
           <Text style={styles.trackingButtonText}>View Tracking Details</Text>
         </View>
       </TouchableOpacity>
@@ -255,16 +281,13 @@ const PersonalReports = ({ navigation }) => {
       }
     >
       {/* Header */}
-      <LinearGradient
-        colors={['#2c3e50', '#3498db']}
-        style={styles.header}
-      >
+      <View style={styles.header}>
         <View style={styles.headerContent}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="arrow-back" size={24} color="white" />
+            <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
           
           <Text style={styles.headerTitle}>My Reports</Text>
@@ -273,10 +296,10 @@ const PersonalReports = ({ navigation }) => {
             style={styles.logoutButton}
             onPress={handleLogout}
           >
-            <Ionicons name="log-out-outline" size={24} color="white" />
+            <Ionicons name="log-out-outline" size={24} color="#374151" />
           </TouchableOpacity>
         </View>
-      </LinearGradient>
+      </View>
 
       {/* Statistics */}
       <View style={styles.statsContainer}>
@@ -285,15 +308,15 @@ const PersonalReports = ({ navigation }) => {
           <Text style={styles.statLabel}>Total</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statNumber, { color: '#27ae60' }]}>{stats.resolved || 0}</Text>
+          <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.resolved || 0}</Text>
           <Text style={styles.statLabel}>Resolved</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statNumber, { color: '#3498db' }]}>{stats.inProgress || 0}</Text>
+          <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.inProgress || 0}</Text>
           <Text style={styles.statLabel}>In Progress</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={[styles.statNumber, { color: '#f39c12' }]}>{stats.pending || 0}</Text>
+          <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.pending || 0}</Text>
           <Text style={styles.statLabel}>Pending</Text>
         </View>
       </View>
@@ -328,7 +351,7 @@ const PersonalReports = ({ navigation }) => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>📦 Complaint Tracking</Text>
+            <Text style={styles.modalTitle}>Complaint Tracking</Text>
             <TouchableOpacity
               onPress={() => setShowTrackingModal(false)}
               style={styles.closeButton}
@@ -357,16 +380,16 @@ const PersonalReports = ({ navigation }) => {
                 
                 <View style={styles.reportModalMeta}>
                   <Text style={styles.modalMetaText}>
-                    📅 Submitted: {new Date(selectedReport.created_at).toLocaleDateString()} at {new Date(selectedReport.created_at).toLocaleTimeString()}
+                    Submitted: {new Date(selectedReport.created_at).toLocaleDateString()} at {new Date(selectedReport.created_at).toLocaleTimeString()}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    📍 Location: {selectedReport.location_address || 'Not specified'}
+                    Location: {selectedReport.location_address || 'Not specified'}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    📋 Category: {selectedReport.category || 'General'}
+                    Category: {selectedReport.category || 'General'}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    ⚡ Priority: {selectedReport.priority || 'Medium'}
+                    Priority: {selectedReport.priority || 'Medium'}
                   </Text>
                 </View>
               </View>
@@ -394,22 +417,25 @@ const PersonalReports = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#FAFAFA',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#FAFAFA',
   },
   loadingText: {
-    fontSize: 16,
-    color: '#7f8c8d',
+    fontSize: 14,
+    color: '#9CA3AF',
   },
   header: {
-    paddingTop: 50,
-    paddingBottom: 20,
+    paddingTop: 52,
+    paddingBottom: 16,
     paddingHorizontal: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   headerContent: {
     flexDirection: 'row',
@@ -420,9 +446,10 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    letterSpacing: -0.2,
   },
   logoutButton: {
     padding: 8,
@@ -435,34 +462,33 @@ const styles = StyleSheet.create({
   },
   statCard: {
     alignItems: 'center',
-    backgroundColor: 'white',
-    padding: 15,
-    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    borderRadius: 8,
     minWidth: 70,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2c3e50',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#111827',
   },
   statLabel: {
-    fontSize: 12,
-    color: '#7f8c8d',
-    marginTop: 5,
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 4,
+    letterSpacing: 0.3,
   },
   reportsSection: {
     padding: 15,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
     marginBottom: 15,
+    letterSpacing: -0.2,
   },
   noReports: {
     alignItems: 'center',
@@ -489,10 +515,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   submitButton: {
-    backgroundColor: '#3498db',
+    backgroundColor: '#1A1A1A',
     paddingVertical: 12,
     paddingHorizontal: 30,
-    borderRadius: 25,
+    borderRadius: 6,
   },
   submitButtonText: {
     color: 'white',
@@ -500,15 +526,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   reportCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
     padding: 15,
-    marginBottom: 15,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   reportHeader: {
     flexDirection: 'row',
@@ -518,15 +541,15 @@ const styles = StyleSheet.create({
   },
   reportTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2c3e50',
+    fontWeight: '600',
+    color: '#111827',
     flex: 1,
     marginRight: 10,
   },
   statusBadge: {
     paddingVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: 12,
+    borderRadius: 4,
   },
   statusText: {
     fontSize: 10,
@@ -563,24 +586,27 @@ const styles = StyleSheet.create({
     color: '#95a5a6',
   },
   progressIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 10,
   },
+  progressLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 5,
+  },
   progressText: {
-    fontSize: 12,
-    color: '#7f8c8d',
-    marginRight: 10,
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500',
   },
   progressBar: {
-    flex: 1,
-    height: 4,
-    backgroundColor: '#ecf0f1',
-    borderRadius: 2,
+    height: 5,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 3,
   },
   progressFill: {
     height: '100%',
-    borderRadius: 2,
+    borderRadius: 3,
   },
   trackingButton: {
     flexDirection: 'row',
@@ -592,7 +618,7 @@ const styles = StyleSheet.create({
   },
   trackingButtonText: {
     fontSize: 14,
-    color: '#3498db',
+    color: '#374151',
     marginLeft: 5,
     fontWeight: '500',
   },
@@ -665,16 +691,34 @@ const styles = StyleSheet.create({
   },
   trackingStage: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: 4,
   },
   stageIconContainer: {
     alignItems: 'center',
-    marginRight: 15,
+    width: 34,
+    marginRight: 10,
+  },
+  stageCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   stageLine: {
     width: 2,
     flex: 1,
-    marginTop: 8,
+    minHeight: 16,
+    marginVertical: 4,
+    borderRadius: 1,
+  },
+  stageCard: {
+    flex: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    borderWidth: 1,
   },
   stageContent: {
     flex: 1,
@@ -683,25 +727,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 5,
+    marginBottom: 4,
   },
   stageName: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  activeChip: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  activeChipText: {
+    fontSize: 10,
+    color: '#fff',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   stageDate: {
-    fontSize: 12,
-    color: '#7f8c8d',
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '500',
   },
   stageDescription: {
-    fontSize: 14,
-    color: '#7f8c8d',
+    fontSize: 12,
+    color: '#9CA3AF',
     marginBottom: 5,
+    lineHeight: 17,
+  },
+  stageMetaGroup: {
+    gap: 3,
+  },
+  stageMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   stageAssignment: {
-    fontSize: 12,
-    color: '#3498db',
-    marginBottom: 2,
+    fontSize: 11,
+    color: '#6B7280',
   },
 });
 

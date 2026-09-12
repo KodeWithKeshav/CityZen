@@ -2,15 +2,16 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
-import { HiSearch, HiRefresh, HiDocumentText } from 'react-icons/hi'
+import { HiSearch, HiRefresh, HiFilter, HiDocumentText, HiChevronRight } from 'react-icons/hi'
 import { format } from 'date-fns'
+import { getPriorityTier } from '../../utils/priorityUtils'
 
-const STATUS_STYLES = {
-  pending: 'badge-pending',
-  resolved: 'badge-resolved',
-  in_progress: 'badge-inprogress',
-  'in-progress': 'badge-inprogress',
-  rejected: 'badge-rejected',
+const STATUS_CONFIG = {
+  pending: { label: 'PENDING', bg: 'bg-amber-50 text-amber-900 border-amber-300' },
+  in_progress: { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-900 border-blue-300' },
+  'in-progress': { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-900 border-blue-300' },
+  resolved: { label: 'RESOLVED', bg: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
+  rejected: { label: 'REJECTED', bg: 'bg-rose-50 text-rose-900 border-rose-300' },
 }
 
 export default function AdminComplaints() {
@@ -22,6 +23,7 @@ export default function AdminComplaints() {
   const navigate = useNavigate()
 
   const fetchComplaints = async () => {
+    setLoading(true)
     try {
       const res = await makeApiCall(apiClient.complaints.all)
       const dataArray = res.complaints || res.data || []
@@ -30,139 +32,198 @@ export default function AdminComplaints() {
         setFiltered(dataArray)
       }
     } catch (err) {
-      toast.error('Failed to load complaints')
+      toast.error('Failed to load municipal complaint roster')
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { fetchComplaints() }, [])
+  useEffect(() => {
+    fetchComplaints()
+  }, [])
 
   useEffect(() => {
     let list = complaints
     if (statusFilter !== 'all') {
       list = list.filter(c => c.status === statusFilter || c.status === statusFilter.replace(/_/g, '-'))
     }
-    if (search) {
+    if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(c =>
         (c.title || c.complaintTitle || '').toLowerCase().includes(q) ||
         (c.citizenName || '').toLowerCase().includes(q) ||
-        (c.description || '').toLowerCase().includes(q)
+        (c.description || '').toLowerCase().includes(q) ||
+        (c._id || c.id || '').toLowerCase().includes(q)
       )
     }
     setFiltered(list)
   }, [search, statusFilter, complaints])
 
   return (
-    <div className="p-4 max-w-6xl mx-auto pb-8 fade-in">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">All Complaints</h1>
-          <p className="text-sm text-gray-500">{filtered.length} of {complaints.length} total</p>
+          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+            <span>OPERATIONAL ARCHIVE</span>
+            <span>/</span>
+            <span>ALL SUBMISSIONS</span>
+            <span>/</span>
+            <span className="text-black font-semibold">CADASTRE</span>
+          </div>
+          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+            Incident Dispatch Registry
+          </h1>
+          <p className="text-sm text-neutral-600 mt-1 font-sans">
+            Centralized municipal ledger of citizen dispatches, field states, and resolution proofs.
+          </p>
         </div>
-        <button onClick={fetchComplaints} className="p-2.5 rounded-xl hover:bg-gray-100 transition-colors">
-          <HiRefresh className="w-5 h-5 text-gray-600" />
-        </button>
-      </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-5">
-        <div className="relative flex-1">
-          <HiSearch className="absolute left-3 top-3.5 text-gray-400 w-5 h-5" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search complaints..."
-            className="input pl-10"
-          />
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          {['all', 'pending', 'in_progress', 'resolved', 'rejected'].map(f => (
-            <button
-              key={f}
-              onClick={() => setStatusFilter(f)}
-              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all
-                ${statusFilter === f ? 'bg-admin-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-            >
-              {f === 'in_progress' ? 'In Progress' : f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchComplaints}
+            className="p-2 border border-neutral-300 hover:border-black transition-colors"
+            title="Refresh Roster"
+          >
+            <HiRefresh className="w-4 h-4 text-neutral-800" />
+          </button>
         </div>
       </div>
 
-      {/* Table / List */}
-      {loading ? (
-        <div className="space-y-3">
-          {[1,2,3,4].map(i => <div key={i} className="h-16 skeleton rounded-xl" />)}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-          <HiDocumentText className="w-12 h-12 mb-3" />
-          <p>No complaints found</p>
-        </div>
-      ) : (
-        <>
-          {/* Desktop table */}
-          <div className="hidden md:block card p-0 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  {['Title', 'Citizen', 'Category', 'Status', 'Priority', 'Date', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map(c => (
-                  <tr key={c._id || c.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate(`/admin/complaints/${c._id || c.id}`)}>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900 truncate max-w-[180px]">{c.title || c.complaintTitle}</p>
-                      <p className="text-xs text-gray-500 truncate max-w-[180px]">{c.description}</p>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{c.citizenName || '-'}</td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded-full capitalize">
-                        {(c.category || c.issueType || '-').replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`badge capitalize ${STATUS_STYLES[c.status] || 'badge-pending'}`}>
-                        {c.status?.replace(/_/g,' ')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 capitalize text-gray-600">{c.priority || '-'}</td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs">
-                      {c.createdAt ? format(new Date(c.createdAt), 'MMM d, yyyy') : '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-admin-600 text-xs font-medium hover:underline">View -&gt;</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Search & Filter Bar */}
+      <div className="border border-neutral-200 bg-white p-4 space-y-3">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 w-4 h-4" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by ID, keyword, complainant, or street address..."
+              className="w-full pl-9 pr-3 py-2 border border-neutral-300 rounded-none text-xs font-mono placeholder-neutral-400 focus:outline-none focus:border-black"
+            />
           </div>
 
-          {/* Mobile cards */}
-          <div className="md:hidden space-y-3">
-            {filtered.map(c => (
-              <div key={c._id || c.id} className="card hover:shadow-md transition cursor-pointer" onClick={() => navigate(`/admin/complaints/${c._id || c.id}`)}>
-                <div className="flex justify-between items-start gap-2 mb-1">
-                  <p className="font-semibold text-gray-800 text-sm flex-1">{c.title || c.complaintTitle}</p>
-                  <span className={`badge capitalize flex-shrink-0 ${STATUS_STYLES[c.status] || 'badge-pending'}`}>{c.status?.replace(/_/g,' ')}</span>
-                </div>
-                <p className="text-xs text-gray-500 mb-2 line-clamp-1">{c.description}</p>
-                <div className="flex gap-3 text-xs text-gray-400">
-                  <span>{c.citizenName || '-'}</span>
-                  <span>|</span>
-                  <span>{c.createdAt ? format(new Date(c.createdAt), 'MMM d') : '-'}</span>
-                </div>
-              </div>
+          <div className="flex gap-1.5 flex-wrap font-mono text-xs">
+            {['all', 'pending', 'in_progress', 'resolved', 'rejected'].map(f => (
+              <button
+                key={f}
+                onClick={() => setStatusFilter(f)}
+                className={`px-3 py-2 border uppercase tracking-wider transition-colors ${
+                  statusFilter === f
+                    ? 'bg-neutral-900 text-white border-black font-bold'
+                    : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
+                }`}
+              >
+                {f.replace(/_/g, ' ')}
+              </button>
             ))}
           </div>
-        </>
+        </div>
+
+        <div className="flex justify-between items-center text-xs font-mono text-neutral-500 pt-1 border-t border-neutral-100">
+          <span>MATCHING RECORDS: <strong className="text-black">{filtered.length}</strong> OF {complaints.length}</span>
+          <span>STATUS FILTER: <strong className="text-black uppercase">{statusFilter.replace(/_/g, ' ')}</strong></span>
+        </div>
+      </div>
+
+      {/* Main Table / Ledger */}
+      {loading ? (
+        <div className="border border-neutral-200 p-8 text-center font-mono text-xs text-neutral-500 bg-white">
+          LOADING MUNICIPAL CADASTRE...
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="border border-dashed border-neutral-300 bg-white p-12 text-center">
+          <HiDocumentText className="w-10 h-10 text-neutral-400 mx-auto mb-3" />
+          <h3 className="font-serif text-lg font-bold text-neutral-900 uppercase">
+            No Records Found
+          </h3>
+          <p className="text-xs text-neutral-500 font-sans mt-1">
+            No registered dispatches align with the provided criteria.
+          </p>
+        </div>
+      ) : (
+        <div className="border border-neutral-200 bg-white overflow-x-auto">
+          <table className="w-full text-left font-mono text-xs border-collapse">
+            <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 uppercase text-[10px] tracking-wider">
+              <tr>
+                <th className="p-3 border-r border-neutral-200">ID</th>
+                <th className="p-3 border-r border-neutral-200">INCIDENT &amp; DESCRIPTION</th>
+                <th className="p-3 border-r border-neutral-200">CITIZEN</th>
+                <th className="p-3 border-r border-neutral-200">CATEGORY</th>
+                <th className="p-3 border-r border-neutral-200">SEVERITY</th>
+                <th className="p-3 border-r border-neutral-200">STATUS</th>
+                <th className="p-3 border-r border-neutral-200">FILED ON</th>
+                <th className="p-3 text-right">ACTION</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-200 text-neutral-800">
+              {filtered.map(c => {
+                const statusKey = (c.status || 'pending').toLowerCase()
+                const statusInfo = STATUS_CONFIG[statusKey] || {
+                  label: (c.status || 'PENDING').toUpperCase(),
+                  bg: 'bg-neutral-100 text-neutral-800 border-neutral-300',
+                }
+                const dateStr = c.createdAt ? format(new Date(c.createdAt), 'yyyy-MM-dd') : '—'
+
+                return (
+                  <tr
+                    key={c._id || c.id}
+                    onClick={() => navigate(`/admin/complaints/${c._id || c.id}`)}
+                    className="hover:bg-neutral-50 cursor-pointer transition-colors"
+                  >
+                    <td className="p-3 border-r border-neutral-200 font-bold text-neutral-500 whitespace-nowrap">
+                      #{(c._id || c.id || '').slice(-6).toUpperCase()}
+                    </td>
+                    <td className="p-3 border-r border-neutral-200 max-w-xs">
+                      <div className="font-serif font-bold text-sm text-neutral-900 truncate">
+                        {c.title || c.complaintTitle || 'Unclassified Incident'}
+                      </div>
+                      <div className="font-sans text-xs text-neutral-500 truncate mt-0.5">
+                        {c.description}
+                      </div>
+                    </td>
+                    <td className="p-3 border-r border-neutral-200 whitespace-nowrap">
+                      {c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || 'Verified Citizen'}
+                    </td>
+                    <td className="p-3 border-r border-neutral-200 whitespace-nowrap">
+                      <span className="px-1.5 py-0.5 border border-neutral-200 bg-neutral-50 text-[10px] uppercase">
+                        {(c.category || c.issueType || 'General').replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                    <td className="p-3 border-r border-neutral-200 whitespace-nowrap">
+                      {(() => {
+                        const pTier = getPriorityTier(c)
+                        return (
+                          <div>
+                            <span className="font-bold uppercase block text-xs">{pTier.label}</span>
+                            {pTier.score !== null && (
+                              <span className="text-neutral-500 text-[10px] block">
+                                SCORE: {pTier.displayScore} / 100
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </td>
+                    <td className="p-3 border-r border-neutral-200 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 border text-[10px] uppercase tracking-wider ${statusInfo.bg}`}>
+                        {statusInfo.label}
+                      </span>
+                    </td>
+                    <td className="p-3 border-r border-neutral-200 whitespace-nowrap text-neutral-500">
+                      {dateStr}
+                    </td>
+                    <td className="p-3 text-right whitespace-nowrap font-bold">
+                      <span className="text-black hover:underline inline-flex items-center gap-1 text-[11px]">
+                        AUDIT <HiChevronRight className="w-3.5 h-3.5" />
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

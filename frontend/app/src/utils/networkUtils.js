@@ -19,7 +19,7 @@ const getApiHost = () => {
   }
 
   // Mobile fallback - this should be set by setup-network.js
-  return '10.12.73.132';
+  return 'localhost';
 };
 
 /**
@@ -36,19 +36,19 @@ const getApiPort = () => {
 export const generateApiBaseUrl = () => {
   // First try to use the complete URL from environment
   if (process.env.EXPO_PUBLIC_API_URL) {
-    console.log('ðŸ“¡ Using complete API URL from environment:', process.env.EXPO_PUBLIC_API_URL);
+    console.log('📡 Using complete API URL from environment:', process.env.EXPO_PUBLIC_API_URL);
     return process.env.EXPO_PUBLIC_API_URL;
   }
 
   // Build URL from components
   const host = getApiHost();
   const port = getApiPort();
-  const url = `https://urban-pulse-backend-1.onrender.com`;
-  
-  console.log('ðŸ“¡ Generated API URL:', url);
-  console.log('ðŸ”§ Host:', host);
-  console.log('ðŸ”§ Port:', port);
-  
+  const url = `http://${host}:${port}`;
+
+  console.log('📡 Generated API URL:', url);
+  console.log('🔧 Host:', host);
+  console.log('🔧 Port:', port);
+
   return url;
 };
 
@@ -58,4 +58,3 @@ export const generateApiBaseUrl = () => {
 export const getNetworkHost = () => {
   return getApiHost();
 };
-
