@@ -5,6 +5,8 @@ import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 import { View, Image, Text, StyleSheet, LogBox } from 'react-native';
+import './src/i18n';
+import LanguageSwitcherFAB from './src/components/LanguageSwitcherFAB';
 
 // Ignore benign non-fatal developer notices in Expo Go
 LogBox.ignoreLogs([
@@ -129,6 +131,7 @@ export default function App() {
         <Stack.Screen name="ComplaintDetails" component={AdminComplaintDetails} />
         <Stack.Screen name="AdminComplaintMap" component={AdminComplaintMapScreen} />
       </Stack.Navigator>
+      <LanguageSwitcherFAB />
     </NavigationContainer>
   );
 }

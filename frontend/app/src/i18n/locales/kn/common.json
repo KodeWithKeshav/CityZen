@@ -1,0 +1,30 @@
+{
+  "nav": {
+    "citizen": {
+      "dashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+      "feed": "ನಾಗರಿಕ ಫೀಡ್",
+      "map": "ಪ್ರಾದೇಶಿಕ ನಕ್ಷೆ",
+      "reports": "ನನ್ನ ವರದಿಗಳು",
+      "chatbot": "AI ಸಹಾಯಕ",
+      "feedback": "ಪ್ರತಿಕ್ರಿಯೆ",
+      "transparency": "ಪಾರದರ್ಶಕತೆ",
+      "portalLabel": "ಸಂಸ್ಥಾಗತ ಪೋರ್ಟಲ್",
+      "newReport": "ಹೊಸ ವರದಿ",
+      "signOut": "ಸೈನ್ ಔಟ್"
+    },
+    "admin": {
+      "dashboard": "ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+      "complaints": "ಎಲ್ಲಾ ದೂರುಗಳು",
+      "priority": "ಆದ್ಯತಾ ಸಾಲು",
+      "map": "ದೂರು ನಕ್ಷೆ",
+      "citizens": "ನಾಗರಿಕರು",
+      "consoleLabel": "ಅಡ್ಮಿನ್ ಕನ್ಸೋಲ್",
+      "settings": "ಸಂಯೋಜನೆಗಳು",
+      "signOut": "ಸೈನ್ ಔಟ್"
+    },
+    "search": "ಹುಡುಕಿ..."
+  },
+  "language": {
+    "label": "ಭಾಷೆ"
+  }
+}

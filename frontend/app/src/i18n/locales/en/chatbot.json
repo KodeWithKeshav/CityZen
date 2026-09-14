@@ -1,0 +1,29 @@
+{
+  "title": "Civic Intelligence Agent",
+  "activeProtocol": "ACTIVE PROTOCOL",
+  "subtitle": "Natural Language Urban Guidance Terminal",
+  "sessionVerified": "SESSION VERIFIED · 256-BIT",
+  "greeting": "CITYZEN CIVIC AGENT ONLINE. I provide automated guidance on municipal codes, incident dispatch parameters, telemetry validation, and government workflows. Enter your inquiry below.",
+  "citizenQuery": "CITIZEN QUERY",
+  "botResponse": "MUNICIPAL NEURAL RESPONSE",
+  "deliberating": "SYSTEM DELIBERATING",
+  "queryingKnowledgeGraph": "Querying civic neural knowledge graph...",
+  "suggestedInquiries": "SUGGESTED DISPATCH INQUIRIES:",
+  "followUpInquiries": "FOLLOW-UP INQUIRIES:",
+  "inputPlaceholder": "Type your inquiry for the civic intelligence agent...",
+  "transmit": "TRANSMIT",
+  "errorReply": "TELECOMMUNICATION PROTOCOL ERROR: Neural agent temporarily unresponsive.",
+  "suggestions": {
+    "emergency": "How do I submit an emergency road obstruction report?",
+    "timeline": "What is the standard municipal resolution timeline?",
+    "authenticity": "How is my report authenticity score determined?",
+    "expedited": "What categories qualify for expedited municipal dispatch?"
+  },
+  "mobile": {
+    "title": "CityZen Assistant",
+    "greeting": "Hello! I'm your CityZen Assistant. I can help you with:\n\n• How to submit complaints\n• Understanding civic issues\n• App features and navigation\n• Troubleshooting problems\n• Learning about voting and priorities\n\nWhat would you like to know?",
+    "thinking": "Thinking...",
+    "alwaysHereToHelp": "Always here to help",
+    "inputPlaceholder": "Ask me about the app or civic issues..."
+  }
+}

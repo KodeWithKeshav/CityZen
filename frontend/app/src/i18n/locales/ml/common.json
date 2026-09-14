@@ -1,0 +1,30 @@
+{
+  "nav": {
+    "citizen": {
+      "dashboard": "ഡാഷ്ബോർഡ്",
+      "feed": "പൗര ഫീഡ്",
+      "map": "സ്ഥല ഭൂപടം",
+      "reports": "എന്റെ റിപ്പോർട്ടുകൾ",
+      "chatbot": "AI സഹായി",
+      "feedback": "പ്രതികരണം",
+      "transparency": "സുതാര്യത",
+      "portalLabel": "സ്ഥാപന പോർട്ടൽ",
+      "newReport": "പുതിയ പരാതി",
+      "signOut": "സൈൻ ഔട്ട്"
+    },
+    "admin": {
+      "dashboard": "ഡാഷ്ബോർഡ്",
+      "complaints": "എല്ലാ പരാതികളും",
+      "priority": "മുൻഗണനാ ക്യൂ",
+      "map": "പരാതി ഭൂപടം",
+      "citizens": "പൗരന്മാർ",
+      "consoleLabel": "അഡ്മിൻ കൺസോൾ",
+      "settings": "ക്രമീകരണങ്ങൾ",
+      "signOut": "സൈൻ ഔട്ട്"
+    },
+    "search": "തിരയുക..."
+  },
+  "language": {
+    "label": "ഭാഷ"
+  }
+}

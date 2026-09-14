@@ -1,0 +1,30 @@
+{
+  "nav": {
+    "citizen": {
+      "dashboard": "డాష్‌బోర్డ్",
+      "feed": "పౌర ఫీడ్",
+      "map": "ప్రాదేశిక పటం",
+      "reports": "నా నివేదికలు",
+      "chatbot": "AI సహాయకుడు",
+      "feedback": "అభిప్రాయం",
+      "transparency": "పారదర్శకత",
+      "portalLabel": "సంస్థాగత పోర్టల్",
+      "newReport": "కొత్త నివేదిక",
+      "signOut": "సైన్ అవుట్"
+    },
+    "admin": {
+      "dashboard": "డాష్‌బోర్డ్",
+      "complaints": "అన్ని ఫిర్యాదులు",
+      "priority": "ప్రాధాన్యత క్యూ",
+      "map": "ఫిర్యాదు పటం",
+      "citizens": "పౌరులు",
+      "consoleLabel": "అడ్మిన్ కన్సోల్",
+      "settings": "సెట్టింగ్‌లు",
+      "signOut": "సైన్ అవుట్"
+    },
+    "search": "శోధించండి..."
+  },
+  "language": {
+    "label": "భాష"
+  }
+}
