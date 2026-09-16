@@ -1,0 +1,30 @@
+{
+  "nav": {
+    "citizen": {
+      "dashboard": "Dashboard",
+      "feed": "Civic Feed",
+      "map": "Spatial Map",
+      "reports": "My Reports",
+      "chatbot": "AI Assistant",
+      "feedback": "Feedback",
+      "transparency": "Transparency",
+      "portalLabel": "INSTITUTIONAL PORTAL",
+      "newReport": "NEW REPORT",
+      "signOut": "Sign Out"
+    },
+    "admin": {
+      "dashboard": "Dashboard",
+      "complaints": "All Complaints",
+      "priority": "Priority Queue",
+      "map": "Complaint Map",
+      "citizens": "Citizens",
+      "consoleLabel": "ADMIN CONSOLE",
+      "settings": "Settings",
+      "signOut": "Sign Out"
+    },
+    "search": "Search..."
+  },
+  "language": {
+    "label": "Language"
+  }
+}
