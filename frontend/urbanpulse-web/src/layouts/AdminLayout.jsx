@@ -1,22 +1,25 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 import {
   HiViewGrid, HiDocumentText, HiExclamationCircle, HiMap,
   HiUsers, HiCog, HiLogout, HiSearch,
   HiBell, HiQuestionMarkCircle
 } from 'react-icons/hi'
 
-const navLinks = [
-  { to: '/admin/dashboard', label: 'Dashboard', icon: HiViewGrid },
-  { to: '/admin/complaints', label: 'All Complaints', icon: HiDocumentText },
-  { to: '/admin/priority', label: 'Priority Queue', icon: HiExclamationCircle },
-  { to: '/admin/map', label: 'Complaint Map', icon: HiMap },
-  { to: '/admin/citizens', label: 'Citizens', icon: HiUsers },
-]
-
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { t } = useTranslation('common')
+
+  const navLinks = [
+    { to: '/admin/dashboard', label: t('nav.admin.dashboard'), icon: HiViewGrid },
+    { to: '/admin/complaints', label: t('nav.admin.complaints'), icon: HiDocumentText },
+    { to: '/admin/priority', label: t('nav.admin.priority'), icon: HiExclamationCircle },
+    { to: '/admin/map', label: t('nav.admin.map'), icon: HiMap },
+    { to: '/admin/citizens', label: t('nav.admin.citizens'), icon: HiUsers },
+  ]
 
   const handleLogout = () => {
     logout()
@@ -36,7 +39,7 @@ export default function AdminLayout() {
             </h1>
           </div>
           <p className="text-label-sm text-primary-400">
-            ADMIN CONSOLE
+            {t('nav.admin.consoleLabel')}
           </p>
         </div>
 
@@ -60,7 +63,7 @@ export default function AdminLayout() {
         <div className="px-3 pb-2">
           <button className="sidebar-link w-full">
             <HiCog className="w-[18px] h-[18px]" />
-            <span>Settings</span>
+            <span>{t('nav.admin.settings')}</span>
           </button>
         </div>
 
@@ -71,7 +74,7 @@ export default function AdminLayout() {
             className="sidebar-link w-full text-primary-400 hover:text-civic-error"
           >
             <HiLogout className="w-[18px] h-[18px]" />
-            <span>Sign Out</span>
+            <span>{t('nav.admin.signOut')}</span>
           </button>
         </div>
       </aside>
@@ -85,13 +88,14 @@ export default function AdminLayout() {
             <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary-400" />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder={t('nav.search')}
               className="w-full border border-black/10 pl-10 pr-4 py-2 text-sm text-on-surface placeholder:text-primary-300 focus:outline-none focus:border-black bg-surface-container-low"
             />
           </div>
 
           {/* Right actions */}
           <div className="flex items-center gap-4">
+            <LanguageSwitcher />
             <button className="w-8 h-8 flex items-center justify-center border border-black/10 hover:bg-surface-container-high transition-colors">
               <HiBell className="w-4 h-4 text-on-surface" />
             </button>

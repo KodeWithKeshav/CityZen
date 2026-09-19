@@ -1,24 +1,27 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 import {
   HiViewGrid, HiNewspaper, HiMap, HiDocumentReport,
   HiChat, HiStar, HiChartBar, HiLogout, HiSearch,
   HiBell, HiQuestionMarkCircle, HiPlusCircle
 } from 'react-icons/hi'
 
-const navLinks = [
-  { to: '/citizen/dashboard', label: 'Dashboard', icon: HiViewGrid },
-  { to: '/citizen/feed', label: 'Civic Feed', icon: HiNewspaper },
-  { to: '/citizen/map', label: 'Spatial Map', icon: HiMap },
-  { to: '/citizen/reports', label: 'My Reports', icon: HiDocumentReport },
-  { to: '/citizen/chatbot', label: 'AI Assistant', icon: HiChat },
-  { to: '/citizen/feedback', label: 'Feedback', icon: HiStar },
-  { to: '/citizen/transparency', label: 'Transparency', icon: HiChartBar },
-]
-
 export default function CitizenLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const { t } = useTranslation('common')
+
+  const navLinks = [
+    { to: '/citizen/dashboard', label: t('nav.citizen.dashboard'), icon: HiViewGrid },
+    { to: '/citizen/feed', label: t('nav.citizen.feed'), icon: HiNewspaper },
+    { to: '/citizen/map', label: t('nav.citizen.map'), icon: HiMap },
+    { to: '/citizen/reports', label: t('nav.citizen.reports'), icon: HiDocumentReport },
+    { to: '/citizen/chatbot', label: t('nav.citizen.chatbot'), icon: HiChat },
+    { to: '/citizen/feedback', label: t('nav.citizen.feedback'), icon: HiStar },
+    { to: '/citizen/transparency', label: t('nav.citizen.transparency'), icon: HiChartBar },
+  ]
 
   const handleLogout = () => {
     logout()
@@ -38,7 +41,7 @@ export default function CitizenLayout() {
             </h1>
           </div>
           <p className="text-label-sm text-primary-400">
-            INSTITUTIONAL PORTAL
+            {t('nav.citizen.portalLabel')}
           </p>
         </div>
 
@@ -65,7 +68,7 @@ export default function CitizenLayout() {
             className="btn-primary w-full text-xs py-2.5"
           >
             <HiPlusCircle className="w-4 h-4" />
-            NEW REPORT
+            {t('nav.citizen.newReport')}
           </button>
         </div>
 
@@ -76,7 +79,7 @@ export default function CitizenLayout() {
             className="sidebar-link w-full text-primary-400 hover:text-civic-error"
           >
             <HiLogout className="w-[18px] h-[18px]" />
-            <span>Sign Out</span>
+            <span>{t('nav.citizen.signOut')}</span>
           </button>
         </div>
       </aside>
@@ -90,13 +93,14 @@ export default function CitizenLayout() {
             <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary-400" />
             <input
               type="text"
-              placeholder="Search..."
+              placeholder={t('nav.search')}
               className="w-full border border-black/10 pl-10 pr-4 py-2 text-sm text-on-surface placeholder:text-primary-300 focus:outline-none focus:border-black bg-surface-container-low"
             />
           </div>
 
           {/* Right actions */}
           <div className="flex items-center gap-4">
+            <LanguageSwitcher />
             <button className="w-8 h-8 flex items-center justify-center border border-black/10 hover:bg-surface-container-high transition-colors">
               <HiBell className="w-4 h-4 text-on-surface" />
             </button>
