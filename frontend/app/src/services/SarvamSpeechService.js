@@ -134,8 +134,10 @@ export default class SarvamSpeechService {
         // Process the recording with Sarvam API 
         await this.processWithSarvamApi(uri, lang);
       } else {
-        console.error('No recording URI available, using fallback');
-        this.provideFallbackResult(lang);
+        console.error('No recording URI available');
+        if (this.callbacks.onError) {
+          this.callbacks.onError({ error: { message: 'No audio was recorded. Please try again.' } });
+        }
         if (this.callbacks.onEnd) {
           this.callbacks.onEnd();
         }
@@ -185,32 +187,25 @@ export default class SarvamSpeechService {
     const langMap = {
       'en-US': 'English (US)',
       'hi-IN': 'Hindi',
-      'te-IN': 'Telugu',
       'ta-IN': 'Tamil',
-      'kn-IN': 'Kannada',
-      'mr-IN': 'Marathi',
-      'bn-IN': 'Bengali',
-      'gu-IN': 'Gujarati',
+      'te-IN': 'Telugu',
       'ml-IN': 'Malayalam',
-      'pa-IN': 'Punjabi'
+      'kn-IN': 'Kannada',
     };
     return langMap[langCode] || langCode;
   }
 
-  // Map UI language code to Sarvam API language code
+  // Map UI language code to Sarvam API / backend language code. Scoped to
+  // the 6 languages the app supports end-to-end (English + 5 Indian
+  // languages) - keep in sync with the web app's LANGUAGE_OPTIONS.
   getSarvamLanguageCode(uiLangCode) {
-    // Language mapping from UI codes to Sarvam API codes
     const langMap = {
       'en-US': 'en',
       'hi-IN': 'hi',
-      'te-IN': 'te',
       'ta-IN': 'ta',
-      'kn-IN': 'kn',
-      'mr-IN': 'mr',
-      'bn-IN': 'bn',
-      'gu-IN': 'gu',
+      'te-IN': 'te',
       'ml-IN': 'ml',
-      'pa-IN': 'pa'
+      'kn-IN': 'kn',
     };
 
     const result = langMap[uiLangCode] || 'en';
@@ -296,20 +291,10 @@ export default class SarvamSpeechService {
       console.log('✅ Sarvam API response:', result);
 
       // Success case handling
-      if (result.success) {
-        // Display the original transcription in the selected language
-        if (result.transcription && this.callbacks.onResult) {
-          console.log(`🎯 Setting transcription result to: "${result.transcription}" (language: ${langCode})`);
-          this.callbacks.onResult({ value: [result.transcription] });
-        }
-
-        // If there's a translation to English, log it to console
-        if (result.translation) {
-          console.log('🌐 English translation:', result.translation);
-
-          if (this.callbacks.onTranslation) {
-            this.callbacks.onTranslation(result.translation);
-          }
+      if (result.success && result.transcript) {
+        console.log(`🎯 Setting transcription result to: "${result.transcript}" (language: ${langCode})`);
+        if (this.callbacks.onResult) {
+          this.callbacks.onResult({ value: [result.transcript] });
         }
       } else {
         throw new Error(result.message || 'Transcription failed');
@@ -352,51 +337,4 @@ export default class SarvamSpeechService {
     }
   }
 
-  provideFallbackResult(lang) {
-    console.log('⚠️ Using fallback text for language:', lang);
-
-    // Demo phrases in different languages with the new fallback message
-    const demoTexts = {
-      'en-US': 'There is a major issue in my vicinity.',
-      'hi-IN': 'मेरे आस-पास एक बड़ी समस्या है।',
-      'te-IN': 'నా సమీపంలో ఒక ప్రధాన సమస్య ఉంది.',
-      'ta-IN': 'என் அருகில் ஒரு பெரிய பிரச்சனை உள்ளது.',
-      'kn-IN': 'ನನ್ನ ಸುತ್ತಮುತ್ತ ಒಂದು ಪ್ರಮುಖ ಸಮಸ್ಯೆ ಇದೆ.',
-      'mr-IN': 'माझ्या आसपास एक मोठी समस्या आहे.',
-      'bn-IN': 'আমার আশেপাশে একটি বড় সমস্যা আছে।',
-      'gu-IN': 'મારી આસપાસ એક મોટી સમસ્યા છે.',
-      'ml-IN': 'എന്റെ സമീപത്ത് ഒരു പ്രധാന പ്രശ്നമുണ്ട്.',
-      'pa-IN': 'ਮੇਰੇ ਆਸ ਪਾਸ ਇੱਕ ਵੱਡੀ ਸਮੱਸਿਆ ਹੈ।'
-    };
-
-    const demoTranslations = {
-      'en-US': 'There is a major issue in my vicinity.',
-      'hi-IN': 'There is a major issue in my vicinity.',
-      'te-IN': 'There is a major issue in my vicinity.',
-      'ta-IN': 'There is a major issue in my vicinity.',
-      'kn-IN': 'There is a major issue in my vicinity.',
-      'mr-IN': 'There is a major issue in my vicinity.',
-      'bn-IN': 'There is a major issue in my vicinity.',
-      'gu-IN': 'There is a major issue in my vicinity.',
-      'ml-IN': 'There is a major issue in my vicinity.',
-      'pa-IN': 'There is a major issue in my vicinity.'
-    };
-
-    // Get the demo text for the selected language or fall back to English
-    const text = demoTexts[lang] || demoTexts['en-US'];
-    const translation = demoTranslations[lang] || demoTranslations['en-US'];
-
-    // Call onResult callback with the demo text
-    if (this.callbacks.onResult) {
-      this.callbacks.onResult({ value: [text] });
-    }
-
-    // Also provide the translation to English
-    if (this.callbacks.onTranslation) {
-      this.callbacks.onTranslation(translation);
-    }
-
-    console.log(`📝 Fallback text: "${text}"`);
-    console.log(`🌐 Fallback translation: "${translation}"`);
-  }
 }

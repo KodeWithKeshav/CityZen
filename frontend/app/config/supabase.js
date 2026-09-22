@@ -96,6 +96,10 @@ export const apiClient = {
   admin: {
     dashboard: `${API_BASE_URL}/api/admin/dashboard`,
   },
+  // Chatbot endpoint (mirrors the web app's apiClient.chatbot namespace)
+  chatbot: {
+    message: `${API_BASE_URL}/api/chatbot/message`,
+  },
   // Heatmap endpoints
   heatMap: {
     data: `${API_BASE_URL}/api/heat-map/data`,

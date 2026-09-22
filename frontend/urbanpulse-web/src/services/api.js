@@ -63,6 +63,10 @@ export const apiClient = {
     message: `${API_BASE_URL}/api/chatbot/message`,
   },
 
+  transcribe: {
+    audio: `${API_BASE_URL}/api/transcribe/audio`,
+  },
+
   transparency: {
     data: `${API_BASE_URL}/api/transparency/dashboard`,
   },
