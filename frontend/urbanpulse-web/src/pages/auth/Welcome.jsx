@@ -1,27 +1,36 @@
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import {
   HiUserGroup, HiShieldCheck, HiSparkles, HiLocationMarker,
   HiGlobeAlt, HiChartBar, HiThumbUp, HiMap
 } from 'react-icons/hi'
-
-const features = [
-  { icon: HiSparkles, title: 'AI-POWERED VALIDATION', desc: 'Machine learning verifies civic issues with Roboflow image analysis before submission.' },
-  { icon: HiLocationMarker, title: 'LOCATION PRIORITY', desc: 'Google Places API ranks complaints by proximity to critical civic infrastructure.' },
-  { icon: HiGlobeAlt, title: 'MULTILINGUAL SUPPORT', desc: 'Submit voice complaints in Hindi, Tamil, Telugu and 7+ Indian languages via Sarvam AI.' },
-  { icon: HiChartBar, title: 'TRANSPARENCY METRICS', desc: 'Live dashboards show resolution rates, category trends, and government responsiveness.' },
-  { icon: HiThumbUp, title: 'COMMUNITY VOTING', desc: 'Citizens upvote complaints to push critical issues to the admin priority queue.' },
-  { icon: HiMap, title: 'HEAT MAP INTELLIGENCE', desc: 'Geographic complaint clusters help authorities identify systemic problem zones.' },
-]
-
-const stats = [
-  { value: '10+', label: 'LANGUAGES' },
-  { value: '5', label: 'AI SERVICES' },
-  { value: '3-STAGE', label: 'WORKFLOW' },
-  { value: '100%', label: 'OPEN SOURCE' },
-]
+import LanguageSwitcher from '../../components/LanguageSwitcher'
 
 export default function Welcome() {
   const navigate = useNavigate()
+  const { t } = useTranslation('auth')
+
+  const features = [
+    { icon: HiSparkles, title: t('welcome.features.aiValidation.title'), desc: t('welcome.features.aiValidation.desc') },
+    { icon: HiLocationMarker, title: t('welcome.features.locationPriority.title'), desc: t('welcome.features.locationPriority.desc') },
+    { icon: HiGlobeAlt, title: t('welcome.features.multilingual.title'), desc: t('welcome.features.multilingual.desc') },
+    { icon: HiChartBar, title: t('welcome.features.transparency.title'), desc: t('welcome.features.transparency.desc') },
+    { icon: HiThumbUp, title: t('welcome.features.voting.title'), desc: t('welcome.features.voting.desc') },
+    { icon: HiMap, title: t('welcome.features.heatMap.title'), desc: t('welcome.features.heatMap.desc') },
+  ]
+
+  const stats = [
+    { value: '6', label: t('welcome.stats.languages') },
+    { value: '5', label: t('welcome.stats.aiServices') },
+    { value: '3-STAGE', label: t('welcome.stats.workflow') },
+    { value: '100%', label: t('welcome.stats.openSource') },
+  ]
+
+  const steps = [
+    { step: '01', title: t('welcome.howItWorks.report.title'), desc: t('welcome.howItWorks.report.desc') },
+    { step: '02', title: t('welcome.howItWorks.track.title'), desc: t('welcome.howItWorks.track.desc') },
+    { step: '03', title: t('welcome.howItWorks.resolve.title'), desc: t('welcome.howItWorks.resolve.desc') },
+  ]
 
   return (
     <div className="min-h-screen bg-surface-bright grid-bg">
@@ -30,21 +39,22 @@ export default function Welcome() {
         <div className="max-w-container mx-auto px-margin-lg py-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <img src="/logo.png" alt="CityZen" className="w-7 h-7 object-contain" />
-            <span className="font-epilogue text-xl font-bold tracking-tight text-on-surface">CITYZEN</span>
-            <span className="text-label-sm text-primary-400 border border-black/10 px-2 py-1">v1.0</span>
+            <span className="font-epilogue text-xl font-bold tracking-tight text-on-surface">{t('welcome.brand')}</span>
+            <span className="text-label-sm text-primary-400 border border-black/10 px-2 py-1">{t('welcome.version')}</span>
           </div>
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
             <button
               onClick={() => navigate('/login')}
               className="text-sm text-on-surface-variant hover:text-on-surface transition-colors px-4 py-2 border border-transparent hover:border-black/10"
             >
-              Sign In
+              {t('welcome.signIn')}
             </button>
             <button
               onClick={() => navigate('/citizen/signup')}
               className="btn-primary text-xs py-2"
             >
-              GET STARTED →
+              {t('welcome.getStarted')}
             </button>
           </div>
         </div>
@@ -59,13 +69,13 @@ export default function Welcome() {
           </div>
 
           <h1 className="text-display-xl font-epilogue text-on-surface mb-6">
-            CITYZEN
+            {t('welcome.brand')}
           </h1>
 
           <div className="w-16 h-px bg-black/30 mx-auto mb-6" />
 
           <p className="text-body-lg text-on-surface-variant mb-16">
-            Institutional Portal
+            {t('welcome.portalLabel')}
           </p>
 
           {/* Portal Entry Cards */}
@@ -75,12 +85,12 @@ export default function Welcome() {
               className="card text-left hover:bg-surface-container-low transition-colors group p-8"
             >
               <HiUserGroup className="w-8 h-8 text-on-surface mb-6" />
-              <h3 className="font-epilogue text-lg font-semibold text-on-surface mb-2">CITIZEN PORTAL</h3>
+              <h3 className="font-epilogue text-lg font-semibold text-on-surface mb-2">{t('welcome.citizenPortal.title')}</h3>
               <p className="text-sm text-on-surface-variant leading-relaxed">
-                Submit and track civic complaints. Access community feed and transparency data.
+                {t('welcome.citizenPortal.desc')}
               </p>
               <span className="text-label-sm text-primary-400 mt-4 block group-hover:text-on-surface transition-colors">
-                ENTER →
+                {t('welcome.citizenPortal.cta')}
               </span>
             </button>
 
@@ -89,18 +99,18 @@ export default function Welcome() {
               className="card text-left hover:bg-surface-container-low transition-colors group p-8"
             >
               <HiShieldCheck className="w-8 h-8 text-on-surface mb-6" />
-              <h3 className="font-epilogue text-lg font-semibold text-on-surface mb-2">ADMIN ACCESS</h3>
+              <h3 className="font-epilogue text-lg font-semibold text-on-surface mb-2">{t('welcome.adminPortal.title')}</h3>
               <p className="text-sm text-on-surface-variant leading-relaxed">
-                Manage complaints, triage priority queue, and oversee citizen network.
+                {t('welcome.adminPortal.desc')}
               </p>
               <span className="text-label-sm text-primary-400 mt-4 block group-hover:text-on-surface transition-colors">
-                AUTHENTICATE →
+                {t('welcome.adminPortal.cta')}
               </span>
             </button>
           </div>
 
           <p className="text-label-sm text-primary-300 tracking-widest">
-            SYSTEM ARCHITECTURE VALIDATED
+            {t('welcome.systemValidated')}
           </p>
         </div>
       </section>
@@ -122,10 +132,10 @@ export default function Welcome() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-stack-md">
             <h2 className="text-headline-lg font-epilogue text-on-surface mb-4">
-              Built for real civic impact
+              {t('welcome.builtFor.title')}
             </h2>
             <p className="text-body-md text-on-surface-variant max-w-xl mx-auto">
-              Every feature is purpose-built to make citizen reporting faster, smarter, and more transparent.
+              {t('welcome.builtFor.desc')}
             </p>
           </div>
 
@@ -145,15 +155,11 @@ export default function Welcome() {
       <section className="py-stack-lg px-margin-lg border-y border-black/10 bg-white">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-stack-md">
-            <h2 className="text-headline-lg font-epilogue text-on-surface mb-3">How it works</h2>
-            <p className="text-on-surface-variant">Three steps from problem to resolution</p>
+            <h2 className="text-headline-lg font-epilogue text-on-surface mb-3">{t('welcome.howItWorks.title')}</h2>
+            <p className="text-on-surface-variant">{t('welcome.howItWorks.subtitle')}</p>
           </div>
           <div className="grid sm:grid-cols-3 gap-gutter">
-            {[
-              { step: '01', title: 'REPORT', desc: 'Snap a photo, add a description, and let AI validate your complaint. Location-based priority is calculated automatically.' },
-              { step: '02', title: 'TRACK', desc: 'Watch your complaint move through a 3-stage workflow. Upvote other complaints to push critical issues higher.' },
-              { step: '03', title: 'RESOLVE', desc: 'Officials respond, officers are assigned, and you get real-time updates. Rating and feedback close the loop.' },
-            ].map(s => (
+            {steps.map(s => (
               <div key={s.step} className="text-center">
                 <div className="w-12 h-12 border border-black/15 flex items-center justify-center mx-auto mb-4 text-label-sm text-on-surface">
                   {s.step}
@@ -168,22 +174,22 @@ export default function Welcome() {
 
       {/* ─── CTA ─── */}
       <section className="py-stack-lg px-margin-lg text-center">
-        <h2 className="text-headline-lg font-epilogue text-on-surface mb-4">Ready to make a difference?</h2>
+        <h2 className="text-headline-lg font-epilogue text-on-surface mb-4">{t('welcome.cta.title')}</h2>
         <p className="text-on-surface-variant text-body-md mb-10 max-w-xl mx-auto">
-          Join thousands of citizens already using CityZen to improve their city.
+          {t('welcome.cta.desc')}
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
             onClick={() => navigate('/citizen/signup')}
             className="btn-primary px-8 py-4 text-sm"
           >
-            GET STARTED — IT'S FREE →
+            {t('welcome.cta.getStarted')}
           </button>
           <button
             onClick={() => navigate('/login')}
             className="btn-secondary px-8 py-4 text-sm"
           >
-            SIGN IN
+            {t('welcome.cta.signIn')}
           </button>
         </div>
       </section>
@@ -191,7 +197,7 @@ export default function Welcome() {
       {/* ─── Footer ─── */}
       <footer className="border-t border-black/10 py-8 px-margin-lg text-center bg-white">
         <p className="text-label-sm text-primary-300 tracking-wider">
-          © 2026 CITYZEN · BUILT FOR BETTER CITIES · POWERED BY SUPABASE, ROBOFLOW, SARVAM AI & HUGGINGFACE
+          {t('welcome.footer')}
         </p>
       </footer>
     </div>
