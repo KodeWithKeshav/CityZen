@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import { useTranslation } from 'react-i18next';
 import { API_BASE_URL, makeApiCall, apiClient } from '../../../config/supabase';
 import { supabase } from '../../../config/supabase';
 import LocationPrivacySelector from '../../components/LocationPrivacySelector';
@@ -31,6 +32,7 @@ import { startTiltCapture, stopTiltCapture } from '../../services/DeviceTiltServ
 import { appendFileToFormData } from '../../utils/formDataHelper';
 
 const MultiStepSubmitComplaintScreen = ({ navigation }) => {
+  const { t } = useTranslation('complaint');
 
   // Overall flow state
   const [currentStep, setCurrentStep] = useState(1);
@@ -67,7 +69,6 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [voiceError, setVoiceError] = useState(null);
   const [speechService] = useState(new SarvamSpeechService());
-  const lastTranslationRef = useRef(null);
 
   // Language picker modal state
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
@@ -90,27 +91,23 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     { value: 'te-IN', label: 'Telugu (తెలుగు)', nativeName: 'తెలుగు' },
     { value: 'ta-IN', label: 'Tamil (தமிழ்)', nativeName: 'தமிழ்' },
     { value: 'kn-IN', label: 'Kannada (ಕನ್ನಡ)', nativeName: 'ಕನ್ನಡ' },
-    { value: 'mr-IN', label: 'Marathi (मराठी)', nativeName: 'मराठी' },
-    { value: 'bn-IN', label: 'Bengali (বাংলা)', nativeName: 'বাংলা' },
-    { value: 'gu-IN', label: 'Gujarati (ગુજરાતી)', nativeName: 'ગુજરાતી' },
     { value: 'ml-IN', label: 'Malayalam (മലയാളം)', nativeName: 'മലയാളം' },
-    { value: 'pa-IN', label: 'Punjabi (ਪੰਜਾਬੀ)', nativeName: 'ਪੰਜਾਬੀ' },
   ];
 
   // Complaint categories - kept in sync with the civic issue classes the
   // CityZen SAM3 image workflow can detect and classify.
   const complaintCategories = [
     // Urgent Issues
-    { value: 'fallen_electric_pole', label: 'Fallen Electric Pole / Line', urgency: 'urgent', icon: 'flash-outline' },
-    { value: 'road_waterlogging', label: 'Road Waterlogging', urgency: 'urgent', icon: 'water-outline' },
+    { value: 'fallen_electric_pole', label: t('categories.fallen_electric_pole.label'), urgency: 'urgent', icon: 'flash-outline' },
+    { value: 'road_waterlogging', label: t('categories.road_waterlogging.label'), urgency: 'urgent', icon: 'water-outline' },
 
     // Safety Issues
-    { value: 'concrete_structure_damage', label: 'Concrete Structure Damage', urgency: 'safety', icon: 'construct-outline' },
-    { value: 'fallen_tree', label: 'Fallen Tree', urgency: 'safety', icon: 'leaf-outline' },
+    { value: 'concrete_structure_damage', label: t('categories.concrete_structure_damage.label'), urgency: 'safety', icon: 'construct-outline' },
+    { value: 'fallen_tree', label: t('categories.fallen_tree.label'), urgency: 'safety', icon: 'leaf-outline' },
 
-    { value: 'pothole', label: 'Pothole', urgency: 'general', icon: 'ellipse-outline' },
-    { value: 'garbage_dumping', label: 'Garbage Dumping', urgency: 'general', icon: 'trash-outline' },
-    { value: 'stray_cattle', label: 'Stray Cattle on Road', urgency: 'general', icon: 'paw-outline' },
+    { value: 'pothole', label: t('categories.pothole.label'), urgency: 'general', icon: 'ellipse-outline' },
+    { value: 'garbage_dumping', label: t('categories.garbage_dumping.label'), urgency: 'general', icon: 'trash-outline' },
+    { value: 'stray_cattle', label: t('categories.stray_cattle.label'), urgency: 'general', icon: 'paw-outline' },
   ];
 
   // Memoized category lookup to prevent re-renders
@@ -142,6 +139,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           description: text,
           category: complaintData.category || '',
           imagePrimaryClass: complaintData.imageValidation?.primaryClass || null,
+          language: speechService.getSarvamLanguageCode(complaintData.selectedLang),
         }),
       });
 
@@ -169,7 +167,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       console.error('❌ Description content analysis failed:', error);
       console.error('❌ Error details:', error.message);
     }
-  }, [complaintData.category, complaintData.imageValidation]);
+  }, [complaintData.category, complaintData.imageValidation, complaintData.selectedLang]);
 
   const handleDescriptionChange = useCallback((text) => {
     setComplaintData(prev => ({ ...prev, description: text }));
@@ -353,13 +351,6 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
           // Use handleDescriptionChange to ensure emotion analysis is triggered
           handleDescriptionChange(voiceText);
-        }
-      },
-      onTranslation: (translation) => {
-        console.log('Translation received:', translation);
-        if (translation && translation.trim().length > 0) {
-          lastTranslationRef.current = translation;
-          console.log('🌐 Stored English translation for emotion analysis:', translation);
         }
       },
       onError: (error) => {
@@ -1002,6 +993,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           title: complaintData.title.trim(),
           description: complaintData.description.trim(),
           category: complaintData.category,
+          language: speechService.getSarvamLanguageCode(complaintData.selectedLang),
           locationData: {
             latitude: complaintData.locationData.latitude,
             longitude: complaintData.locationData.longitude,
@@ -1126,11 +1118,10 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         return;
       }
 
-      // Hard block - the backend no longer accepts a flagged description at
-      // all, so there is no "continue anyway" path here. The only ways
-      // forward are editing the description (re-triggers analysis) or
-      // switching to the suggested category above.
-      if (complaintData.contentAnalysis?.flagged) {
+      // Hard block only for near-certain spam/gibberish/off-topic content -
+      // a moderately low (but not hardBlocked) authenticity score is still
+      // submittable and gets queued for admin review instead.
+      if (complaintData.contentAnalysis?.hardBlocked) {
         Alert.alert(
           'Description Does Not Match the Issue',
           'This description does not appear to match the selected issue type. Please edit the description, or use the suggested category button above, before submitting.'
@@ -1195,11 +1186,11 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
           {/* Title Input - Custom Component */}
           <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>Complaint Title *</Text>
+            <Text style={styles.inputLabel}>{t('form.titleLabel')}</Text>
             <CustomTextInput
               value={complaintData.title}
               onChangeText={handleTitleChange}
-              placeholder="Brief title describing the issue"
+              placeholder={t('form.titlePlaceholder')}
               maxLength={100}
               multiline={false}
               style={styles.customInputContainer}
@@ -1207,8 +1198,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             <Text style={styles.characterCount}>{complaintData.title.length}/100</Text>
           </View>
 
-          {/* Language Picker for Voice Input - Temporarily hidden */}
-          {/*
+          {/* Language Picker for Voice Input */}
           <View style={styles.inputSection}>
             <Text style={styles.inputLabel}>Select Language for Voice Input</Text>
             <TouchableOpacity
@@ -1234,24 +1224,22 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               Voice input will be processed in the selected language
             </Text>
           </View>
-          */}
 
           {/* Description Input - Custom Component */}
           <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>Description *</Text>
+            <Text style={styles.inputLabel}>{t('form.descriptionLabel')}</Text>
             <View style={styles.descriptionWrapper}>
               <CustomTextInput
                 value={complaintData.description}
                 onChangeText={handleDescriptionChange}
-                placeholder="Detailed description of the civic issue"
+                placeholder={t('form.descriptionPlaceholder')}
                 maxLength={500}
                 multiline={true}
                 style={styles.customInputContainer}
               />
             </View>
 
-            {/* Voice Button - Temporarily hidden */}
-            {/*
+            {/* Voice Button */}
             <View style={styles.voiceButtonContainer}>
               <TouchableOpacity
                 style={styles.voiceButtonEnhanced}
@@ -1267,11 +1255,10 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                   styles.voiceButtonText,
                   isRecording && styles.voiceButtonTextActive
                 ]}>
-                  {isRecording ? 'Stop Recording' : 'Voice Input'}
+                  {isRecording ? t('form.recording') : t('form.voiceDictate')}
                 </Text>
               </TouchableOpacity>
             </View>
-            */}
 
             <Text style={styles.characterCount}>{complaintData.description.length}/500</Text>
 
@@ -1322,18 +1309,18 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             {complaintData.contentAnalysis && (complaintData.contentAnalysis.mismatchDetected || complaintData.contentAnalysis.flagged) && (
               <View style={[
                 styles.authenticityWarningContainer,
-                complaintData.contentAnalysis.flagged && styles.authenticityWarningContainerFlagged
+                complaintData.contentAnalysis.hardBlocked && styles.authenticityWarningContainerFlagged
               ]}>
                 <View style={styles.authenticityWarningHeader}>
                   <Ionicons
-                    name={complaintData.contentAnalysis.flagged ? 'alert-circle' : 'information-circle-outline'}
+                    name={complaintData.contentAnalysis.hardBlocked ? 'alert-circle' : 'information-circle-outline'}
                     size={20}
-                    color={complaintData.contentAnalysis.flagged ? '#C62828' : '#B26A00'}
+                    color={complaintData.contentAnalysis.hardBlocked ? '#C62828' : '#B26A00'}
                   />
                   <Text style={styles.authenticityWarningTitle}>
-                    {complaintData.contentAnalysis.flagged
-                      ? 'This description may not match the photo'
-                      : 'Description may not fully match the issue type'}
+                    {complaintData.contentAnalysis.hardBlocked
+                      ? t('authenticity.mismatchTitle')
+                      : t('authenticity.advisoryTitle')}
                   </Text>
                 </View>
 
@@ -1379,17 +1366,20 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                   </TouchableOpacity>
                 )}
 
-                {complaintData.contentAnalysis.flagged && (
+                {complaintData.contentAnalysis.hardBlocked ? (
                   <Text style={styles.authenticityBlockedText}>
-                    This description must be edited or the category switched above before you can submit — it can't be submitted as-is.
+                    {t('authenticity.mustFix')}
                   </Text>
-                )}
+                ) : complaintData.contentAnalysis.flagged ? (
+                  <Text style={styles.authenticityBlockedText}>
+                    {t('authenticity.canStillSubmit')}
+                  </Text>
+                ) : null}
               </View>
             )}
           </View>
 
-          {/* Voice recording indicators - Temporarily hidden */}
-          {/*
+          {/* Voice recording indicators */}
           {voiceError && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{voiceError}</Text>
@@ -1402,7 +1392,6 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               <Text style={styles.recordingText}>Recording... Speak clearly</Text>
             </View>
           )}
-          */}
 
           {/* Navigation Buttons */}
           <View style={styles.navigationButtons}>
@@ -1417,15 +1406,15 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             <TouchableOpacity
               style={[
                 styles.submitButton,
-                (loading || !complaintData.title.trim() || !complaintData.description.trim() || complaintData.contentAnalysis?.flagged) && styles.submitButtonDisabled
+                (loading || !complaintData.title.trim() || !complaintData.description.trim() || complaintData.contentAnalysis?.hardBlocked) && styles.submitButtonDisabled
               ]}
               onPress={handleFinalSubmit}
-              disabled={loading || !complaintData.title.trim() || !complaintData.description.trim() || complaintData.contentAnalysis?.flagged}
+              disabled={loading || !complaintData.title.trim() || !complaintData.description.trim() || complaintData.contentAnalysis?.hardBlocked}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.submitButtonText}>Submit Report</Text>
+                <Text style={styles.submitButtonText}>{t('actions.submit')}</Text>
               )}
             </TouchableOpacity>
           </View>
