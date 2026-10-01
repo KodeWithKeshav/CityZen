@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
 import {
@@ -14,34 +15,47 @@ import {
   HiShieldCheck
 } from 'react-icons/hi'
 
-const ISSUE_TYPES = [
-  { value: 'pothole', label: 'POTHOLE', desc: 'Asphalt rupture, crater, or severe road decay' },
-  { value: 'fallen_tree', label: 'FALLEN TREE', desc: 'Foliage or timber obstructing thoroughfare' },
-  { value: 'garbage_dumping', label: 'GARBAGE DUMPING', desc: 'Illegal municipal or commercial waste deposit' },
-  { value: 'stray_cattle', label: 'STRAY CATTLE', desc: 'Livestock impeding transit or vehicular corridors' },
-  { value: 'fallen_electric_pole', label: 'FALLEN ELECTRIC POLE', desc: 'Damaged pole, exposed wiring, or transformer failure' },
-  { value: 'concrete_structure_damage', label: 'STRUCTURAL DAMAGE', desc: 'Fissures, bridge wear, or pavement subsidence' },
-  { value: 'road_waterlogging', label: 'ROAD WATERLOGGING', desc: 'Stagnant monsoon or burst main runoff' },
+// Category/privacy/step/language keys - kept as a stable module-level list;
+// their display label/desc come from the `complaint` i18n namespace so they
+// render in the citizen's selected language (see ISSUE_TYPES/PRIVACY_LEVELS/
+// STEPS/LANGUAGE_OPTIONS built from these inside the component below).
+const ISSUE_TYPE_KEYS = [
+  'pothole', 'fallen_tree', 'garbage_dumping', 'stray_cattle',
+  'fallen_electric_pole', 'concrete_structure_damage', 'road_waterlogging',
 ]
 
-const PRIVACY_LEVELS = [
-  { value: 'exact', label: 'EXACT GPS', desc: '±5–10m survey coordinate precision' },
-  { value: 'street', label: 'STREET LEVEL', desc: '±25m corridor precision' },
-  { value: 'area', label: 'NEIGHBORHOOD', desc: '±150m ward radius approximation' },
-]
+const PRIVACY_LEVEL_KEYS = ['exact', 'street', 'area']
 
-const STEPS = [
-  { id: '01', title: 'CLASSIFICATION' },
-  { id: '02', title: 'EVIDENCE' },
-  { id: '03', title: 'NARRATIVE' },
-  { id: '04', title: 'GEODATA' },
-  { id: '05', title: 'AUDIT & SUBMIT' },
-]
+const STEP_KEYS = ['classification', 'evidence', 'narrative', 'geodata', 'auditSubmit']
 
 const DESCRIPTION_MIN_LENGTH_FOR_ANALYSIS = 15
 
+// The 6 languages supported end-to-end (UI rendering + speech-to-text).
+// Keep this list identical to the Expo app's languageOptions.
+const LANGUAGE_KEYS = ['en', 'hi', 'ta', 'te', 'ml', 'kn']
+
 export default function SubmitComplaint() {
+  const { t } = useTranslation('complaint')
   const navigate = useNavigate()
+
+  const ISSUE_TYPES = ISSUE_TYPE_KEYS.map(value => ({
+    value,
+    label: t(`categories.${value}.label`),
+    desc: t(`categories.${value}.desc`),
+  }))
+  const PRIVACY_LEVELS = PRIVACY_LEVEL_KEYS.map(value => ({
+    value,
+    label: t(`privacyLevels.${value}.label`),
+    desc: t(`privacyLevels.${value}.desc`),
+  }))
+  const STEPS = STEP_KEYS.map((key, i) => ({
+    id: String(i + 1).padStart(2, '0'),
+    title: t(`steps.${key}`),
+  }))
+  const LANGUAGE_OPTIONS = LANGUAGE_KEYS.map(value => ({
+    value,
+    label: t(`languages.${value}`),
+  }))
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
   const [locLoading, setLocLoading] = useState(false)
@@ -54,6 +68,7 @@ export default function SubmitComplaint() {
     imageUrl: '',
     aiConfidence: null,
     imagePrimaryClass: null,
+    language: 'en',
   })
 
   const setField = (field, val) => setForm(p => ({ ...p, [field]: val }))
@@ -67,6 +82,10 @@ export default function SubmitComplaint() {
 
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
+  const mediaStreamRef = useRef(null)
 
   // Text authenticity/correctness analysis
   const [contentAnalysis, setContentAnalysis] = useState(null)
@@ -157,6 +176,7 @@ export default function SubmitComplaint() {
             description: form.description,
             category: form.issueType,
             imagePrimaryClass: form.imagePrimaryClass,
+            language: form.language,
           }),
         })
         setContentAnalysis(result.authenticity)
@@ -168,7 +188,7 @@ export default function SubmitComplaint() {
     }, 800)
 
     return () => { if (analysisTimer.current) clearTimeout(analysisTimer.current) }
-  }, [form.description, form.issueType, step, form.imagePrimaryClass])
+  }, [form.description, form.issueType, step, form.imagePrimaryClass, form.language])
 
   const applySuggestedCategory = () => {
     if (!contentAnalysis?.suggestedCategory) return
@@ -177,52 +197,78 @@ export default function SubmitComplaint() {
     toast('Switched classification. Review evidence and description.', { icon: 'ℹ️' })
   }
 
-  // Voice dictation using Web Speech API (parity with React Native Sarvam Speech)
-  const handleVoiceInput = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SpeechRecognition) {
-      toast.error('Voice dictation is not supported by your browser.')
+  // Voice dictation via the backend's multilingual Sarvam speech-to-text
+  // endpoint (same backend the Expo app uses) — records with MediaRecorder,
+  // uploads the clip, and appends the returned transcript to the
+  // description. Click once to start, click again to stop and transcribe.
+  const stopMediaStream = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop())
+      mediaStreamRef.current = null
+    }
+  }
+
+  const handleVoiceInput = async () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop()
       return
     }
 
-    if (isRecording) {
-      setIsRecording(false)
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error(t('voice.notSupported'))
       return
     }
 
     try {
-      const recognition = new SpeechRecognition()
-      recognition.continuous = false
-      recognition.interimResults = false
-      recognition.lang = 'en-IN'
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaStreamRef.current = stream
 
-      recognition.onstart = () => {
-        setIsRecording(true)
-        toast('Listening for voice dictation...', { icon: '🎙️' })
+      const recorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = recorder
+      audioChunksRef.current = []
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
       }
 
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript
-        if (transcript) {
-          setField('description', form.description ? `${form.description} ${transcript}` : transcript)
-          toast.success('Voice transcription appended')
+      recorder.onstop = async () => {
+        stopMediaStream()
+        setIsRecording(false)
+        setTranscribing(true)
+
+        try {
+          const audioBlob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+          const formData = new FormData()
+          formData.append('audio', audioBlob, 'recording.webm')
+          formData.append('language', form.language)
+
+          const response = await fetch(apiClient.transcribe.audio, {
+            method: 'POST',
+            body: formData,
+          })
+          const result = await response.json()
+
+          if (response.ok && result.success && result.transcript) {
+            setField('description', form.description ? `${form.description} ${result.transcript}` : result.transcript)
+            toast.success(t('voice.appended'))
+          } else {
+            toast.error(result.message || t('voice.failed'))
+          }
+        } catch (err) {
+          console.error('Transcription upload failed:', err)
+          toast.error(t('voice.uploadError'))
+        } finally {
+          setTranscribing(false)
         }
       }
 
-      recognition.onerror = (event) => {
-        console.error('Speech error', event.error)
-        setIsRecording(false)
-        toast.error(`Voice error: ${event.error}`)
-      }
-
-      recognition.onend = () => {
-        setIsRecording(false)
-      }
-
-      recognition.start()
+      recorder.start()
+      setIsRecording(true)
+      toast(t('voice.listening'), { icon: '🎙️' })
     } catch (e) {
+      console.error('Microphone access failed:', e)
+      toast.error(t('voice.micError'))
       setIsRecording(false)
-      toast.error('Could not activate microphone')
     }
   }
 
@@ -265,6 +311,7 @@ export default function SubmitComplaint() {
         description: form.description,
         category: form.issueType,
         complaintTitle: form.title,
+        language: form.language,
         imageUrl: form.imageUrl || undefined,
         locationData: {
           latitude: parseFloat(form.location.latitude),
@@ -301,7 +348,7 @@ export default function SubmitComplaint() {
     if (step === 1) return imageValidated || photoSkipped
     if (step === 2) {
       if (form.title.length < 3 || form.description.length < 10) return false
-      if (contentAnalysis?.flagged) return false
+      if (contentAnalysis?.hardBlocked) return false
       return true
     }
     if (step === 3) return !!(form.location.latitude && form.location.longitude)
@@ -328,7 +375,7 @@ export default function SubmitComplaint() {
           </p>
         </div>
         <div className="font-mono text-xs text-neutral-500">
-          STEP <span className="text-black font-bold">{step + 1}</span> OF {STEPS.length}
+          {t('steps.stepOf', { current: step + 1, total: STEPS.length })}
         </div>
       </div>
 
@@ -526,12 +573,12 @@ export default function SubmitComplaint() {
             <div className="space-y-4">
               <div>
                 <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700 mb-1">
-                  INCIDENT TITLE *
+                  {t('form.titleLabel')}
                 </label>
                 <input
                   value={form.title}
                   onChange={e => setField('title', e.target.value)}
-                  placeholder="e.g. Deep crater near pedestrian crosswalk on Anna Salai"
+                  placeholder={t('form.titlePlaceholder')}
                   className="w-full px-3 py-2 border border-neutral-300 rounded-none text-sm font-sans focus:outline-none focus:border-black"
                   maxLength={100}
                 />
@@ -540,48 +587,58 @@ export default function SubmitComplaint() {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700">
-                    DESCRIPTION NARRATIVE *
+                    {t('form.descriptionLabel')}
                   </label>
-                  {/* Voice dictation temporarily disabled */}
-                  {/*
-                  <button
-                    type="button"
-                    onClick={handleVoiceInput}
-                    className={`font-mono text-xs px-2.5 py-1 border flex items-center gap-1.5 transition-colors ${
-                      isRecording
-                        ? 'bg-rose-600 text-white border-rose-700 animate-pulse'
-                        : 'border-neutral-300 text-neutral-700 hover:border-black'
-                    }`}
-                  >
-                    <HiMicrophone className="w-3.5 h-3.5" />
-                    <span>{isRecording ? 'RECORDING... (STOP)' : 'VOICE DICTATE'}</span>
-                  </button>
-                  */}
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={form.language}
+                      onChange={e => setField('language', e.target.value)}
+                      disabled={isRecording || transcribing}
+                      className="font-mono text-xs px-2 py-1 border border-neutral-300 text-neutral-700 focus:outline-none focus:border-black"
+                    >
+                      {LANGUAGE_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleVoiceInput}
+                      disabled={transcribing}
+                      className={`font-mono text-xs px-2.5 py-1 border flex items-center gap-1.5 transition-colors disabled:opacity-50 ${
+                        isRecording
+                          ? 'bg-rose-600 text-white border-rose-700 animate-pulse'
+                          : 'border-neutral-300 text-neutral-700 hover:border-black'
+                      }`}
+                    >
+                      <HiMicrophone className="w-3.5 h-3.5" />
+                      <span>{isRecording ? t('form.recording') : transcribing ? t('form.transcribing') : t('form.voiceDictate')}</span>
+                    </button>
+                  </div>
                 </div>
                 <textarea
                   value={form.description}
                   onChange={e => setField('description', e.target.value)}
-                  placeholder="Detail the circumstances, exact location clues, hazard factors, and immediate risks (min 10 chars)..."
+                  placeholder={t('form.descriptionPlaceholder')}
                   className="w-full px-3 py-2 border border-neutral-300 rounded-none text-sm font-sans focus:outline-none focus:border-black h-32 resize-none"
                   maxLength={1000}
                 />
                 <div className="flex items-center justify-between mt-1 text-[11px] font-mono text-neutral-400">
-                  <span>{analyzingText ? 'Analyzing narrative authenticity...' : 'Natural language semantic parsing active'}</span>
-                  <span>{form.description.length}/1000 CHARS</span>
+                  <span>{analyzingText ? t('form.analyzing') : t('form.semanticParsingActive')}</span>
+                  <span>{t('form.charsCount', { count: form.description.length })}</span>
                 </div>
               </div>
 
               {contentAnalysis && (contentAnalysis.mismatchDetected || contentAnalysis.flagged) && (
-                <div className={`p-4 border ${contentAnalysis.flagged ? 'bg-rose-50 border-rose-300 text-rose-900' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
+                <div className={`p-4 border ${contentAnalysis.hardBlocked ? 'bg-rose-50 border-rose-300 text-rose-900' : 'bg-amber-50 border-amber-300 text-amber-900'}`}>
                   <div className="flex items-start gap-2">
-                    {contentAnalysis.flagged ? (
+                    {contentAnalysis.hardBlocked ? (
                       <HiXCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-rose-700" />
                     ) : (
                       <HiExclamation className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-700" />
                     )}
                     <div>
                       <h4 className="font-mono text-xs font-bold uppercase tracking-wider">
-                        {contentAnalysis.flagged ? 'Semantic Inconsistency Detected' : 'Classification Advisory'}
+                        {contentAnalysis.hardBlocked ? t('authenticity.mismatchTitle') : t('authenticity.advisoryTitle')}
                       </h4>
                       {contentAnalysis.reasons?.map((r, i) => (
                         <p key={i} className="text-xs font-sans mt-0.5">{r}</p>
@@ -592,8 +649,13 @@ export default function SubmitComplaint() {
                           onClick={applySuggestedCategory}
                           className="mt-2 font-mono text-xs font-bold underline uppercase tracking-wider block"
                         >
-                          Reassign category to {contentAnalysis.suggestedCategory.replace(/_/g, ' ')} →
+                          {t('authenticity.reassignTo', { category: contentAnalysis.suggestedCategory.replace(/_/g, ' ') })}
                         </button>
+                      )}
+                      {contentAnalysis.flagged && !contentAnalysis.hardBlocked && (
+                        <p className="text-xs font-sans mt-1 italic">
+                          {t('authenticity.canStillSubmit')}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -602,17 +664,17 @@ export default function SubmitComplaint() {
 
               <div>
                 <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700 mb-1">
-                  ESTIMATED SEVERITY TIER
+                  {t('form.severityLabel')}
                 </label>
                 <select
                   value={form.priority}
                   onChange={e => setField('priority', e.target.value)}
                   className="w-full px-3 py-2 border border-neutral-300 rounded-none text-xs font-mono uppercase bg-white focus:outline-none focus:border-black"
                 >
-                  <option value="low">LOW — COSMETIC OR NON-BLOCKING</option>
-                  <option value="medium">MEDIUM — STANDARD DISPATCH PROTOCOL</option>
-                  <option value="high">HIGH — POTENTIAL HAZARD OR TRAFFIC OBSTRUCTION</option>
-                  <option value="critical">CRITICAL — DIRECT THREAT TO LIFE OR MAIN CORRIDOR</option>
+                  <option value="low">{t('form.severityLow')}</option>
+                  <option value="medium">{t('form.severityMedium')}</option>
+                  <option value="high">{t('form.severityHigh')}</option>
+                  <option value="critical">{t('form.severityCritical')}</option>
                 </select>
               </div>
             </div>
@@ -793,7 +855,7 @@ export default function SubmitComplaint() {
             className="px-4 py-2 border border-neutral-300 font-mono text-xs uppercase tracking-wider text-neutral-800 hover:border-black flex items-center gap-2"
           >
             <HiArrowLeft className="w-3.5 h-3.5" />
-            <span>PREVIOUS STEP</span>
+            <span>{t('actions.back')}</span>
           </button>
         ) : (
           <div />
@@ -806,7 +868,7 @@ export default function SubmitComplaint() {
             disabled={!canNext()}
             className="px-5 py-2.5 bg-black text-white font-mono text-xs font-bold uppercase tracking-wider hover:bg-neutral-800 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <span>PROCEED TO NEXT</span>
+            <span>{t('actions.next')}</span>
             <HiArrowRight className="w-3.5 h-3.5" />
           </button>
         ) : (
@@ -819,10 +881,10 @@ export default function SubmitComplaint() {
             {loading ? (
               <>
                 <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>TRANSMITTING...</span>
+                <span>{t('actions.submitting')}</span>
               </>
             ) : (
-              <span>TRANSMIT DISPATCH REPORT →</span>
+              <span>{t('actions.submit')}</span>
             )}
           </button>
         )}
