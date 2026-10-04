@@ -15,11 +15,25 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { Audio } from 'expo-av';
 import { makeApiCall, apiClient } from '../../../config/supabase';
+import SarvamSpeechService from '../../services/SarvamSpeechService';
+import i18n from '../../i18n';
 
 const { width, height } = Dimensions.get('window');
 
+// Maps the app's 6 i18n language codes to the UI-style codes
+// SarvamSpeechService expects (see MultiStepSubmitComplaintScreen.js).
+const LANGUAGE_TO_SARVAM_UI_CODE = {
+  en: 'en-US', hi: 'hi-IN', ta: 'ta-IN', te: 'te-IN', ml: 'ml-IN', kn: 'kn-IN',
+};
+
 const CivicChatbotScreen = ({ navigation }) => {
+  const { t } = useTranslation('chatbot');
+  const [speechService] = useState(new SarvamSpeechService());
+  const [isRecording, setIsRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -32,7 +46,7 @@ const CivicChatbotScreen = ({ navigation }) => {
   useEffect(() => {
     const welcomeMessage = {
       id: Date.now().toString(),
-      text: "Hello! I'm your CityZen Assistant. I can help you with:\n\n• How to submit complaints\n• Understanding civic issues\n• App features and navigation\n• Troubleshooting problems\n• Learning about voting and priorities\n\nWhat would you like to know?",
+      text: t('mobile.greeting'),
       isBot: true,
       timestamp: new Date(),
       type: 'welcome'
@@ -56,6 +70,61 @@ const CivicChatbotScreen = ({ navigation }) => {
     }
   }, [messages]);
 
+  // Initialize speech service for voice input into the chat box
+  useEffect(() => {
+    speechService.init({
+      onStart: () => setIsRecording(true),
+      onResult: (result) => {
+        if (result?.value?.length > 0) {
+          const voiceText = result.value[0];
+          setInputText(prev => (prev ? `${prev} ${voiceText}` : voiceText));
+        }
+      },
+      onError: (error) => {
+        setIsRecording(false);
+        setTranscribing(false);
+        Alert.alert(
+          'Speech Recognition Error',
+          error.error?.message || 'There was an error processing your speech. Please try again or type your question.'
+        );
+      },
+      onEnd: () => {
+        setIsRecording(false);
+        setTranscribing(false);
+      },
+    });
+
+    return () => {
+      if (isRecording) speechService.stopSpeech();
+    };
+  }, []);
+
+  const startVoiceInput = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow microphone access to use voice input.');
+        return;
+      }
+      const sarvamUiCode = LANGUAGE_TO_SARVAM_UI_CODE[i18n.language] || 'en-US';
+      await speechService.startSpeech(sarvamUiCode);
+    } catch (err) {
+      setIsRecording(false);
+      Alert.alert('Error', 'Failed to start speech recognition: ' + err.message);
+    }
+  };
+
+  const stopVoiceInput = async () => {
+    try {
+      setTranscribing(true);
+      const sarvamUiCode = LANGUAGE_TO_SARVAM_UI_CODE[i18n.language] || 'en-US';
+      await speechService.processAndStopSpeech(sarvamUiCode);
+    } catch (err) {
+      setIsRecording(false);
+      setTranscribing(false);
+    }
+  };
+
   const sendMessage = async () => {
     if (!inputText.trim()) return;
 
@@ -74,12 +143,13 @@ const CivicChatbotScreen = ({ navigation }) => {
     try {
       // Send message to chatbot API
       const response = await makeApiCall(
-        `${apiClient.baseUrl}/api/chatbot/message`,
+        apiClient.chatbot.message,
         {
           method: 'POST',
           body: JSON.stringify({
             message: userMessage.text,
-            conversationHistory: messages.slice(-5) // Send last 5 messages for context
+            conversationHistory: messages.slice(-5), // Send last 5 messages for context
+            language: i18n.language,
           })
         }
       );
@@ -276,9 +346,9 @@ const CivicChatbotScreen = ({ navigation }) => {
         <View style={styles.headerContent}>
           <MaterialCommunityIcons name="robot" size={28} color="#fff" />
           <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>CityZen Assistant</Text>
+            <Text style={styles.headerTitle}>{t('mobile.title')}</Text>
             <Text style={styles.headerSubtitle}>
-              {isLoading ? 'Thinking...' : 'Always here to help'}
+              {isLoading ? t('mobile.thinking') : t('mobile.alwaysHereToHelp')}
             </Text>
           </View>
         </View>
@@ -323,10 +393,11 @@ const CivicChatbotScreen = ({ navigation }) => {
         <View style={styles.inputWrapper}>
           <TextInput
             style={styles.textInput}
-            placeholder="Ask me about the app or civic issues..."
+            placeholder={transcribing ? 'Transcribing...' : t('mobile.inputPlaceholder')}
             placeholderTextColor="#999"
             value={inputText}
             onChangeText={setInputText}
+            editable={!transcribing}
             multiline
             maxLength={500}
             returnKeyType="send"
@@ -336,10 +407,28 @@ const CivicChatbotScreen = ({ navigation }) => {
           <TouchableOpacity
             style={[
               styles.sendButton,
+              isRecording ? styles.sendButtonRecording : styles.sendButtonInactive
+            ]}
+            onPress={isRecording ? stopVoiceInput : startVoiceInput}
+            disabled={isLoading || transcribing}
+          >
+            {transcribing ? (
+              <ActivityIndicator size="small" color="#666" />
+            ) : (
+              <Ionicons
+                name={isRecording ? 'mic' : 'mic-outline'}
+                size={20}
+                color={isRecording ? '#fff' : '#666'}
+              />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
               inputText.trim() ? styles.sendButtonActive : styles.sendButtonInactive
             ]}
             onPress={sendMessage}
-            disabled={!inputText.trim() || isLoading}
+            disabled={!inputText.trim() || isLoading || transcribing}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -605,6 +694,9 @@ const styles = StyleSheet.create({
   },
   sendButtonActive: {
     backgroundColor: '#1A1A1A',
+  },
+  sendButtonRecording: {
+    backgroundColor: '#C62828',
   },
   sendButtonInactive: {
     backgroundColor: '#e9ecef',
