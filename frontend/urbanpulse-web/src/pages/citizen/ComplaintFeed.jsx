@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
 import {
@@ -17,23 +18,9 @@ import {
 import { formatDistanceToNow } from 'date-fns'
 import { getPriorityTier } from '../../utils/priorityUtils'
 
-const STATUS_CONFIG = {
-  pending: { label: 'PENDING', bg: 'bg-amber-50 text-amber-800 border-amber-300' },
-  in_progress: { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-800 border-blue-300' },
-  'in-progress': { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-800 border-blue-300' },
-  resolved: { label: 'RESOLVED', bg: 'bg-emerald-50 text-emerald-800 border-emerald-300' },
-  rejected: { label: 'REJECTED', bg: 'bg-rose-50 text-rose-800 border-rose-300' },
-}
-
-const CATEGORIES = [
-  { id: 'all', label: 'ALL CATEGORIES' },
-  { id: 'pothole', label: 'POTHOLE' },
-  { id: 'road_waterlogging', label: 'WATERLOGGING' },
-  { id: 'garbage_dumping', label: 'GARBAGE DUMP' },
-  { id: 'fallen_tree', label: 'FALLEN TREE' },
-  { id: 'fallen_electric_pole', label: 'ELECTRIC POLE' },
-  { id: 'stray_cattle', label: 'STRAY CATTLE' },
-  { id: 'concrete_structure_damage', label: 'STRUCTURAL DAMAGE' },
+const CATEGORY_IDS = [
+  'pothole', 'road_waterlogging', 'garbage_dumping', 'fallen_tree',
+  'fallen_electric_pole', 'stray_cattle', 'concrete_structure_damage',
 ]
 
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
@@ -49,7 +36,16 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
 }
 
 function ComplaintCard({ c, onVote, onDetail }) {
+  const { t } = useTranslation(['citizen', 'admin'])
   const [voting, setVoting] = useState(false)
+
+  const STATUS_CONFIG = {
+    pending: { label: t('admin:status.pending'), bg: 'bg-amber-50 text-amber-800 border-amber-300' },
+    in_progress: { label: t('admin:status.inProgress'), bg: 'bg-blue-50 text-blue-800 border-blue-300' },
+    'in-progress': { label: t('admin:status.inProgress'), bg: 'bg-blue-50 text-blue-800 border-blue-300' },
+    resolved: { label: t('admin:status.resolved'), bg: 'bg-emerald-50 text-emerald-800 border-emerald-300' },
+    rejected: { label: t('admin:status.rejected'), bg: 'bg-rose-50 text-rose-800 border-rose-300' },
+  }
 
   const handleVote = async (e) => {
     e.stopPropagation()
@@ -60,14 +56,14 @@ function ComplaintCard({ c, onVote, onDetail }) {
 
   const time = c.createdAt
     ? formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })
-    : 'Recently'
+    : t('citizen:feed.recently')
 
   const statusInfo = STATUS_CONFIG[c.status] || {
-    label: (c.status || 'PENDING').toUpperCase(),
+    label: (c.status || t('admin:status.pending')).toUpperCase(),
     bg: 'bg-neutral-100 text-neutral-800 border-neutral-300'
   }
 
-  const citizenDisplayName = c.citizenName || c.userName || c.users?.full_name || c.user?.full_name || c.user_name || 'Verified Citizen'
+  const citizenDisplayName = c.citizenName || c.userName || c.users?.full_name || c.user?.full_name || c.user_name || t('citizen:feed.verifiedCitizen')
   const citizenInitial = citizenDisplayName.charAt(0).toUpperCase()
 
   return (
@@ -121,7 +117,7 @@ function ComplaintCard({ c, onVote, onDetail }) {
 
         {/* Title & Description */}
         <h3 className="font-serif font-bold text-neutral-900 text-base leading-snug mb-2 group-hover:underline">
-          {c.title || c.complaintTitle || 'Untitled Civic Incident'}
+          {c.title || c.complaintTitle || t('citizen:feed.untitledIncident')}
         </h3>
         <p className="text-neutral-600 text-sm leading-relaxed line-clamp-3 mb-4 font-sans">
           {c.description}
@@ -153,7 +149,7 @@ function ComplaintCard({ c, onVote, onDetail }) {
             if (pTier.score === null) return null
             return (
               <span className="text-neutral-500 text-[11px] flex items-center gap-1.5">
-                PRIORITY: <span className="text-neutral-900 font-bold">{pTier.displayScore}</span>
+                {t('citizen:feed.priority')} <span className="text-neutral-900 font-bold">{pTier.displayScore}</span>
                 <span className={`px-1.5 py-0.5 text-[9px] uppercase tracking-wider font-semibold ${pTier.badgeClass}`}>
                   {pTier.label}
                 </span>
@@ -173,7 +169,7 @@ function ComplaintCard({ c, onVote, onDetail }) {
             <span className="font-bold">{c.upvotes || c.votes || 0}</span>
           </button>
           <span className="text-neutral-400 group-hover:text-black flex items-center gap-1 text-xs uppercase tracking-wider">
-            Details →
+            {t('citizen:feed.detailsArrow')}
           </span>
         </div>
       </div>
@@ -182,6 +178,11 @@ function ComplaintCard({ c, onVote, onDetail }) {
 }
 
 export default function ComplaintFeed() {
+  const { t } = useTranslation(['citizen', 'complaint', 'admin'])
+  const CATEGORIES = [
+    { id: 'all', label: t('citizen:feed.categoryAll') },
+    ...CATEGORY_IDS.map(id => ({ id, label: t(`complaint:categories.${id}.label`) })),
+  ]
   const [allComplaints, setAllComplaints] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -204,7 +205,7 @@ export default function ComplaintFeed() {
         setAllComplaints(dataArr)
       }
     } catch (err) {
-      toast.error('Failed to load civic feed')
+      toast.error(t('citizen:feed.loadFailed'))
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -277,10 +278,10 @@ export default function ComplaintFeed() {
             }
           })
         )
-        toast.success('Vote recorded')
+        toast.success(t('citizen:feed.voteRecorded'))
       }
     } catch (err) {
-      toast.error(err.message || 'Vote failed')
+      toast.error(err.message || t('citizen:feed.voteFailed'))
     }
   }
 
@@ -340,17 +341,17 @@ export default function ComplaintFeed() {
       <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
-            <span>URBAN AUDIT</span>
+            <span>{t('citizen:feed.breadcrumbAudit')}</span>
             <span>/</span>
-            <span>PUBLIC RECORD</span>
+            <span>{t('citizen:feed.breadcrumbPublic')}</span>
             <span>/</span>
-            <span className="text-black font-semibold">FEED</span>
+            <span className="text-black font-semibold">{t('citizen:feed.breadcrumbFeed')}</span>
           </div>
           <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
-            Civic Incident Ledger
+            {t('citizen:feed.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans max-w-xl">
-            Verified citizen reports, active municipal incidents, and proximity dispatch status.
+            {t('citizen:feed.subtitle')}
           </p>
         </div>
 
@@ -362,13 +363,13 @@ export default function ComplaintFeed() {
             }`}
           >
             <HiNewspaper className="w-4 h-4" />
-            <span>MUNICIPAL BULLETINS</span>
+            <span>{t('citizen:feed.municipalBulletins')}</span>
           </button>
           <button
             onClick={handleRefresh}
             disabled={refreshing}
             className="p-2 border border-neutral-300 hover:border-black transition-colors disabled:opacity-50"
-            title="Refresh Ledger"
+            title={t('citizen:feed.refreshTooltip')}
           >
             <HiRefresh className={`w-4 h-4 text-neutral-800 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
@@ -376,7 +377,7 @@ export default function ComplaintFeed() {
             onClick={() => navigate('/citizen/submit')}
             className="px-4 py-2 bg-black text-white text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-800 transition-colors"
           >
-            + FILE REPORT
+            {t('citizen:feed.fileReport')}
           </button>
         </div>
       </div>
@@ -387,9 +388,9 @@ export default function ComplaintFeed() {
           <div className="flex items-center justify-between mb-3 border-b border-neutral-200 pb-2">
             <span className="font-mono text-xs font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
               <span className="w-2 h-2 bg-neutral-900 inline-block"></span>
-              OFFICIAL CIVIC DISPATCHES & ADVISORIES
+              {t('citizen:feed.bulletinsHeader')}
             </span>
-            <span className="font-mono text-[11px] text-neutral-500">LIVE FEED</span>
+            <span className="font-mono text-[11px] text-neutral-500">{t('citizen:feed.liveFeed')}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {civicNews.map(item => (
@@ -404,7 +405,7 @@ export default function ComplaintFeed() {
                   </h4>
                 </div>
                 <p className="font-mono text-[10px] text-neutral-500 mt-2 border-t border-neutral-100 pt-1">
-                  Issued by: {item.source}
+                  {t('citizen:feed.issuedBy', { source: item.source })}
                 </p>
               </div>
             ))}
@@ -420,7 +421,7 @@ export default function ComplaintFeed() {
             <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
             <input
               type="text"
-              placeholder="Search by keywords, street, or description..."
+              placeholder={t('citizen:feed.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 py-2 border border-neutral-300 text-sm font-sans placeholder-neutral-400 focus:outline-none focus:border-black rounded-none"
@@ -434,11 +435,11 @@ export default function ComplaintFeed() {
               onChange={(e) => setSelectedStatus(e.target.value)}
               className="border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
             >
-              <option value="all">ALL STATUSES</option>
-              <option value="pending">PENDING</option>
-              <option value="in_progress">IN PROGRESS</option>
-              <option value="resolved">RESOLVED</option>
-              <option value="rejected">REJECTED</option>
+              <option value="all">{t('citizen:feed.statusAll')}</option>
+              <option value="pending">{t('admin:status.pending')}</option>
+              <option value="in_progress">{t('admin:status.inProgress')}</option>
+              <option value="resolved">{t('admin:status.resolved')}</option>
+              <option value="rejected">{t('admin:status.rejected')}</option>
             </select>
 
             {/* Radius filter */}
@@ -447,9 +448,9 @@ export default function ComplaintFeed() {
               onChange={(e) => setRadiusFilter(e.target.value)}
               className="border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
             >
-              <option value="3km">RADIUS: 3 KM</option>
-              <option value="10km">RADIUS: 10 KM</option>
-              <option value="all">ANY DISTANCE</option>
+              <option value="3km">{t('citizen:feed.radius3km')}</option>
+              <option value="10km">{t('citizen:feed.radius10km')}</option>
+              <option value="all">{t('citizen:feed.anyDistance')}</option>
             </select>
           </div>
         </div>
@@ -475,16 +476,16 @@ export default function ComplaintFeed() {
       {/* Active filters status & count */}
       <div className="flex items-center justify-between text-xs font-mono text-neutral-500 px-1">
         <span>
-          SHOWING {filteredComplaints.length} INCIDENT{filteredComplaints.length === 1 ? '' : 'S'}
-          {locStatus === 'granted' && radiusFilter !== 'all' ? ` WITHIN ${radiusFilter.toUpperCase()}` : ''}
+          {t('citizen:feed.showingIncidents', { count: filteredComplaints.length, plural: filteredComplaints.length === 1 ? '' : 'S' })}
+          {locStatus === 'granted' && radiusFilter !== 'all' ? t('citizen:feed.withinRadius', { radius: radiusFilter.toUpperCase() }) : ''}
         </span>
         {locStatus === 'granted' ? (
           <span className="text-emerald-700 flex items-center gap-1">
             <span className="w-1.5 h-1.5 bg-emerald-600 inline-block"></span>
-            GEOLOCATION ACTIVE
+            {t('citizen:feed.geolocationActive')}
           </span>
         ) : (
-          <span className="text-neutral-500">CITY-WIDE DISPATCH</span>
+          <span className="text-neutral-500">{t('citizen:feed.cityWideDispatch')}</span>
         )}
       </div>
 
@@ -507,10 +508,10 @@ export default function ComplaintFeed() {
         <div className="border border-dashed border-neutral-300 bg-white p-12 text-center">
           <HiExclamationCircle className="w-10 h-10 text-neutral-400 mx-auto mb-3" />
           <h3 className="font-serif text-lg font-bold text-neutral-900 uppercase">
-            No Incidents Found
+            {t('citizen:feed.noIncidentsTitle')}
           </h3>
           <p className="text-sm text-neutral-500 font-sans mt-1 max-w-sm mx-auto">
-            No complaints match the selected filter criteria or geographic radius.
+            {t('citizen:feed.noIncidentsDesc')}
           </p>
           <div className="mt-5 flex items-center justify-center gap-3">
             <button
@@ -522,13 +523,13 @@ export default function ComplaintFeed() {
               }}
               className="px-4 py-2 border border-neutral-300 text-xs font-mono uppercase hover:border-black"
             >
-              RESET FILTERS
+              {t('citizen:feed.resetFilters')}
             </button>
             <button
               onClick={() => navigate('/citizen/submit')}
               className="px-4 py-2 bg-black text-white text-xs font-mono uppercase hover:bg-neutral-800"
             >
-              FILE REPORT
+              {t('citizen:feed.fileReportPlain')}
             </button>
           </div>
         </div>

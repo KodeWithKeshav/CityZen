@@ -1,24 +1,26 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
 import { HiDocumentReport, HiPlus, HiExclamationCircle, HiChevronRight, HiFilter } from 'react-icons/hi'
 import { format } from 'date-fns'
 import { getPriorityTier } from '../../utils/priorityUtils'
 
-const STATUS_CONFIG = {
-  pending: { label: 'PENDING', bg: 'bg-amber-50 text-amber-900 border-amber-300' },
-  in_progress: { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-900 border-blue-300' },
-  'in-progress': { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-900 border-blue-300' },
-  resolved: { label: 'RESOLVED', bg: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
-  rejected: { label: 'REJECTED', bg: 'bg-rose-50 text-rose-900 border-rose-300' },
-}
-
 export default function PersonalReports() {
+  const { t } = useTranslation(['citizen', 'admin'])
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const navigate = useNavigate()
+
+  const STATUS_CONFIG = {
+    pending: { label: t('admin:status.pending'), bg: 'bg-amber-50 text-amber-900 border-amber-300' },
+    in_progress: { label: t('admin:status.inProgress'), bg: 'bg-blue-50 text-blue-900 border-blue-300' },
+    'in-progress': { label: t('admin:status.inProgress'), bg: 'bg-blue-50 text-blue-900 border-blue-300' },
+    resolved: { label: t('admin:status.resolved'), bg: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
+    rejected: { label: t('admin:status.rejected'), bg: 'bg-rose-50 text-rose-900 border-rose-300' },
+  }
 
   useEffect(() => {
     const fetch = async () => {
@@ -29,7 +31,7 @@ export default function PersonalReports() {
           setReports(Array.isArray(arr) ? arr : Object.values(arr).filter(x => typeof x === 'object'))
         }
       } catch (err) {
-        toast.error('Failed to load your reports')
+        toast.error(t('citizen:personalReports.loadFailed'))
       } finally {
         setLoading(false)
       }
@@ -48,17 +50,17 @@ export default function PersonalReports() {
       <div className="border-b border-black pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
-            <span>CITIZEN REGISTRY</span>
+            <span>{t('citizen:personalReports.breadcrumbRegistry')}</span>
             <span>/</span>
-            <span>SUBMISSIONS</span>
+            <span>{t('citizen:personalReports.breadcrumbSubmissions')}</span>
             <span>/</span>
-            <span className="text-black font-semibold">MY DOSSIERS</span>
+            <span className="text-black font-semibold">{t('citizen:personalReports.breadcrumbDossiers')}</span>
           </div>
           <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
-            Personal Reports
+            {t('citizen:personalReports.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans">
-            Archival history of civic dispatches filed under your authenticated credentials.
+            {t('citizen:personalReports.subtitle')}
           </p>
         </div>
 
@@ -67,7 +69,7 @@ export default function PersonalReports() {
           className="px-4 py-2 bg-black text-white font-mono text-xs font-bold uppercase tracking-wider hover:bg-neutral-800 flex items-center gap-2"
         >
           <HiPlus className="w-4 h-4" />
-          <span>NEW DISPATCH</span>
+          <span>{t('citizen:personalReports.newDispatch')}</span>
         </button>
       </div>
 
@@ -90,7 +92,7 @@ export default function PersonalReports() {
         </div>
 
         <div className="font-mono text-xs text-neutral-500 px-2 text-right">
-          TOTAL: <span className="font-bold text-black">{filteredReports.length}</span> RECORD(S)
+          {t('citizen:personalReports.totalRecords', { count: filteredReports.length })}
         </div>
       </div>
 
@@ -108,18 +110,18 @@ export default function PersonalReports() {
         <div className="border border-dashed border-neutral-300 p-12 text-center bg-white">
           <HiDocumentReport className="w-10 h-10 text-neutral-400 mx-auto mb-3" />
           <h3 className="font-serif text-lg font-bold text-neutral-900 uppercase">
-            No Reports On File
+            {t('citizen:personalReports.noReportsTitle')}
           </h3>
           <p className="text-sm text-neutral-500 font-sans mt-1">
             {filter === 'all'
-              ? 'You have not submitted any civic incident reports yet.'
-              : `No reports match the status "${filter.replace(/_/g, ' ')}".`}
+              ? t('citizen:personalReports.noReportsAll')
+              : t('citizen:personalReports.noReportsFiltered', { status: filter.replace(/_/g, ' ') })}
           </p>
           <button
             onClick={() => navigate('/citizen/submit')}
             className="mt-5 px-4 py-2 bg-black text-white font-mono text-xs uppercase"
           >
-            FILE FIRST INCIDENT
+            {t('citizen:personalReports.fileFirstIncident')}
           </button>
         </div>
       ) : (
@@ -127,7 +129,7 @@ export default function PersonalReports() {
           {filteredReports.map(r => {
             const statusKey = (r.status || 'pending').toLowerCase()
             const statusInfo = STATUS_CONFIG[statusKey] || {
-              label: (r.status || 'PENDING').toUpperCase(),
+              label: (r.status || t('admin:status.pending')).toUpperCase(),
               bg: 'bg-neutral-100 text-neutral-800 border-neutral-300',
             }
             const dateStr = r.createdAt ? format(new Date(r.createdAt), 'yyyy-MM-dd') : '—'
@@ -163,7 +165,7 @@ export default function PersonalReports() {
                   </div>
 
                   <h3 className="font-serif font-bold text-neutral-900 text-base group-hover:underline truncate">
-                    {r.title || r.complaintTitle || 'Untitled Incident'}
+                    {r.title || r.complaintTitle || t('citizen:personalReports.untitledIncident')}
                   </h3>
 
                   <p className="text-xs text-neutral-500 font-sans line-clamp-1">
@@ -174,7 +176,7 @@ export default function PersonalReports() {
                 <div className="flex items-center justify-between sm:justify-end gap-4 font-mono text-xs text-neutral-500 flex-shrink-0">
                   <span>{dateStr}</span>
                   <span className="text-neutral-400 group-hover:text-black flex items-center gap-1 font-bold">
-                    VIEW DOSSIER <HiChevronRight className="w-4 h-4" />
+                    {t('citizen:personalReports.viewDossier')} <HiChevronRight className="w-4 h-4" />
                   </span>
                 </div>
               </div>

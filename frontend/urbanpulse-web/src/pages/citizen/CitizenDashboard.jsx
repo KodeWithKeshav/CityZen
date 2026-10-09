@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../context/AuthContext'
 import { makeApiCall, apiClient } from '../../services/api'
 import {
@@ -7,20 +8,21 @@ import {
   HiChat, HiStar, HiChartBar, HiClock, HiCheckCircle, HiGlobeAlt, HiArrowRight
 } from 'react-icons/hi'
 
-const actions = [
-  { icon: HiPlusCircle, label: 'New Report', sub: 'Submit environmental concern', to: '/citizen/submit' },
-  { icon: HiNewspaper, label: 'Civic Feed', sub: 'Browse all complaints', to: '/citizen/feed' },
-  { icon: HiMap, label: 'Spatial Map', sub: 'View area status', to: '/citizen/map' },
-  { icon: HiDocumentReport, label: 'My Reports', sub: 'Track your submissions', to: '/citizen/reports' },
-  { icon: HiChat, label: 'AI Assistant', sub: 'Get help from AI', to: '/citizen/chatbot' },
-  { icon: HiStar, label: 'Feedback', sub: 'Rate our service', to: '/citizen/feedback' },
-  { icon: HiChartBar, label: 'Transparency', sub: 'Government metrics', to: '/citizen/transparency' },
-]
-
 export default function CitizenDashboard() {
+  const { t } = useTranslation(['citizen', 'common'])
   const { user } = useAuth()
   const navigate = useNavigate()
   const [stats, setStats] = useState({ pending: 0, resolved: 0, total: 0 })
+
+  const actions = [
+    { icon: HiPlusCircle, label: t('common:nav.citizen.newReport'), sub: t('citizen:dashboard.actions.newReport.sub'), to: '/citizen/submit' },
+    { icon: HiNewspaper, label: t('common:nav.citizen.feed'), sub: t('citizen:dashboard.actions.feed.sub'), to: '/citizen/feed' },
+    { icon: HiMap, label: t('common:nav.citizen.map'), sub: t('citizen:dashboard.actions.map.sub'), to: '/citizen/map' },
+    { icon: HiDocumentReport, label: t('common:nav.citizen.reports'), sub: t('citizen:dashboard.actions.reports.sub'), to: '/citizen/reports' },
+    { icon: HiChat, label: t('common:nav.citizen.chatbot'), sub: t('citizen:dashboard.actions.chatbot.sub'), to: '/citizen/chatbot' },
+    { icon: HiStar, label: t('common:nav.citizen.feedback'), sub: t('citizen:dashboard.actions.feedback.sub'), to: '/citizen/feedback' },
+    { icon: HiChartBar, label: t('common:nav.citizen.transparency'), sub: t('citizen:dashboard.actions.transparency.sub'), to: '/citizen/transparency' },
+  ]
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -45,19 +47,19 @@ export default function CitizenDashboard() {
       {/* ─── Header ─── */}
       <div className="mb-stack-md">
         <h1 className="text-headline-lg font-epilogue text-on-surface">
-          Hello, {user?.fullName?.split(' ')[0] || 'Citizen'}.
+          {t('citizen:dashboard.greeting', { name: user?.fullName?.split(' ')[0] || t('citizen:dashboard.defaultName') })}
         </h1>
         <p className="text-body-md text-on-surface-variant mt-2">
-          Making our city better, one report at a time.
+          {t('citizen:dashboard.tagline')}
         </p>
       </div>
 
       {/* ─── Stats Row ─── */}
       <div className="grid grid-cols-3 gap-6 mb-stack-md">
         {[
-          { label: 'PENDING', value: stats.pending, icon: HiClock },
-          { label: 'RESOLVED', value: stats.resolved, icon: HiCheckCircle },
-          { label: 'TOTAL IMPACT', value: stats.total, icon: HiGlobeAlt },
+          { label: t('citizen:dashboard.statPending'), value: stats.pending, icon: HiClock },
+          { label: t('citizen:dashboard.statResolved'), value: stats.resolved, icon: HiCheckCircle },
+          { label: t('citizen:dashboard.statTotalImpact'), value: stats.total, icon: HiGlobeAlt },
         ].map(s => (
           <div key={s.label} className="card p-6">
             <div className="flex items-center justify-between mb-4">
@@ -71,7 +73,7 @@ export default function CitizenDashboard() {
 
       {/* ─── Quick Actions ─── */}
       <div className="mb-6">
-        <h2 className="text-label-sm text-primary-400 mb-4">QUICK ACTIONS</h2>
+        <h2 className="text-label-sm text-primary-400 mb-4">{t('citizen:dashboard.quickActions')}</h2>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {actions.map(({ icon: Icon, label, sub, to }) => (
