@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
 import { Bar, Doughnut } from 'react-chartjs-2'
@@ -11,6 +12,7 @@ import { HiDocumentText, HiCheckCircle, HiClock, HiTrendingUp, HiLightningBolt }
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
 
 export default function Transparency() {
+  const { t } = useTranslation(['citizen', 'admin'])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -24,7 +26,7 @@ export default function Transparency() {
           const res = await makeApiCall(apiClient.admin.dashboard)
           if (res.success) setData(res.data)
         } catch (err) {
-          toast.error('Failed to load transparency telemetry')
+          toast.error(t('transparency.loadFailed'))
         }
       } finally {
         setLoading(false)
@@ -36,7 +38,7 @@ export default function Transparency() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 font-mono text-xs text-neutral-500">
-        COMPILING OPEN AUDIT REGISTRY...
+        {t('transparency.compiling')}
       </div>
     )
   }
@@ -50,7 +52,7 @@ export default function Transparency() {
 
   // High contrast architectural palette
   const doughnutData = {
-    labels: ['RESOLVED', 'PENDING', 'IN PROGRESS'],
+    labels: [t('admin:status.resolved'), t('admin:status.pending'), t('admin:status.inProgress')],
     datasets: [{
       data: [resolved, pending, inProgress],
       backgroundColor: ['#111827', '#6B7280', '#D1D5DB'],
@@ -66,7 +68,7 @@ export default function Transparency() {
   const barData = {
     labels: catLabels.map(l => l.replace(/_/g, ' ').toUpperCase()),
     datasets: [{
-      label: 'INCIDENTS',
+      label: t('transparency.incidents'),
       data: catValues,
       backgroundColor: '#111827',
       borderRadius: 0,
@@ -78,27 +80,27 @@ export default function Transparency() {
       {/* Header */}
       <div className="border-b border-black pb-4">
         <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
-          <span>PUBLIC RECORD</span>
+          <span>{t('transparency.breadcrumbPublic')}</span>
           <span>/</span>
-          <span>MUNICIPAL AUDIT</span>
+          <span>{t('transparency.breadcrumbAudit')}</span>
           <span>/</span>
-          <span className="text-black font-semibold">OPEN ACCOUNTABILITY</span>
+          <span className="text-black font-semibold">{t('transparency.breadcrumbAccountability')}</span>
         </div>
         <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
-          Transparency &amp; Governance Ledger
+          {t('transparency.title')}
         </h1>
         <p className="text-sm text-neutral-600 mt-1 font-sans">
-          Real-time municipal performance metrics, resolution velocity, and public expenditure oversight.
+          {t('transparency.subtitle')}
         </p>
       </div>
 
       {/* KPI Stats Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'TOTAL LOGGED DISPATCHES', value: total, sub: 'Cumulative intake' },
-          { label: 'RESOLVED & AUDITED', value: resolved, sub: 'Verified completed' },
-          { label: 'PENDING ACTION', value: pending, sub: 'In triage queue' },
-          { label: 'RESOLUTION RATE', value: `${resolutionRate}%`, sub: 'Efficiency baseline' },
+          { label: t('transparency.stats.totalDispatches.label'), value: total, sub: t('transparency.stats.totalDispatches.sub') },
+          { label: t('transparency.stats.resolvedAudited.label'), value: resolved, sub: t('transparency.stats.resolvedAudited.sub') },
+          { label: t('transparency.stats.pendingAction.label'), value: pending, sub: t('transparency.stats.pendingAction.sub') },
+          { label: t('transparency.stats.resolutionRate.label'), value: `${resolutionRate}%`, sub: t('transparency.stats.resolutionRate.sub') },
         ].map(s => (
           <div key={s.label} className="border border-neutral-200 bg-white p-5 font-mono">
             <span className="text-[10px] text-neutral-500 uppercase tracking-wider block mb-1">
@@ -120,9 +122,9 @@ export default function Transparency() {
         <div className="border border-neutral-200 bg-white p-6">
           <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
             <span className="font-bold uppercase tracking-wider text-neutral-900">
-              DISPATCH STATUS DISTRIBUTION
+              {t('transparency.statusDistribution')}
             </span>
-            <span className="text-neutral-500">PROPORTIONAL AUDIT</span>
+            <span className="text-neutral-500">{t('transparency.proportionalAudit')}</span>
           </div>
           {total > 0 ? (
             <div className="max-w-xs mx-auto p-4">
@@ -143,7 +145,7 @@ export default function Transparency() {
             </div>
           ) : (
             <p className="text-neutral-400 font-mono text-xs text-center py-12">
-              NO INCIDENT DATA TO AUDIT
+              {t('transparency.noIncidentData')}
             </p>
           )}
         </div>
@@ -152,9 +154,9 @@ export default function Transparency() {
         <div className="border border-neutral-200 bg-white p-6">
           <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
             <span className="font-bold uppercase tracking-wider text-neutral-900">
-              INCIDENTS BY TAXONOMY
+              {t('transparency.byTaxonomy')}
             </span>
-            <span className="text-neutral-500">FREQUENCY ANALYSIS</span>
+            <span className="text-neutral-500">{t('transparency.frequencyAnalysis')}</span>
           </div>
           {catLabels.length > 0 ? (
             <div className="pt-2">
@@ -181,7 +183,7 @@ export default function Transparency() {
             </div>
           ) : (
             <p className="text-neutral-400 font-mono text-xs text-center py-12">
-              NO TAXONOMY DATA REGISTERED
+              {t('transparency.noTaxonomyData')}
             </p>
           )}
         </div>
@@ -191,18 +193,20 @@ export default function Transparency() {
       <div className="border border-black bg-neutral-900 text-white p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 font-mono">
         <div>
           <span className="text-[10px] text-neutral-400 tracking-widest uppercase block mb-1">
-            AVERAGE RESOLUTION VELOCITY
+            {t('transparency.avgVelocity')}
           </span>
           <div className="text-2xl font-bold tracking-tight">
-            {complaints.avgResolutionDays !== undefined ? `${complaints.avgResolutionDays} DAYS` : '3.4 DAYS MEAN'}
+            {complaints.avgResolutionDays !== undefined
+              ? t('transparency.daysLabel', { days: complaints.avgResolutionDays })
+              : t('transparency.daysMean', { days: '3.4' })}
           </div>
           <p className="text-xs text-neutral-400 font-sans mt-0.5">
-            Turnaround duration from verified civic intake to field verification sign-off.
+            {t('transparency.turnaroundDesc')}
           </p>
         </div>
 
         <div className="border border-neutral-700 px-4 py-2 text-xs text-neutral-300">
-          SLA COMPLIANCE: <span className="text-white font-bold">94.2%</span>
+          {t('transparency.slaCompliance')} <span className="text-white font-bold">94.2%</span>
         </div>
       </div>
     </div>
