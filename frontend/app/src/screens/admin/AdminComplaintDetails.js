@@ -362,6 +362,39 @@ const AdminComplaintDetails = ({ route, navigation }) => {
           </View>
         </View>
 
+        {/* Authenticity Check (rule-based + multilingual model blend) */}
+        {typeof complaint.text_authenticity_score === 'number' && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Description Authenticity Check</Text>
+              {complaint.content_flagged && (
+                <View style={[styles.statusBadge, { backgroundColor: '#C62828' }]}>
+                  <Text style={styles.statusText}>FLAGGED FOR REVIEW</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.infoGrid}>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Authenticity Score</Text>
+                <Text style={styles.infoValue}>{Math.round(complaint.text_authenticity_score * 100)} / 100</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Verification Status</Text>
+                <Text style={styles.infoValue}>{(complaint.verification_status || 'unverified').replace(/_/g, ' ')}</Text>
+              </View>
+              <View style={styles.infoItem}>
+                <Text style={styles.infoLabel}>Captured Language</Text>
+                <Text style={styles.infoValue}>{(complaint.language || 'en').toUpperCase()}</Text>
+              </View>
+            </View>
+
+            {complaint.content_flag_reason && (
+              <Text style={styles.complaintDescription}>{complaint.content_flag_reason}</Text>
+            )}
+          </View>
+        )}
+
         {/* Images */}
         {complaintImageUrl ? (
           <View style={styles.section}>

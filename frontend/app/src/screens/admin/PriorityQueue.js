@@ -28,6 +28,7 @@ const PriorityQueue = ({ navigation }) => {
   const [filterPriority, setFilterPriority] = useState('');
   const [filterDateRange, setFilterDateRange] = useState('');
   const [filterAssigned, setFilterAssigned] = useState('');
+  const [filterFlagged, setFilterFlagged] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
   
@@ -73,7 +74,7 @@ const PriorityQueue = ({ navigation }) => {
 
   useEffect(() => {
     loadComplaints();
-  }, [searchText, filterLocation, filterCategory, filterStatus, filterPriority, filterDateRange, filterAssigned]);
+  }, [searchText, filterLocation, filterCategory, filterStatus, filterPriority, filterDateRange, filterAssigned, filterFlagged]);
 
   const loadComplaints = async (page = 1) => {
     try {
@@ -91,10 +92,11 @@ const PriorityQueue = ({ navigation }) => {
       if (filterPriority) params.append('priority', filterPriority);
       if (filterDateRange) params.append('days', filterDateRange);
       if (filterAssigned) params.append('assigned', filterAssigned);
-      
+      if (filterFlagged) params.append('flagged', 'true');
+
       console.log('Loading complaints with filters:', {
-        searchText, filterLocation, filterCategory, filterStatus, 
-        filterPriority, filterDateRange, filterAssigned
+        searchText, filterLocation, filterCategory, filterStatus,
+        filterPriority, filterDateRange, filterAssigned, filterFlagged
       });
       
       const response = await makeApiCall(
@@ -140,6 +142,7 @@ const PriorityQueue = ({ navigation }) => {
     setFilterPriority('');
     setFilterDateRange('');
     setFilterAssigned('');
+    setFilterFlagged(false);
     setShowFilters(false);
   };
 
@@ -152,6 +155,7 @@ const PriorityQueue = ({ navigation }) => {
     if (filterPriority) count++;
     if (filterDateRange) count++;
     if (filterAssigned) count++;
+    if (filterFlagged) count++;
     return count;
   };
 
@@ -305,6 +309,12 @@ const PriorityQueue = ({ navigation }) => {
             </View>
           </View>
 
+          {complaint.content_flagged && (
+            <View style={[styles.statusBadge, { backgroundColor: '#C62828', alignSelf: 'flex-start', marginBottom: 4 }]}>
+              <Text style={styles.statusText}>FLAGGED FOR REVIEW</Text>
+            </View>
+          )}
+
           <Text style={styles.complaintLocation} numberOfLines={1}>
             {complaint.location_address || 'Location not specified'}
           </Text>
@@ -438,6 +448,15 @@ const PriorityQueue = ({ navigation }) => {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Flagged-for-review quick toggle */}
+        <TouchableOpacity
+          style={[styles.filterChip, { alignSelf: 'flex-start', backgroundColor: filterFlagged ? '#C62828' : '#95a5a6', marginTop: 8 }]}
+          onPress={() => setFilterFlagged(v => !v)}
+        >
+          <Ionicons name="alert-circle-outline" size={14} color="#fff" />
+          <Text style={styles.filterChipText}>Flagged for Review</Text>
+        </TouchableOpacity>
 
         {/* Active Filters Display */}
         {(filterLocation || filterCategory || filterStatus || filterPriority || filterDateRange || filterAssigned) && (
