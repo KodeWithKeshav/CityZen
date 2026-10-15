@@ -20,6 +20,7 @@ export default function AdminComplaints() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [flaggedOnly, setFlaggedOnly] = useState(false)
   const navigate = useNavigate()
 
   const fetchComplaints = async () => {
@@ -47,6 +48,9 @@ export default function AdminComplaints() {
     if (statusFilter !== 'all') {
       list = list.filter(c => c.status === statusFilter || c.status === statusFilter.replace(/_/g, '-'))
     }
+    if (flaggedOnly) {
+      list = list.filter(c => c.content_flagged)
+    }
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(c =>
@@ -57,7 +61,7 @@ export default function AdminComplaints() {
       )
     }
     setFiltered(list)
-  }, [search, statusFilter, complaints])
+  }, [search, statusFilter, flaggedOnly, complaints])
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -117,6 +121,16 @@ export default function AdminComplaints() {
                 {f.replace(/_/g, ' ')}
               </button>
             ))}
+            <button
+              onClick={() => setFlaggedOnly(v => !v)}
+              className={`px-3 py-2 border uppercase tracking-wider transition-colors ${
+                flaggedOnly
+                  ? 'bg-rose-600 text-white border-rose-700 font-bold'
+                  : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
+              }`}
+            >
+              Flagged
+            </button>
           </div>
         </div>
 
@@ -175,8 +189,18 @@ export default function AdminComplaints() {
                       #{(c._id || c.id || '').slice(-6).toUpperCase()}
                     </td>
                     <td className="p-3 border-r border-neutral-200 max-w-xs">
-                      <div className="font-serif font-bold text-sm text-neutral-900 truncate">
-                        {c.title || c.complaintTitle || 'Unclassified Incident'}
+                      <div className="flex items-center gap-1.5">
+                        <div className="font-serif font-bold text-sm text-neutral-900 truncate">
+                          {c.title || c.complaintTitle || 'Unclassified Incident'}
+                        </div>
+                        {c.content_flagged && (
+                          <span
+                            className="px-1.5 py-0.5 border border-rose-300 bg-rose-50 text-rose-900 text-[9px] uppercase tracking-wider flex-shrink-0"
+                            title={c.content_flag_reason || 'Flagged by the authenticity check for review'}
+                          >
+                            Flagged
+                          </span>
+                        )}
                       </div>
                       <div className="font-sans text-xs text-neutral-500 truncate mt-0.5">
                         {c.description}

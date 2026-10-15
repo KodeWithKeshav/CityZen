@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
 import { HiSearch, HiUsers, HiRefresh, HiChevronRight } from 'react-icons/hi'
 
 export default function CitizenManagement() {
+  const { t } = useTranslation('admin')
   const [citizens, setCitizens] = useState([])
   const [filtered, setFiltered] = useState([])
   const [loading, setLoading] = useState(true)
@@ -27,7 +29,7 @@ export default function CitizenManagement() {
         setFiltered(dataArray)
       }
     } catch (err) {
-      toast.error('Failed to load registered citizens directory')
+      toast.error(t('citizenManagement.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -60,24 +62,24 @@ export default function CitizenManagement() {
       <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
-            <span>ADMINISTRATIVE DIRECTORY</span>
+            <span>{t('citizenManagement.breadcrumbDirectory')}</span>
             <span>/</span>
-            <span>VERIFIED CITIZENS</span>
+            <span>{t('citizenManagement.breadcrumbVerified')}</span>
             <span>/</span>
-            <span className="text-black font-semibold">ROSTER</span>
+            <span className="text-black font-semibold">{t('citizenManagement.breadcrumbRoster')}</span>
           </div>
           <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
-            Citizen Registry
+            {t('citizenManagement.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans">
-            Authenticated municipal residents, identity records, and historical participation metrics.
+            {t('citizenManagement.subtitle')}
           </p>
         </div>
 
         <button
           onClick={fetchCitizens}
           className="p-2 border border-neutral-300 hover:border-black transition-colors"
-          title="Refresh Registry"
+          title={t('citizenManagement.refreshTooltip')}
         >
           <HiRefresh className="w-4 h-4 text-neutral-800" />
         </button>
@@ -90,30 +92,30 @@ export default function CitizenManagement() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search by full name, email, phone number, or ID..."
+            placeholder={t('citizenManagement.searchPlaceholder')}
             className="w-full pl-9 pr-3 py-2 border border-neutral-300 rounded-none text-xs font-mono placeholder-neutral-400 focus:outline-none focus:border-black"
           />
         </div>
 
         <div className="flex justify-between items-center text-xs font-mono text-neutral-500 pt-2 mt-2 border-t border-neutral-100">
-          <span>ENROLLED: <strong className="text-black">{filtered.length}</strong> OF {citizens.length} CITIZENS</span>
-          <span>IDENTITY PROTOCOL: CIVIC ID SHA-256</span>
+          <span>{t('citizenManagement.enrolledCount', { count: filtered.length, total: citizens.length })}</span>
+          <span>{t('citizenManagement.identityProtocol')}</span>
         </div>
       </div>
 
       {/* Table / List */}
       {loading ? (
         <div className="border border-neutral-200 p-8 text-center font-mono text-xs text-neutral-500 bg-white">
-          LOADING CITIZEN CADASTRE...
+          {t('citizenManagement.loading')}
         </div>
       ) : filtered.length === 0 ? (
         <div className="border border-dashed border-neutral-300 bg-white p-12 text-center">
           <HiUsers className="w-10 h-10 text-neutral-400 mx-auto mb-3" />
           <h3 className="font-serif text-lg font-bold text-neutral-900 uppercase">
-            No Citizen Records Found
+            {t('citizenManagement.noRecordsTitle')}
           </h3>
           <p className="text-xs text-neutral-500 font-sans mt-1">
-            No enrolled citizens match your search parameters.
+            {t('citizenManagement.noRecordsDesc')}
           </p>
         </div>
       ) : (
@@ -121,12 +123,12 @@ export default function CitizenManagement() {
           <table className="w-full text-left font-mono text-xs border-collapse">
             <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 uppercase text-[10px] tracking-wider">
               <tr>
-                <th className="p-3 border-r border-neutral-200">CITIZEN IDENTITY</th>
-                <th className="p-3 border-r border-neutral-200">EMAIL CONTACT</th>
-                <th className="p-3 border-r border-neutral-200">PHONE</th>
-                <th className="p-3 border-r border-neutral-200">PRIMARY RESIDENCE / WARD</th>
-                <th className="p-3 border-r border-neutral-200">ENROLLED DATE</th>
-                <th className="p-3 text-right">PROFILE</th>
+                <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.identity')}</th>
+                <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.email')}</th>
+                <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.phone')}</th>
+                <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.residence')}</th>
+                <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.enrolled')}</th>
+                <th className="p-3 text-right">{t('citizenManagement.table.profile')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-200 text-neutral-800">
@@ -152,7 +154,7 @@ export default function CitizenManagement() {
                           {initial}
                         </div>
                         <span className="font-bold text-neutral-900 font-sans text-sm">
-                          {c.fullName || 'Anonymous Resident'}
+                          {c.fullName || t('citizenManagement.anonymousResident')}
                         </span>
                       </div>
                     </td>
@@ -163,14 +165,14 @@ export default function CitizenManagement() {
                       {c.phoneNumber || '—'}
                     </td>
                     <td className="p-3 border-r border-neutral-200 text-neutral-500 max-w-xs truncate">
-                      {c.address || 'Ward Unassigned'}
+                      {c.address || t('citizenManagement.wardUnassigned')}
                     </td>
                     <td className="p-3 border-r border-neutral-200 text-neutral-500 whitespace-nowrap">
                       {dateStr}
                     </td>
                     <td className="p-3 text-right whitespace-nowrap font-bold">
                       <span className="text-black hover:underline inline-flex items-center gap-1 text-[11px]">
-                        DOSSIER <HiChevronRight className="w-3.5 h-3.5" />
+                        {t('citizenManagement.dossier')} <HiChevronRight className="w-3.5 h-3.5" />
                       </span>
                     </td>
                   </tr>

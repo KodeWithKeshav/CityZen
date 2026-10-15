@@ -277,6 +277,42 @@ export default function AdminComplaintDetail() {
         </div>
       )}
 
+      {/* Authenticity Check (rule-based + multilingual model blend) */}
+      {typeof complaint.text_authenticity_score === 'number' && (
+        <div className={`border bg-white p-6 space-y-3 ${complaint.content_flagged ? 'border-rose-300' : 'border-neutral-200'}`}>
+          <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
+            <div className="flex items-center gap-2 font-serif font-bold text-sm uppercase text-neutral-900">
+              <HiShieldCheck className="w-5 h-5" />
+              <span>Description Authenticity Check</span>
+            </div>
+            {complaint.content_flagged && (
+              <span className="px-2 py-0.5 border border-rose-300 bg-rose-50 text-rose-900 font-mono text-[10px] uppercase tracking-wider font-bold">
+                Flagged for Review
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 font-mono text-xs">
+            <div className="border border-neutral-200 p-3 bg-neutral-50">
+              <span className="text-[10px] text-neutral-500 uppercase block">Authenticity Score</span>
+              <span className="font-bold text-neutral-900">{(complaint.text_authenticity_score * 100).toFixed(0)} / 100</span>
+            </div>
+            <div className="border border-neutral-200 p-3 bg-neutral-50">
+              <span className="text-[10px] text-neutral-500 uppercase block">Verification Status</span>
+              <span className="font-bold text-neutral-900 uppercase">{(complaint.verification_status || 'unverified').replace(/_/g, ' ')}</span>
+            </div>
+            <div className="border border-neutral-200 p-3 bg-neutral-50">
+              <span className="text-[10px] text-neutral-500 uppercase block">Captured Language</span>
+              <span className="font-bold text-neutral-900 uppercase">{complaint.language || 'en'}</span>
+            </div>
+          </div>
+          {complaint.content_flag_reason && (
+            <div className="border border-neutral-200 p-3 bg-neutral-50 font-sans text-xs text-neutral-700">
+              {complaint.content_flag_reason}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Admin Action Box: Status Update & Field Dispatch Notes */}
       <div className="border border-black bg-white p-6 md:p-8 space-y-6">
         <div className="border-b border-neutral-200 pb-3">

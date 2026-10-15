@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
@@ -14,27 +15,28 @@ import { getPriorityTier } from '../../utils/priorityUtils'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
 
-const STATUS_CONFIG = {
-  pending: { label: 'PENDING', bg: 'bg-amber-50 text-amber-900 border-amber-300' },
-  in_progress: { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-900 border-blue-300' },
-  'in-progress': { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-900 border-blue-300' },
-  resolved: { label: 'RESOLVED', bg: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
-  rejected: { label: 'REJECTED', bg: 'bg-rose-50 text-rose-900 border-rose-300' },
-}
-
 export default function AdminDashboard() {
+  const { t } = useTranslation('admin')
   const { user } = useAuth()
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
+  const STATUS_CONFIG = {
+    pending: { label: t('status.pending'), bg: 'bg-amber-50 text-amber-900 border-amber-300' },
+    in_progress: { label: t('status.inProgress'), bg: 'bg-blue-50 text-blue-900 border-blue-300' },
+    'in-progress': { label: t('status.inProgress'), bg: 'bg-blue-50 text-blue-900 border-blue-300' },
+    resolved: { label: t('status.resolved'), bg: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
+    rejected: { label: t('status.rejected'), bg: 'bg-rose-50 text-rose-900 border-rose-300' },
+  }
+
   const fetchData = async () => {
     try {
       const res = await makeApiCall(apiClient.admin.dashboard)
       if (res.success) setData(res.data)
     } catch (err) {
-      toast.error('Failed to load operational console telemetry')
+      toast.error(t('dashboard.loadFailed'))
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -62,16 +64,16 @@ export default function AdminDashboard() {
   const users = data?.users || {}
 
   const stats = [
-    { label: 'TOTAL INCIDENTS LOGGED', value: complaints.total, sub: 'Archived & active' },
-    { label: 'REMEDIATED & SIGNED OFF', value: complaints.resolved, sub: 'Closed audit dossiers' },
-    { label: 'PENDING DISPATCH / TRIAGE', value: complaints.pending, sub: 'Awaiting team assignment' },
-    { label: 'ACTIVE FIELD TEAMS', value: complaints.inProgress, sub: 'Currently under repair' },
-    { label: 'VERIFIED CITIZEN ACCOUNTS', value: users.citizens || 0, sub: 'Enrolled in jurisdiction' },
-    { label: 'SLA RESOLUTION INDEX', value: `${complaints.resolutionRate}%`, sub: 'Baseline target: 90%' },
+    { label: t('dashboard.stats.totalIncidents.label'), value: complaints.total, sub: t('dashboard.stats.totalIncidents.sub') },
+    { label: t('dashboard.stats.remediated.label'), value: complaints.resolved, sub: t('dashboard.stats.remediated.sub') },
+    { label: t('dashboard.stats.pendingDispatch.label'), value: complaints.pending, sub: t('dashboard.stats.pendingDispatch.sub') },
+    { label: t('dashboard.stats.activeFieldTeams.label'), value: complaints.inProgress, sub: t('dashboard.stats.activeFieldTeams.sub') },
+    { label: t('dashboard.stats.verifiedCitizens.label'), value: users.citizens || 0, sub: t('dashboard.stats.verifiedCitizens.sub') },
+    { label: t('dashboard.stats.slaIndex.label'), value: `${complaints.resolutionRate}%`, sub: t('dashboard.stats.slaIndex.sub') },
   ]
 
   const doughnutData = {
-    labels: ['RESOLVED', 'PENDING', 'IN PROGRESS', 'REJECTED'],
+    labels: [t('status.resolved'), t('status.pending'), t('status.inProgress'), t('status.rejected')],
     datasets: [{
       data: [
         complaints.resolved || 0,
@@ -93,17 +95,17 @@ export default function AdminDashboard() {
       <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
-            <span>MUNICIPAL ADMINISTRATION</span>
+            <span>{t('dashboard.breadcrumbMunicipal')}</span>
             <span>/</span>
-            <span>OPERATIONAL OVERSIGHT</span>
+            <span>{t('dashboard.breadcrumbOversight')}</span>
             <span>/</span>
-            <span className="text-black font-semibold">CONSOLE</span>
+            <span className="text-black font-semibold">{t('dashboard.breadcrumbConsole')}</span>
           </div>
           <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
-            Operations Command Ledger
+            {t('dashboard.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans">
-            Authenticated Admin: <strong className="text-black uppercase">{user?.fullName || 'Chief Dispatcher'}</strong> ({user?.department || 'Civic Infrastructure Dept'})
+            {t('dashboard.authenticatedAdmin')} <strong className="text-black uppercase">{user?.fullName || t('dashboard.chiefDispatcher')}</strong> ({user?.department || t('dashboard.civicInfraDept')})
           </p>
         </div>
 
@@ -112,7 +114,7 @@ export default function AdminDashboard() {
             onClick={onRefresh}
             disabled={refreshing}
             className="p-2 border border-neutral-300 hover:border-black transition-colors disabled:opacity-50"
-            title="Refresh Operations Telemetry"
+            title={t('dashboard.refreshTooltip')}
           >
             <HiRefresh className={`w-4 h-4 text-neutral-800 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
@@ -120,7 +122,7 @@ export default function AdminDashboard() {
             onClick={() => navigate('/admin/priority')}
             className="px-4 py-2 bg-black text-white font-mono text-xs font-bold uppercase tracking-wider hover:bg-neutral-800"
           >
-            VIEW PRIORITY SEQUENCING →
+            {t('dashboard.viewPrioritySequencing')}
           </button>
         </div>
       </div>
@@ -156,9 +158,9 @@ export default function AdminDashboard() {
             <div className="border border-neutral-200 bg-white p-6 font-mono">
               <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4 text-xs">
                 <span className="font-bold uppercase tracking-wider text-neutral-900">
-                  STATUS ALLOCATION
+                  {t('dashboard.statusAllocation')}
                 </span>
-                <span className="text-neutral-500">LIVE COHORT</span>
+                <span className="text-neutral-500">{t('dashboard.liveCohort')}</span>
               </div>
               {complaints.total > 0 ? (
                 <div className="max-w-[220px] mx-auto py-2">
@@ -179,7 +181,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <p className="text-neutral-400 text-xs text-center py-10">
-                  NO ACTIVE INCIDENT TELEMETRY
+                  {t('dashboard.noActiveTelemetry')}
                 </p>
               )}
             </div>
@@ -189,28 +191,28 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
                 <div>
                   <span className="font-bold uppercase tracking-wider text-neutral-900">
-                    RECENT INTAKE DOSSIERS
+                    {t('dashboard.recentIntakeDossiers')}
                   </span>
-                  <span className="text-neutral-500 ml-2">MOST RECENT SUBMISSIONS</span>
+                  <span className="text-neutral-500 ml-2">{t('dashboard.mostRecentSubmissions')}</span>
                 </div>
                 <button
                   onClick={() => navigate('/admin/complaints')}
                   className="font-bold text-neutral-900 hover:underline uppercase tracking-wider text-xs flex items-center gap-1"
                 >
-                  FULL REGISTRY <HiArrowRight className="w-3.5 h-3.5" />
+                  {t('dashboard.fullRegistry')} <HiArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
 
               {recentComplaints.length === 0 ? (
                 <div className="text-center py-12 font-mono text-xs text-neutral-400">
-                  NO RECENT INCIDENTS IN DISPATCH STREAM
+                  {t('dashboard.noRecentIncidents')}
                 </div>
               ) : (
                 <div className="divide-y divide-neutral-100">
                   {recentComplaints.slice(0, 5).map(c => {
                     const statusKey = (c.status || 'pending').toLowerCase()
                     const statusInfo = STATUS_CONFIG[statusKey] || {
-                      label: (c.status || 'PENDING').toUpperCase(),
+                      label: (c.status || t('status.pending')).toUpperCase(),
                       bg: 'bg-neutral-100 text-neutral-800 border-neutral-300'
                     }
                     const timeStr = c.createdAt ? format(new Date(c.createdAt), 'yyyy-MM-dd HH:mm') : '—'
@@ -234,18 +236,18 @@ export default function AdminDashboard() {
                               if (pTier.score === null) return null
                               return (
                                 <span className={`px-1.5 py-0.5 border font-mono text-[9px] uppercase tracking-wider ${pTier.badgeClass}`}>
-                                  SCORE: {pTier.displayScore} · {pTier.label}
+                                  {t('dashboard.scoreLabel', { score: pTier.displayScore, tier: pTier.label })}
                                 </span>
                               )
                             })()}
                           </div>
                           <h4 className="font-serif font-bold text-sm text-neutral-900 truncate">
-                            {c.title || c.complaintTitle || 'Unclassified Incident'}
+                            {c.title || c.complaintTitle || t('unclassifiedIncident')}
                           </h4>
                         </div>
 
                         <div className="font-mono text-xs text-neutral-500 text-right flex-shrink-0">
-                          <div>{c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || 'Verified Citizen'}</div>
+                          <div>{c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || t('verifiedCitizen')}</div>
                           <div className="text-[10px] text-neutral-400">{timeStr}</div>
                         </div>
                       </div>
@@ -259,10 +261,10 @@ export default function AdminDashboard() {
           {/* Quick Tactical Navigation Panels */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'ALL COMPLAINTS REGISTRY', desc: 'Audit, reassign and update incident states', to: '/admin/complaints', tag: 'LEDGER' },
-              { label: 'PRIORITY SEQUENCING', desc: 'AI-prioritized operational remediation order', to: '/admin/priority', tag: 'URGENCY' },
-              { label: 'GEOSPATIAL CADASTRE', desc: 'Interactive geographic heatmaps & radius audits', to: '/admin/map', tag: 'SPATIAL' },
-              { label: 'CITIZEN DIRECTORY', desc: 'Verified citizen roster & activity audit logs', to: '/admin/citizens', tag: 'DIRECTORY' },
+              { label: t('dashboard.panels.allComplaints.label'), desc: t('dashboard.panels.allComplaints.desc'), to: '/admin/complaints', tag: t('dashboard.panels.allComplaints.tag') },
+              { label: t('dashboard.panels.prioritySequencing.label'), desc: t('dashboard.panels.prioritySequencing.desc'), to: '/admin/priority', tag: t('dashboard.panels.prioritySequencing.tag') },
+              { label: t('dashboard.panels.geospatialCadastre.label'), desc: t('dashboard.panels.geospatialCadastre.desc'), to: '/admin/map', tag: t('dashboard.panels.geospatialCadastre.tag') },
+              { label: t('dashboard.panels.citizenDirectory.label'), desc: t('dashboard.panels.citizenDirectory.desc'), to: '/admin/citizens', tag: t('dashboard.panels.citizenDirectory.tag') },
             ].map(item => (
               <button
                 key={item.to}
@@ -271,7 +273,7 @@ export default function AdminDashboard() {
               >
                 <div>
                   <span className="font-mono text-[10px] uppercase text-neutral-400 tracking-wider block mb-1">
-                    MODULE: {item.tag}
+                    {t('dashboard.moduleLabel', { tag: item.tag })}
                   </span>
                   <h3 className="font-serif font-bold text-sm text-neutral-900 group-hover:underline uppercase">
                     {item.label}
@@ -281,7 +283,7 @@ export default function AdminDashboard() {
                   </p>
                 </div>
                 <span className="font-mono text-xs text-neutral-400 group-hover:text-black mt-4 font-bold flex items-center gap-1">
-                  ACCESS CONSOLE →
+                  {t('dashboard.accessConsole')}
                 </span>
               </button>
             ))}
