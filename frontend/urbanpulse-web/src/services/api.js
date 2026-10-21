@@ -1,12 +1,15 @@
 // CityZen API Service Layer
 // Handles all backend communication for auth, complaints, admin, and AI services
 
+const RENDER_BACKEND_URL = 'https://urbanpulse-backend-cb7e.onrender.com';
+
 const inferApiBaseUrl = () => {
   const fromEnv = import.meta.env.VITE_API_BASE_URL;
   if (fromEnv && fromEnv.trim()) return fromEnv.trim();
 
-  if (typeof window !== 'undefined' && window.location?.hostname) {
-    return `http://${window.location.hostname}:3001`;
+  // In production (deployed on Vercel), always use the Render backend
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return RENDER_BACKEND_URL;
   }
 
   return 'http://localhost:3001';
@@ -103,7 +106,7 @@ export const makeApiCall = async (url, options = {}) => {
     return payload;
   } catch (error) {
     if (error instanceof TypeError) {
-      throw new Error('Cannot connect to backend. Start UrbanPulse_Backend on port 3001 and try again.');
+      throw new Error('Unable to reach the server. Please check your connection and try again.');
     }
     throw error;
   }
