@@ -1,0 +1,171 @@
+import React, { useState, useEffect } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { StatusBar } from 'expo-status-bar';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SplashScreen from 'expo-splash-screen';
+import { View, Image, Text, StyleSheet, LogBox } from 'react-native';
+import './src/i18n';
+import LanguageSwitcherFAB from './src/components/LanguageSwitcherFAB';
+
+// Ignore benign non-fatal developer notices in Expo Go
+LogBox.ignoreLogs([
+  'Primary API call failed',
+  'Response.blob()',
+  'No articles in primary response'
+]);
+
+// Keep the splash screen visible while assets/bundle initialize
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Import screens
+import WelcomeScreen from './src/screens/auth/WelcomeScreen';
+import CitizenAuthScreen from './src/screens/auth/CitizenAuthScreen';
+import AdminAuthScreen from './src/screens/auth/AdminAuthScreen';
+import CitizenLoginScreen from './src/screens/auth/CitizenLoginScreen';
+import AdminLoginScreen from './src/screens/auth/AdminLoginScreen';
+import CitizenSignupScreen from './src/screens/auth/CitizenSignupScreen';
+import AdminSignupScreen from './src/screens/auth/AdminSignupScreen';
+import LoginScreen from './src/screens/auth/LoginScreen';
+import SignupScreen from './src/screens/auth/SignupScreen';
+import CitizenDashboard from './src/screens/citizen/CitizenDashboard';
+import AdminDashboard from './src/screens/admin/AdminDashboard';
+import EnhancedAdminDashboard from './src/screens/admin/EnhancedAdminDashboard';
+import ModernAdminDashboard from './src/screens/admin/ModernAdminDashboard';
+import PriorityQueue from './src/screens/admin/PriorityQueue';
+import CitizenManagement from './src/screens/admin/CitizenManagement';
+import CitizenDetails from './src/screens/admin/CitizenDetails';
+import AdminComplaintDetails from './src/screens/admin/AdminComplaintDetails';
+import AdminComplaintMapScreen from './src/screens/admin/AdminComplaintMapScreen';
+import MultiStepSubmitComplaintScreen from './src/screens/complaint/MultiStepSubmitComplaintScreen';
+import ComplaintMapScreen from './src/screens/citizen/ComplaintMapScreen';
+import ComplaintDetailScreen from './src/screens/citizen/ComplaintDetailScreen';
+import ComplaintFeedScreen from './src/screens/citizen/ComplaintFeedScreen';
+import InstagramStyleFeedScreen from './src/screens/citizen/InstagramStyleFeedScreen';
+import CitizenTransparencyScreen from './src/screens/citizen/CitizenTransparencyScreen';
+import PersonalReports from './src/screens/citizen/PersonalReports';
+import CivicChatbotScreen from './src/screens/citizen/CivicChatbotScreen';
+import FeedbackScreen from './src/screens/feedback/FeedbackScreen';
+
+const Stack = createStackNavigator();
+
+export default function App() {
+  const [appIsReady, setAppIsReady] = useState(false);
+
+  useEffect(() => {
+    async function prepare() {
+      try {
+        // Ensure the CityZen logo is prominently visible on initial startup
+        await new Promise(resolve => setTimeout(resolve, 1200));
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setAppIsReady(true);
+        await SplashScreen.hideAsync().catch(() => {});
+      }
+    }
+    prepare();
+  }, []);
+
+  if (!appIsReady) {
+    return (
+      <View style={styles.splashContainer}>
+        <StatusBar style="dark" />
+        <Image
+          source={require('./assets/logo.png')}
+          style={styles.splashLogo}
+          resizeMode="contain"
+        />
+        <Text style={styles.splashText}>CITYZEN</Text>
+        <Text style={styles.splashSubtext}>Institutional Civic Portal</Text>
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      <StatusBar style="auto" />
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          gestureEnabled: false
+        }}
+        initialRouteName="Welcome"
+      >
+        {/* Welcome & Auth Selection Screens */}
+        <Stack.Screen name="Welcome" component={WelcomeScreen} />
+        <Stack.Screen name="CitizenAuth" component={CitizenAuthScreen} />
+        <Stack.Screen name="AdminAuth" component={AdminAuthScreen} />
+        
+        {/* Citizen Auth Screens */}
+        <Stack.Screen name="CitizenLogin" component={CitizenLoginScreen} />
+        <Stack.Screen name="CitizenSignup" component={CitizenSignupScreen} />
+        
+        {/* Admin Auth Screens */}
+        <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
+        <Stack.Screen name="AdminSignup" component={AdminSignupScreen} />
+        
+        {/* Legacy Auth Screens (for backward compatibility) */}
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Signup" component={SignupScreen} />
+        
+        {/* Citizen Screens */}
+        <Stack.Screen name="CitizenDashboard" component={CitizenDashboard} />
+        <Stack.Screen name="SubmitComplaint" component={MultiStepSubmitComplaintScreen} />
+        <Stack.Screen name="ComplaintMap" component={ComplaintMapScreen} />
+        <Stack.Screen name="ComplaintDetail" component={ComplaintDetailScreen} />
+        <Stack.Screen name="ComplaintFeed" component={ComplaintFeedScreen} />
+        <Stack.Screen name="InstagramFeed" component={InstagramStyleFeedScreen} />
+        <Stack.Screen name="CitizenTransparency" component={CitizenTransparencyScreen} />
+        <Stack.Screen name="PersonalReports" component={PersonalReports} />
+        <Stack.Screen name="CivicChatbot" component={CivicChatbotScreen} />
+        <Stack.Screen name="FeedbackScreen" component={FeedbackScreen} />
+        
+        {/* Admin Screens */}
+        <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
+        <Stack.Screen name="EnhancedAdminDashboard" component={EnhancedAdminDashboard} />
+        <Stack.Screen name="ModernAdminDashboard" component={ModernAdminDashboard} />
+        <Stack.Screen name="PriorityQueue" component={PriorityQueue} />
+        <Stack.Screen name="CitizenManagement" component={CitizenManagement} />
+        <Stack.Screen name="CitizenDetails" component={CitizenDetails} />
+        <Stack.Screen name="ComplaintDetails" component={AdminComplaintDetails} />
+        <Stack.Screen name="AdminComplaintMap" component={AdminComplaintMapScreen} />
+      </Stack.Navigator>
+      <LanguageSwitcherFAB />
+    </NavigationContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  splashContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+  },
+  splashLogo: {
+    width: 140,
+    height: 140,
+    marginBottom: 20,
+  },
+  splashText: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    letterSpacing: 3,
+    marginBottom: 6,
+  },
+  splashSubtext: {
+    fontSize: 12,
+    color: '#6B7280',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+  },
+});

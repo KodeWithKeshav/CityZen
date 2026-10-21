@@ -1,0 +1,70 @@
+{
+  "steps": {
+    "classification": "CLASSIFICATION",
+    "evidence": "EVIDENCE",
+    "narrative": "NARRATIVE",
+    "geodata": "GEODATA",
+    "auditSubmit": "AUDIT & SUBMIT",
+    "stepOf": "STEP {{current}} OF {{total}}"
+  },
+  "categories": {
+    "pothole": { "label": "POTHOLE", "desc": "Asphalt rupture, crater, or severe road decay" },
+    "fallen_tree": { "label": "FALLEN TREE", "desc": "Foliage or timber obstructing thoroughfare" },
+    "garbage_dumping": { "label": "GARBAGE DUMPING", "desc": "Illegal municipal or commercial waste deposit" },
+    "stray_cattle": { "label": "STRAY CATTLE", "desc": "Livestock impeding transit or vehicular corridors" },
+    "fallen_electric_pole": { "label": "FALLEN ELECTRIC POLE", "desc": "Damaged pole, exposed wiring, or transformer failure" },
+    "concrete_structure_damage": { "label": "STRUCTURAL DAMAGE", "desc": "Fissures, bridge wear, or pavement subsidence" },
+    "road_waterlogging": { "label": "ROAD WATERLOGGING", "desc": "Stagnant monsoon or burst main runoff" }
+  },
+  "privacyLevels": {
+    "exact": { "label": "EXACT GPS", "desc": "±5–10m survey coordinate precision" },
+    "street": { "label": "STREET LEVEL", "desc": "±25m corridor precision" },
+    "area": { "label": "NEIGHBORHOOD", "desc": "±150m ward radius approximation" }
+  },
+  "languages": {
+    "en": "English",
+    "hi": "हिन्दी (Hindi)",
+    "ta": "தமிழ் (Tamil)",
+    "te": "తెలుగు (Telugu)",
+    "ml": "മലയാളം (Malayalam)",
+    "kn": "ಕನ್ನಡ (Kannada)"
+  },
+  "form": {
+    "titleLabel": "INCIDENT TITLE *",
+    "titlePlaceholder": "e.g. Deep crater near pedestrian crosswalk on Anna Salai",
+    "descriptionLabel": "DESCRIPTION NARRATIVE *",
+    "descriptionPlaceholder": "Detail the circumstances, exact location clues, hazard factors, and immediate risks (min 10 chars)...",
+    "voiceDictate": "VOICE DICTATE",
+    "recording": "RECORDING... (STOP)",
+    "transcribing": "TRANSCRIBING...",
+    "analyzing": "Analyzing narrative authenticity...",
+    "semanticParsingActive": "Natural language semantic parsing active",
+    "charsCount": "{{count}}/1000 CHARS",
+    "severityLabel": "ESTIMATED SEVERITY TIER",
+    "severityLow": "LOW — COSMETIC OR NON-BLOCKING",
+    "severityMedium": "MEDIUM — STANDARD DISPATCH PROTOCOL",
+    "severityHigh": "HIGH — POTENTIAL HAZARD OR TRAFFIC OBSTRUCTION",
+    "severityCritical": "CRITICAL — DIRECT THREAT TO LIFE OR MAIN CORRIDOR"
+  },
+  "authenticity": {
+    "mismatchTitle": "Semantic Inconsistency Detected",
+    "advisoryTitle": "Classification Advisory",
+    "reassignTo": "Reassign category to {{category}} →",
+    "canStillSubmit": "You can still submit — this will be queued for admin review.",
+    "mustFix": "This description must be edited or the category switched above before you can submit — it can't be submitted as-is."
+  },
+  "actions": {
+    "back": "BACK",
+    "next": "NEXT",
+    "submit": "SUBMIT DISPATCH",
+    "submitting": "SUBMITTING..."
+  },
+  "voice": {
+    "listening": "Listening for voice dictation...",
+    "appended": "Voice transcription appended",
+    "notSupported": "Voice dictation is not supported by your browser.",
+    "micError": "Could not activate microphone",
+    "uploadError": "Could not reach the transcription service.",
+    "failed": "Speech recognition failed. Please try again or type your complaint."
+  }
+}
