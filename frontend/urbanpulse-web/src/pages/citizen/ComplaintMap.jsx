@@ -52,18 +52,57 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   return R * c
 }
 
+if (typeof window !== 'undefined' && !window.L) {
+  window.L = L
+}
+
 function HeatmapLayer({ points, maxZoom = 17, radius = 25, blur = 15, max = 5 }) {
   const map = useMap()
   useEffect(() => {
     if (!map || !points || points.length === 0) return
-    const heatData = points.map(p => [
-      p.lat || p.latitude,
-      p.lng || p.longitude,
-      p.weight || 1
-    ])
-    const heat = L.heatLayer(heatData, { radius, blur, maxZoom, max }).addTo(map)
-    return () => map.removeLayer(heat)
+    const heatData = points
+      .filter(p => (p.lat || p.latitude) && (p.lng || p.longitude))
+      .map(p => [
+        Number(p.lat || p.latitude),
+        Number(p.lng || p.longitude),
+        Number(p.weight || 1)
+      ])
+
+    if (typeof L.heatLayer === 'function') {
+      const heat = L.heatLayer(heatData, { radius, blur, maxZoom, max }).addTo(map)
+      return () => {
+        try {
+          map.removeLayer(heat)
+        } catch (e) {
+          // ignore cleanup error
+        }
+      }
+    } else {
+      console.warn('L.heatLayer not available, falling back to pins')
+    }
   }, [map, points, radius, blur, maxZoom, max])
+  return null
+}
+
+function MapAutoCenter({ points }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!points || points.length === 0) return
+    const validCoords = points
+      .map(p => [Number(p.lat || p.latitude), Number(p.lng || p.longitude)])
+      .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0)
+    
+    if (validCoords.length === 0) return
+
+    if (validCoords.length === 1) {
+      map.setView(validCoords[0], 14, { animate: true })
+    } else {
+      const bounds = L.latLngBounds(validCoords)
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14, animate: true })
+      }
+    }
+  }, [map, points])
   return null
 }
 
@@ -80,6 +119,7 @@ export default function ComplaintMap() {
   const [data, setData] = useState({ points: [], statistics: null })
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [timeRange, setTimeRange] = useState('all') // 'all', '30', '90', '365'
   const [viewMode, setViewMode] = useState('heatmap') // 'heatmap' or 'pins'
   const [selectedZonePoints, setSelectedZonePoints] = useState(null)
   const [explainModalState, setExplainModalState] = useState({ isOpen: false, imageUrl: null, title: '' })
@@ -87,8 +127,12 @@ export default function ComplaintMap() {
 
   useEffect(() => {
     const fetchHeatMap = async () => {
+      setLoading(true)
       try {
-        const res = await makeApiCall(apiClient.heatMap.data)
+        const url = timeRange === 'all'
+          ? apiClient.heatMap.data
+          : `${apiClient.heatMap.data}?days=${timeRange}`
+        const res = await makeApiCall(url)
         if (res.success && res.data) setData(res.data)
       } catch (err) {
         toast.error('Failed to load spatial map telemetry')
@@ -97,7 +141,7 @@ export default function ComplaintMap() {
       }
     }
     fetchHeatMap()
-  }, [])
+  }, [timeRange])
 
   const mapped = useMemo(() => {
     return (data.points || []).filter(c => {
@@ -197,7 +241,8 @@ export default function ComplaintMap() {
 
         {/* Filters & Status Legend */}
         <div className="flex items-center justify-between flex-wrap gap-3 font-mono text-xs pt-1">
-          <div className="flex gap-1.5 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap items-center">
+            <span className="text-[10px] text-neutral-400 uppercase font-mono mr-1">Status:</span>
             {['all', 'pending', 'resolved'].map(f => (
               <button
                 key={f}
@@ -209,6 +254,26 @@ export default function ComplaintMap() {
                 }`}
               >
                 {f}
+              </button>
+            ))}
+
+            <span className="text-[10px] text-neutral-400 uppercase font-mono ml-2 mr-1">Time:</span>
+            {[
+              { id: 'all', label: 'All Time' },
+              { id: '30', label: '30D' },
+              { id: '90', label: '90D' },
+              { id: '365', label: '1Y' }
+            ].map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTimeRange(t.id)}
+                className={`px-2.5 py-1 border uppercase tracking-wider text-[11px] transition-colors ${
+                  timeRange === t.id
+                    ? 'bg-neutral-900 text-white border-black font-bold'
+                    : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
+                }`}
+              >
+                {t.label}
               </button>
             ))}
           </div>
@@ -246,6 +311,7 @@ export default function ComplaintMap() {
                 />
 
                 <MapClickHandler onMapClick={handleMapClick} />
+                <MapAutoCenter points={mapped} />
 
                 {viewMode === 'heatmap' && <HeatmapLayer points={mapped} />}
 

@@ -5,7 +5,7 @@ const RENDER_BACKEND_URL = 'https://urbanpulse-backend-cb7e.onrender.com';
 
 const inferApiBaseUrl = () => {
   const fromEnv = import.meta.env.VITE_API_BASE_URL;
-  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
+  if (fromEnv && fromEnv.trim()) return fromEnv.trim().replace(/\/$/, ''); // strip trailing slash
 
   // In production (deployed on Vercel), always use the Render backend
   if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {

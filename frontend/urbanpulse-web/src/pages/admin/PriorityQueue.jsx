@@ -20,7 +20,7 @@ export default function PriorityQueue() {
       } catch {
         res = await makeApiCall(apiClient.complaints.all)
       }
-      const data = res.data?.complaints || res.data || []
+      const data = res.data?.complaints || res.complaints || res.data || []
       const sorted = [...data].sort((a, b) => {
         const scoreA = normalizePriorityScore(a.priorityScore ?? a.priority_score) ?? 0
         const scoreB = normalizePriorityScore(b.priorityScore ?? b.priority_score) ?? 0
