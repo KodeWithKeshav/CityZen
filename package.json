@@ -16,5 +16,5 @@
     "start:mobile": "npm --prefix frontend/app start"
   },
   "author": "KodeWithKeshav",
-  "license": "ISC"
+  "license": "MIT"
 }

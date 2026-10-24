@@ -68,9 +68,9 @@ Scroll down to the **Environment Variables** section and add these variables one
 ```
 NODE_ENV = production
 PORT = 3001
-JWT_SECRET = civic-rezo-super-secret-jwt-key-2026
-SUPABASE_URL = https://edragfuoklcgdgtospuq.supabase.co
-SUPABASE_ANON_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkcmFnZnVva2xjZ2RndG9zcHVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1NDE3MjMsImV4cCI6MjA3MjExNzcyM30.A58Ms03zTZC6J5OuhQbkkZQy-5uTxgu4vlLilrjPEwo
+JWT_SECRET = your_long_random_jwt_secret_here
+SUPABASE_URL = https://your-project-ref.supabase.co
+SUPABASE_ANON_KEY = your_supabase_anon_key_here
 ROBOFLOW_API_KEY = your_roboflow_api_key_here
 ROBOFLOW_WORKSPACE = keshavs-workspace-cjrb3
 ROBOFLOW_WORKFLOW = cityzen-sam3-2
@@ -89,8 +89,8 @@ LOCATION_CACHE_DURATION = 86400
 ENABLE_LOCATION_FALLBACK = true
 PLACES_API_RATE_LIMIT = 100
 GEOCODING_API_RATE_LIMIT = 50
-WIT_AI_TOKEN = DLHJZZTU2ZXDLJW2PB5E3IMCHYPKAUSZ
-SARVAM_API_KEY = sk_2xnkkrid_QkpU1rOIZDj5bsUxtbaZhaaB
+WIT_AI_TOKEN = your_wit_ai_token_here
+SARVAM_API_KEY = your_sarvam_api_key_here
 QUICK_DEV_MODE = false
 ```
 
