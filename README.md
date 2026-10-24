@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/screenshots/banner.jpg" alt="CityZen" width="100%" />
-</p>
-
 <h1 align="center">CityZen</h1>
 
 <p align="center">
@@ -153,7 +149,7 @@ language described in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 ## System Architecture
 
 <p align="center">
-  <img src="frontend/docs/diagrams/archi.jpg" alt="CityZen system architecture diagram" width="100%" />
+  <img src="docs/screenshots/architecture_diagram.png" alt="CityZen system architecture diagram" width="100%" />
 </p>
 
 A full breakdown of the request flow, the priority-engine math, and every

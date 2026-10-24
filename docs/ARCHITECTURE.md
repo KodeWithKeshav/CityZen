@@ -24,7 +24,7 @@ identical.
 ### System Architecture Diagram
 
 <p align="center">
-  <img src="../frontend/docs/diagrams/archi.jpg" alt="CityZen system architecture" width="100%" />
+  <img src="screenshots/architecture_diagram.png" alt="CityZen system architecture" width="100%" />
 </p>
 
 ## Request Flow: Submitting a Complaint
