@@ -152,12 +152,19 @@ app.use((req, res) => {
   });
 });
 
-app.listen(port, host, () => {
-  console.log(`🚀 CivicStack Backend Server is running on ${url}`);
-  console.log(`📊 Health check: ${url}/health`);
-  console.log(`📱 API endpoints: ${url}/api`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('⭐ Server is ready to accept connections');
-});
+// Only auto-start the HTTP listener when this file is run directly
+// (`node server.js`, including in production deployment). When it is
+// `require()`d instead - e.g. by the integration/system test suites via
+// supertest - the Express `app` is exported without binding a port, so
+// multiple test files can import it concurrently without a port conflict.
+if (require.main === module) {
+  app.listen(port, host, () => {
+    console.log(`🚀 CivicStack Backend Server is running on ${url}`);
+    console.log(`📊 Health check: ${url}/health`);
+    console.log(`📱 API endpoints: ${url}/api`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log('⭐ Server is ready to accept connections');
+  });
+}
 
 module.exports = app;
