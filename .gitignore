@@ -40,3 +40,7 @@ Thumbs.db
 __pycache__/
 **/__pycache__/
 *.py[cod]
+backend/python_services/venv/
+
+# start.sh service logs
+.start-logs/

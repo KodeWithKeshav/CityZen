@@ -13,7 +13,8 @@
     "dev:backend": "npm --prefix backend run dev",
     "dev:web": "npm --prefix frontend/urbanpulse-web dev",
     "build:web": "npm --prefix frontend/urbanpulse-web build",
-    "start:mobile": "npm --prefix frontend/app start"
+    "start:mobile": "npm --prefix frontend/app start",
+    "start": "./start.sh"
   },
   "author": "KodeWithKeshav",
   "license": "MIT"
