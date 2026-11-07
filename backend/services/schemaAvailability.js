@@ -18,6 +18,7 @@ const caches = {
   deviceId: { available: null, checkedAt: 0 },
   language: { available: null, checkedAt: 0 },
   contentFlag: { available: null, checkedAt: 0 },
+  workflowDepartment: { available: null, checkedAt: 0 },
 };
 
 async function probeColumnAvailable(supabase, table, column, cacheKey) {
@@ -89,10 +90,22 @@ async function contentFlagColumnsAvailable(supabase) {
   return probeColumnAvailable(supabase, 'complaints', 'content_flagged', 'contentFlag');
 }
 
+// Same probe-and-cache pattern, for complaint_workflow.department_id (and,
+// by extension, the sla_deadline/escalation_level/reopened_count columns
+// added by the same ALTER in
+// database/create_municipal_workforce_tables.sql) -- lets routes/
+// adminMinimal.js's workflow creation/update/escalation logic degrade
+// gracefully (skip department routing & SLA tracking) until that migration
+// has run.
+async function workflowDepartmentColumnsAvailable(supabase) {
+  return probeColumnAvailable(supabase, 'complaint_workflow', 'department_id', 'workflowDepartment');
+}
+
 module.exports = {
   geometryColumnsAvailable,
   GEOMETRY_PLACEHOLDER,
   deviceIdColumnAvailable,
   languageColumnAvailable,
   contentFlagColumnsAvailable,
+  workflowDepartmentColumnsAvailable,
 };

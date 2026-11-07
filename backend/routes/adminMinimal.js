@@ -1,7 +1,32 @@
 const express = require('express');
 const router = express.Router();
-const { geometryColumnsAvailable, GEOMETRY_PLACEHOLDER, languageColumnAvailable, contentFlagColumnsAvailable } = require('../services/schemaAvailability');
+const { geometryColumnsAvailable, GEOMETRY_PLACEHOLDER, languageColumnAvailable, contentFlagColumnsAvailable, workflowDepartmentColumnsAvailable } = require('../services/schemaAvailability');
 const { authenticateUser, authorizeUserType } = require('../middleware/auth');
+const priorityConfig = require('../services/priorityConfig');
+const { deleteCitizenCascade } = require('../services/UserDeletionService');
+
+// Standard Indian municipal grievance-redressal response windows per
+// priority tier (see services/priorityConfig.js PRIORITY_LEVELS) -- used to
+// set complaint_workflow.sla_deadline when a workflow is first created.
+const SLA_HOURS_BY_PRIORITY_LEVEL = {
+  CRITICAL: 24,
+  HIGH: 72,
+  MEDIUM: 24 * 7,
+  LOW: 24 * 15,
+  MINIMAL: 24 * 30,
+};
+
+function computeSlaDeadline(rawPriorityScore) {
+  // priority_score is stored on a 0-1 scale by routes/complaints.js, but
+  // older rows / other call sites have stored it on 0-10 or 0-100 scales
+  // (see the defensive multi-scale OR filter a few lines up in this file) --
+  // normalize defensively rather than assume.
+  const num = Number(rawPriorityScore);
+  const normalized = Number.isFinite(num) ? (num > 1 ? num / 100 : num) : 0;
+  const level = priorityConfig.getPriorityLevel(normalized);
+  const hours = SLA_HOURS_BY_PRIORITY_LEVEL[level] || SLA_HOURS_BY_PRIORITY_LEVEL.MINIMAL;
+  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+}
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isValidUuid(value) {
@@ -508,8 +533,7 @@ router.get('/citizens/:citizenId/details', async (req, res) => {
                  workflow?.step_1_status === 'in_progress' ? 'in_progress' : 'pending',
           date: workflow?.step_1_timestamp,
           description: 'Our team is reviewing your complaint for validity and priority',
-          icon: '🔍',
-          officer: workflow?.step_1_officer_id ? 'Assigned to officer' : null
+          icon: '🔍'
         },
         {
           id: 3,
@@ -519,7 +543,6 @@ router.get('/citizens/:citizenId/details', async (req, res) => {
           date: workflow?.step_2_timestamp,
           description: 'Field assessment and resource planning in progress',
           icon: '📋',
-          officer: workflow?.step_2_officer_id ? 'Officer assigned' : null,
           estimatedCost: workflow?.step_2_estimated_cost
         },
         {
@@ -681,90 +704,9 @@ router.delete('/citizens/:citizenId', async (req, res) => {
       });
     }
 
-    // Start transaction-like operations (delete in reverse dependency order)
-    
-    // 1. Delete dependent records for this citizen's complaints
-    const { data: userComplaints, error: fetchComplaintsError } = await supabase
-      .from('complaints')
-      .select('id')
-      .eq('user_id', citizenId);
-
-    if (fetchComplaintsError) {
-      console.error('Error fetching citizen complaints before delete:', fetchComplaintsError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to look up citizen complaints'
-      });
-    }
-
-    if (userComplaints && userComplaints.length > 0) {
-      const complaintIds = userComplaints.map(c => c.id);
-
-      const { error: votesError } = await supabase
-        .from('complaint_votes')
-        .delete()
-        .in('complaint_id', complaintIds);
-      if (votesError) {
-        console.warn('Error deleting complaint_votes:', votesError.message);
-      }
-      
-      // Delete complaint_updates
-      const { error: updatesError } = await supabase
-        .from('complaint_updates')
-        .delete()
-        .in('complaint_id', complaintIds);
-
-      if (updatesError) {
-        console.error('Error deleting complaint_updates:', updatesError);
-      }
-
-      // Delete complaint_workflow
-      const { error: workflowError } = await supabase
-        .from('complaint_workflow')
-        .delete()
-        .in('complaint_id', complaintIds);
-
-      if (workflowError) {
-        console.error('Error deleting complaint_workflow:', workflowError);
-      }
-    }
-
-    // Delete any votes cast by this user on other complaints
-    const { error: userVotesError } = await supabase
-      .from('complaint_votes')
-      .delete()
-      .eq('user_id', citizenId);
-    if (userVotesError) {
-      console.warn('Error deleting user complaint_votes:', userVotesError.message);
-    }
-
-    // 2. Delete all complaints by this citizen
-    const { error: complaintsError } = await supabase
-      .from('complaints')
-      .delete()
-      .eq('user_id', citizenId);
-
-    if (complaintsError) {
-      console.error('Error deleting complaints:', complaintsError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to delete citizen complaints'
-      });
-    }
-
-    // 3. Delete the citizen/user
-    const { error: userError } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', citizenId)
-      .eq('user_type', 'citizen');
-
-    if (userError) {
-      console.error('Error deleting user:', userError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to delete citizen'
-      });
+    const result = await deleteCitizenCascade(supabase, citizenId);
+    if (!result.success) {
+      return res.status(result.status).json({ success: false, message: result.message });
     }
 
     console.log('✅ Successfully deleted citizen and all associated data');
@@ -861,17 +803,48 @@ router.get('/complaints/:complaintId/details', async (req, res) => {
       }
 
       console.warn('Workflow not found, creating default:', workflowError.message);
-      
+
+      const newWorkflowRow = {
+        complaint_id: complaintId,
+        current_step: 1,
+        step_1_status: 'pending',
+        step_2_status: 'pending',
+        step_3_status: 'pending'
+      };
+
+      // Auto-route to a department (by category) and set an SLA deadline
+      // (by priority tier) once database/create_municipal_workforce_tables.sql
+      // has been applied -- degrades to the plain workflow row above
+      // otherwise.
+      const workforceReady = await workflowDepartmentColumnsAvailable(supabase);
+      if (workforceReady) {
+        newWorkflowRow.sla_deadline = computeSlaDeadline(complaint.priority_score);
+
+        const { data: routing } = await supabase
+          .from('category_department_map')
+          .select('department_id, departments:department_id (id, name)')
+          .eq('category', complaint.category)
+          .maybeSingle();
+
+        if (routing?.department_id) {
+          newWorkflowRow.department_id = routing.department_id;
+          // Best-effort denormalized department name on the complaint
+          // itself, for quick display without a join -- reuses the
+          // existing (previously write-only, never displayed)
+          // assigned_department column.
+          if (routing.departments?.name) {
+            await supabase
+              .from('complaints')
+              .update({ assigned_department: routing.departments.name })
+              .eq('id', complaintId);
+          }
+        }
+      }
+
       // Create workflow entry if it doesn't exist
       const { data: newWorkflow, error: createError } = await supabase
         .from('complaint_workflow')
-        .insert({
-          complaint_id: complaintId,
-          current_step: 1,
-          step_1_status: 'pending',
-          step_2_status: 'pending',
-          step_3_status: 'pending'
-        })
+        .insert(newWorkflowRow)
         .select()
         .single();
 
@@ -882,42 +855,50 @@ router.get('/complaints/:complaintId/details', async (req, res) => {
           message: 'Failed to initialize complaint workflow'
         });
       }
-      
+
       // Use the newly created workflow
       workflow = newWorkflow;
     }
 
-    // Transform workflow data into stages format for frontend
+    // Transform workflow data into stages format for frontend.
+    // stage_name is a stable, language-neutral key (not display text) --
+    // the frontend looks it up in its own i18n strings so the stage
+    // heading actually changes with the selected language. notes is left
+    // null/undefined rather than falling back to English boilerplate here:
+    // that text was being shown as if the admin had typed it (and would
+    // have been saved back verbatim on the next "Save Stage" click), and
+    // never translated. The frontend shows its own translated placeholder
+    // when notes is empty instead.
     const realStages = [
       {
         id: 1,
-        stage_name: 'Initial Review',
+        stage_name: 'initial_review',
         stage_status: workflow.step_1_status,
         stage_order: 1,
         assigned_officer_id: workflow.step_1_officer_id,
         assigned_contractor_id: null,
-        notes: workflow.step_1_notes || 'Initial complaint review and verification',
+        notes: workflow.step_1_notes || null,
         timestamp: workflow.step_1_timestamp
       },
       {
         id: 2,
-        stage_name: 'Assessment',
+        stage_name: 'assessment',
         stage_status: workflow.step_2_status,
         stage_order: 2,
         assigned_officer_id: workflow.step_2_officer_id,
         assigned_contractor_id: workflow.step_2_contractor_id,
-        notes: workflow.step_2_notes || 'Field assessment and resource planning',
+        notes: workflow.step_2_notes || null,
         estimated_cost: workflow.step_2_estimated_cost,
         timestamp: workflow.step_2_timestamp
       },
       {
         id: 3,
-        stage_name: 'Resolution',
+        stage_name: 'resolution',
         stage_status: workflow.step_3_status,
         stage_order: 3,
         assigned_officer_id: workflow.step_3_officer_id,
         assigned_contractor_id: workflow.step_3_contractor_id,
-        notes: workflow.step_3_notes || 'Work execution and completion',
+        notes: workflow.step_3_notes || null,
         start_date: workflow.step_3_start_date,
         completion_date: workflow.step_3_completion_date,
         completion_photos: workflow.step_3_completion_photos,
@@ -953,18 +934,17 @@ router.get('/complaints/:complaintId/details', async (req, res) => {
 router.put('/complaints/:complaintId/stage/:stageId', async (req, res) => {
   try {
     const { complaintId, stageId } = req.params;
-    const { status, stage_status, notes, assigned_officer_id, assigned_contractor_id, estimated_cost } = req.body;
+    const { status, stage_status, notes, assigned_contractor_id, estimated_cost, department_id, completion_photos } = req.body;
     const supabase = req.app.get('supabase');
 
     // Frontend sends stage_status, so use that if status is not provided
     const actualStatus = status || stage_status;
 
-    console.log('🔄 Updating REAL workflow stage:', { 
-      complaintId, 
-      stageId, 
+    console.log('🔄 Updating REAL workflow stage:', {
+      complaintId,
+      stageId,
       status: actualStatus,
       notes,
-      assigned_officer_id,
       assigned_contractor_id,
       rawBody: req.body
     });
@@ -1006,20 +986,6 @@ router.put('/complaints/:complaintId/stage/:stageId', async (req, res) => {
 
     const stageName = ['', 'Initial Review', 'Assessment', 'Resolution'][parseInt(stageId, 10)];
 
-    let normalizedOfficerId;
-    if (assigned_officer_id !== undefined) {
-      if (assigned_officer_id === null || assigned_officer_id === '') {
-        normalizedOfficerId = null;
-      } else if (isValidUuid(assigned_officer_id)) {
-        normalizedOfficerId = assigned_officer_id.trim();
-      } else {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid assigned_officer_id format'
-        });
-      }
-    }
-
     let normalizedContractorId;
     if (assigned_contractor_id !== undefined) {
       if (assigned_contractor_id === null || assigned_contractor_id === '') {
@@ -1034,15 +1000,26 @@ router.put('/complaints/:complaintId/stage/:stageId', async (req, res) => {
       }
     }
 
+    if (department_id !== undefined) {
+      if (department_id === null || department_id === '') {
+        updateData.department_id = null;
+      } else if (isValidUuid(department_id)) {
+        updateData.department_id = department_id.trim();
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid department_id format'
+        });
+      }
+    }
+
     if (stageId === '1') {
       updateData.step_1_status = actualStatus;
       if (notes !== undefined) updateData.step_1_notes = notes;
-      if (normalizedOfficerId !== undefined) updateData.step_1_officer_id = normalizedOfficerId;
       updateData.step_1_timestamp = nowIso;
     } else if (stageId === '2') {
       updateData.step_2_status = actualStatus;
       if (notes !== undefined) updateData.step_2_notes = notes;
-      if (normalizedOfficerId !== undefined) updateData.step_2_officer_id = normalizedOfficerId;
       if (normalizedContractorId !== undefined) updateData.step_2_contractor_id = normalizedContractorId;
       if (estimated_cost !== undefined) {
         if (estimated_cost === null || estimated_cost === '') {
@@ -1062,7 +1039,6 @@ router.put('/complaints/:complaintId/stage/:stageId', async (req, res) => {
     } else if (stageId === '3') {
       updateData.step_3_status = actualStatus;
       if (notes !== undefined) updateData.step_3_notes = notes;
-      if (normalizedOfficerId !== undefined) updateData.step_3_officer_id = normalizedOfficerId;
       if (normalizedContractorId !== undefined) updateData.step_3_contractor_id = normalizedContractorId;
       updateData.step_3_timestamp = nowIso;
 
@@ -1073,6 +1049,15 @@ router.put('/complaints/:complaintId/stage/:stageId', async (req, res) => {
         updateData.step_3_completion_date = nowIso;
       } else if (actualStatus === 'pending' || actualStatus === 'in_progress') {
         updateData.step_3_completion_date = null;
+      }
+      if (Array.isArray(completion_photos)) {
+        // Resolution-proof photos (uploaded client-side to Cloudinary, same
+        // unsigned-upload pattern as the citizen's complaint photo) --
+        // step_3_completion_photos already existed on complaint_workflow
+        // but nothing ever wrote to it until now.
+        updateData.step_3_completion_photos = completion_photos
+          .filter(url => typeof url === 'string' && url.trim())
+          .slice(0, 10);
       }
     }
 
@@ -1160,7 +1145,6 @@ router.put('/complaints/:complaintId/stage/:stageId', async (req, res) => {
         complaint_status: newComplaintStatus || 'unchanged',
         workflow_data: updatedWorkflow,
         assignments: {
-          officer: normalizedOfficerId ? `Officer ${normalizedOfficerId} assigned` : null,
           contractor: normalizedContractorId ? `Contractor ${normalizedContractorId} assigned` : null
         },
         notes: notes
@@ -1392,45 +1376,169 @@ router.put('/complaints/:complaintId/status', async (req, res) => {
   }
 });
 
-// Officers and Contractors routes - FIXED with proper UUIDs
-router.get('/officers', (req, res) => {
-  res.json({
-    success: true,
-    data: [
-      { 
-        id: 'f8a5bae5-a458-407f-9209-c29209f9d024', 
-        name: 'John Smith', 
-        department: 'Public Works', 
-        status: 'active' 
-      },
-      { 
-        id: 'e7b4c9d6-b347-406e-8108-b18108e8c023', 
-        name: 'Sarah Johnson', 
-        department: 'Infrastructure', 
-        status: 'active' 
-      }
-    ]
-  });
+// ---------------------------------------------------------------------------
+// Departments, officers & contractors -- real, DB-backed municipal
+// workforce directory (previously /officers and /contractors returned two
+// hardcoded mock records; see database/create_municipal_workforce_tables.sql
+// for the schema and seed data these now query).
+// ---------------------------------------------------------------------------
+
+router.get('/departments', async (req, res) => {
+  try {
+    const supabase = req.app.get('supabase');
+    const { data, error } = await supabase.from('departments').select('*').order('name');
+    if (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    res.json({ success: true, data: data || [] });
+  } catch (error) {
+    console.error('List departments error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch departments' });
+  }
 });
 
-router.get('/contractors', (req, res) => {
-  res.json({
-    success: true,
-    data: [
-      { 
-        id: 'd6c3b8a5-c246-405d-7017-a07017d7b022', 
-        name: 'ABC Construction Ltd', 
-        specialization: 'Road Repair', 
-        status: 'active' 
-      },
-      { 
-        id: 'c5b2a794-b135-404c-6016-906016c6a021', 
-        name: 'Quick Fix Services', 
-        specialization: 'Streetlight Maintenance', 
-        status: 'active' 
-      }
-    ]
-  });
+router.post('/departments', async (req, res) => {
+  try {
+    const { name } = req.body || {};
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'name is required' });
+    }
+    const supabase = req.app.get('supabase');
+    const { data, error } = await supabase
+      .from('departments')
+      .insert({ name: name.trim() })
+      .select()
+      .single();
+    if (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    res.status(201).json({ success: true, data });
+  } catch (error) {
+    console.error('Create department error:', error);
+    res.status(500).json({ success: false, message: 'Failed to create department' });
+  }
+});
+
+// Note: deliberately no officer directory here -- department + contractor
+// is enough for this workflow, kept simple on purpose. The `officers`
+// table created by database/create_municipal_workforce_tables.sql is no
+// longer referenced by the app; it's harmless to leave in place unused.
+
+router.get('/contractors', async (req, res) => {
+  try {
+    const { status } = req.query;
+    const supabase = req.app.get('supabase');
+    let query = supabase.from('contractors').select('*').order('name');
+    if (typeof status === 'string' && status.trim()) {
+      query = query.eq('status', status.trim());
+    }
+    const { data, error } = await query;
+    if (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    res.json({ success: true, data: data || [] });
+  } catch (error) {
+    console.error('List contractors error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch contractors' });
+  }
+});
+
+router.post('/contractors', async (req, res) => {
+  try {
+    const { name, specialization, phone, email } = req.body || {};
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ success: false, message: 'name is required' });
+    }
+    const supabase = req.app.get('supabase');
+    const { data, error } = await supabase
+      .from('contractors')
+      .insert({
+        name: name.trim(),
+        specialization: specialization || null,
+        phone: phone || null,
+        email: email || null,
+      })
+      .select()
+      .single();
+    if (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    res.status(201).json({ success: true, data });
+  } catch (error) {
+    console.error('Create contractor error:', error);
+    res.status(500).json({ success: false, message: 'Failed to create contractor' });
+  }
+});
+
+router.put('/contractors/:contractorId/status', async (req, res) => {
+  try {
+    const { contractorId } = req.params;
+    const { status } = req.body || {};
+    if (!['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ success: false, message: "status must be 'active' or 'inactive'" });
+    }
+    const supabase = req.app.get('supabase');
+    const { data, error } = await supabase
+      .from('contractors')
+      .update({ status })
+      .eq('id', contractorId)
+      .select()
+      .single();
+    if (error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Update contractor status error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update contractor status' });
+  }
+});
+
+// Escalate a complaint's workflow -- allowed once its SLA deadline has
+// passed, lets the admin flag it as overdue for a higher authority.
+router.post('/complaints/:complaintId/escalate', async (req, res) => {
+  try {
+    const { complaintId } = req.params;
+    const supabase = req.app.get('supabase');
+
+    const { data: workflow, error: workflowError } = await supabase
+      .from('complaint_workflow')
+      .select('*')
+      .eq('complaint_id', complaintId)
+      .single();
+
+    if (workflowError || !workflow) {
+      return res.status(404).json({ success: false, message: 'Complaint workflow not found' });
+    }
+
+    const nowIso = new Date().toISOString();
+    const newLevel = (workflow.escalation_level || 0) + 1;
+
+    const { data: updatedWorkflow, error: updateError } = await supabase
+      .from('complaint_workflow')
+      .update({ escalation_level: newLevel, updated_at: nowIso })
+      .eq('complaint_id', complaintId)
+      .select()
+      .single();
+
+    if (updateError) {
+      return res.status(400).json({ success: false, message: updateError.message });
+    }
+
+    await supabase.from('complaint_updates').insert({
+      complaint_id: complaintId,
+      updated_by_id: isValidUuid(req.user?.id) ? req.user.id : null,
+      old_status: null,
+      new_status: null,
+      update_notes: `Escalated to level ${newLevel}${workflow.sla_deadline ? ` (SLA deadline was ${workflow.sla_deadline})` : ''}.`,
+      created_at: nowIso,
+    });
+
+    res.json({ success: true, message: `Complaint escalated to level ${newLevel}`, data: updatedWorkflow });
+  } catch (error) {
+    console.error('Escalate complaint error:', error);
+    res.status(500).json({ success: false, message: 'Failed to escalate complaint' });
+  }
 });
 
 module.exports = router;
