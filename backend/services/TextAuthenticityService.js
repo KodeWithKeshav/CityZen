@@ -217,6 +217,10 @@ function assessTextQuality(text) {
  *
  * @param {object} params
  * @param {string} params.text - the complaint description
+ * @param {string} [params.title] - the complaint title, checked against the
+ *   same category keyword lists as the description (titles are short, so
+ *   they skip the length/gibberish text-quality checks and only take part
+ *   in category-relevance matching)
  * @param {string} params.category - the declared/selected category
  * @param {string} [params.imagePrimaryClass] - class detected by the image
  *   validation step (Roboflow CityZen workflow), if any
@@ -224,17 +228,30 @@ function assessTextQuality(text) {
  *   authenticityScore: number,
  *   flagged: boolean,
  *   mismatchDetected: boolean,
+ *   titleMismatchDetected: boolean,
  *   suggestedCategory: string|null,
  *   reasons: string[],
  *   qualityIssues: string[],
  *   categoryMatch: { hits: number, matched: string[] } | null
  * }}
  */
-function analyzeTextAuthenticity({ text, category, imagePrimaryClass } = {}) {
+function analyzeTextAuthenticity({ text, title, category, imagePrimaryClass } = {}) {
   const safeText = typeof text === 'string' ? text : '';
+  const safeTitle = typeof title === 'string' ? title.trim() : '';
   const reasons = [];
 
-  const { qualityScore, issues: qualityIssues } = assessTextQuality(safeText);
+  // An empty/not-yet-written description only gets a pass on the "too
+  // short" quality check when there's a title actively carrying the
+  // analysis instead (title-only analysis, see routes/complaints.js) --
+  // a citizen who's only filled in the title so far shouldn't get a
+  // spurious "too short" complaint before they've even started the
+  // description. A genuinely empty submission (no text AND no title)
+  // still gets flagged, same as before.
+  let qualityScore = 1.0;
+  let qualityIssues = [];
+  if (safeText.trim().length > 0 || !safeTitle) {
+    ({ qualityScore, issues: qualityIssues } = assessTextQuality(safeText));
+  }
   reasons.push(...qualityIssues);
 
   const categoryScores = scoreAllCategories(safeText);
@@ -295,6 +312,38 @@ function analyzeTextAuthenticity({ text, category, imagePrimaryClass } = {}) {
     }
   }
 
+  // Title check — same category keyword lists as the description, but
+  // titles are short and don't get the length/gibberish quality checks.
+  // Only flags when the title clearly, confidently names a *different*
+  // recognizable civic issue than the one selected (title has zero hits for
+  // the declared category, and at least one hit for some other category) —
+  // a short, generic, or declared-category-matching title never trips this.
+  let titleMismatchDetected = false;
+  if (safeTitle && declaredCategory && CATEGORY_KEYWORDS[declaredCategory].length > 0) {
+    const titleScores = scoreAllCategories(safeTitle);
+    const declaredTitleHits = titleScores[declaredCategory]?.hits || 0;
+
+    let bestTitleAlt = null;
+    for (const [cat, s] of Object.entries(titleScores)) {
+      if (cat === declaredCategory) continue;
+      if (s.hits === 0) continue;
+      if (!bestTitleAlt || s.hits > bestTitleAlt.hits) {
+        bestTitleAlt = { category: cat, ...s };
+      }
+    }
+
+    if (declaredTitleHits === 0 && bestTitleAlt) {
+      titleMismatchDetected = true;
+      mismatchDetected = true;
+      suggestedCategory = suggestedCategory || bestTitleAlt.category;
+      categoryMatchScore = Math.min(categoryMatchScore, 0.3);
+      reasons.push(
+        `Title doesn't mention anything about "${CATEGORY_LABELS[declaredCategory]}", but matches ` +
+        `"${CATEGORY_LABELS[bestTitleAlt.category]}" instead.`
+      );
+    }
+  }
+
   // Cross-check against what the image itself detected, if available and
   // different from the declared category — this catches the case where a
   // photo of a pothole was uploaded but the typed-out category/description
@@ -333,6 +382,7 @@ function analyzeTextAuthenticity({ text, category, imagePrimaryClass } = {}) {
     authenticityScore: parseFloat(authenticityScore.toFixed(2)),
     flagged,
     mismatchDetected,
+    titleMismatchDetected,
     suggestedCategory,
     reasons,
     qualityIssues,
@@ -365,11 +415,11 @@ const ModelAuthenticityService = require('./ModelAuthenticityService');
  *   (informational only here; the zero-shot model reads the text directly
  *   regardless of language, no translation needed)
  */
-async function analyzeTextAuthenticityBlended({ text, category, imagePrimaryClass, language } = {}) {
+async function analyzeTextAuthenticityBlended({ text, title, category, imagePrimaryClass, language } = {}) {
   const normalizedCategory = typeof category === 'string' ? category.trim().toLowerCase() : '';
-  const ruleBased = analyzeTextAuthenticity({ text, category: normalizedCategory || category, imagePrimaryClass });
+  const ruleBased = analyzeTextAuthenticity({ text, title, category: normalizedCategory || category, imagePrimaryClass });
 
-  const modelResult = await ModelAuthenticityService.analyzeWithModel({ text, category: normalizedCategory || category });
+  const modelResult = await ModelAuthenticityService.analyzeWithModel({ text, title, category: normalizedCategory || category });
 
   const { hardBlock, flag } = priorityConfig.AUTHENTICITY_THRESHOLDS;
 

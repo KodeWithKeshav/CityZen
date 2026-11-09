@@ -4,6 +4,27 @@ DistilBERT Emotion / Sentiment Analysis Service (HF Inference API)
 Uses huggingface_hub InferenceClient to call the hosted
 distilbert-base-uncased-finetuned-sst-2-english model.
 
+NOTE: a local-inference version of this service (loading the model
+in-process via `transformers`, no HF API call) was tried and reverted --
+on this machine, every real forward pass through the model crashed with
+a native SIGBUS, reproduced identically across multiple torch versions
+(2.6.0, 2.15.0), with single-threaded execution, with numpy pinned to the
+1.x line, and with optimized ARM CPU kernels disabled
+(ATEN_CPU_CAPABILITY=default). Tokenizing and loading the model both
+work fine; only the actual matrix-multiply forward pass crashes. That
+points to a deep incompatibility between this Python 3.13 (Homebrew)
+build, Apple Silicon, and PyTorch's CPU backend here, not something a
+dependency-version change fixes from inside this file. If revisited, try
+a non-Homebrew Python (python.org installer or a conda env), since that's
+the next real lever to pull.
+
+This HF Inference API approach still works correctly via
+services/EmotionAnalysisService.js's existing fallback chain even when
+the HF API itself is unavailable (e.g. no token, or the account's
+Inference Providers credits are exhausted) -- see that file's
+analyzeWithAI() -> analyzeWithEnhancedKeywords() fallback, which degrades
+gracefully to rule-based multilingual keyword scoring instead of crashing.
+
 Endpoint:
   POST /predict   { "text": "..." }  →  [[{ "label": "NEGATIVE", "score": 0.98 }, ...]]
   GET  /health                        →  { "status": "ok", "model": "..." }

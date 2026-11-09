@@ -102,16 +102,22 @@ function rankAwareConfidence(result, label) {
 /**
  * @param {object} params
  * @param {string} params.text - the complaint description
+ * @param {string} [params.title] - the complaint title. Prefixed onto the
+ *   description before classification so the zero-shot model reads title +
+ *   description as one piece of context, the same way a human reviewer
+ *   would — titles are too short to classify reliably on their own.
  * @param {string} params.category - the declared/detected category key
  *   (one of TextAuthenticityService.CATEGORY_LABELS' keys)
  * @returns {Promise<{ available: boolean, categoryScore?: number, genuinenessScore?: number, spamLikelihood?: number, spamScore?: number, rawLabels?: object }>}
  */
-async function analyzeWithModel({ text, category } = {}) {
+async function analyzeWithModel({ text, title, category } = {}) {
   const apiKey = getHfApiKey();
   if (!apiKey || typeof text !== 'string' || !text.trim()) {
     return { available: false };
   }
 
+  const safeTitle = typeof title === 'string' ? title.trim() : '';
+  const classificationText = safeTitle ? `${safeTitle}. ${text}` : text;
   const normalizedCategory = typeof category === 'string' ? category.trim().toLowerCase() : '';
   const categoryLabel = CATEGORY_LABELS[normalizedCategory];
   const candidateCategoryLabels = [
@@ -121,8 +127,8 @@ async function analyzeWithModel({ text, category } = {}) {
 
   const work = (async () => {
     const [categoryResult, genuinenessResult] = await Promise.all([
-      categoryLabel ? callZeroShot(text, candidateCategoryLabels) : Promise.resolve(null),
-      callZeroShot(text, GENUINENESS_LABELS),
+      categoryLabel ? callZeroShot(classificationText, candidateCategoryLabels) : Promise.resolve(null),
+      callZeroShot(classificationText, GENUINENESS_LABELS),
     ]);
 
     // categoryScore: how strongly the text was classified as the declared
