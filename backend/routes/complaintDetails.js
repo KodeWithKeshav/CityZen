@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../config/supabase');
 const { recomputeVoteCount } = require('../services/voteService');
+const { stripAdminOnlyFields, stripAdminOnlyFieldsFromList } = require('../utils/sanitizeComplaint');
 
 const METERS_PER_DEGREE_LAT = 111320;
 
@@ -169,7 +170,7 @@ router.get('/nearby', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      complaints: completeComplaints
+      complaints: stripAdminOnlyFieldsFromList(completeComplaints)
     });
   } catch (error) {
     console.error('❌ Error in nearby complaints API:', error);
@@ -664,7 +665,7 @@ router.get('/:id', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      complaint: completeComplaint
+      complaint: stripAdminOnlyFields(completeComplaint)
     });
   } catch (error) {
     console.error('❌ Error in complaint details API:', error);

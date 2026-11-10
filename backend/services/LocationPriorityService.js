@@ -1121,7 +1121,24 @@ class LocationPriorityService {
           imageValidationScore: imageValidationScore / 100,
           emotionScore: emotionScore / 100,
           voteScore: voteScore / 100,
-          statusMultiplier
+          statusMultiplier,
+          // AHP-derived weights actually applied above (priorityConfig.js
+          // TOP_LEVEL_WEIGHTS), plus the weighted contribution of each
+          // signal to the final 0-100 score -- included so an admin-facing
+          // "how was this score calculated" view can render a clean
+          // signal × weight = contribution table without re-deriving it.
+          weights: {
+            infrastructureScore: W.infrastructureScore,
+            imageValidationScore: W.imageValidationScore,
+            emotionScore: W.emotionScore,
+            voteScore: W.voteScore
+          },
+          contributions: {
+            infrastructureScore: (infrastructureScore * W.infrastructureScore) / 100,
+            imageValidationScore: (imageValidationScore * W.imageValidationScore) / 100,
+            emotionScore: (emotionScore * W.emotionScore) / 100,
+            voteScore: (voteScore * W.voteScore) / 100
+          }
         },
         facilityAnalysis,
         totalFacilities,

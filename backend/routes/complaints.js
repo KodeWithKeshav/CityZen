@@ -9,6 +9,7 @@ const priorityConfig = require('../services/priorityConfig');
 const potholeGeometryService = require('../services/potholeGeometryService');
 const { castUpvote, toggleUpvote } = require('../services/voteService');
 const { findNearbyDuplicateComplaint } = require('../services/duplicateComplaintService');
+const { stripAdminOnlyFields, stripAdminOnlyFieldsFromList } = require('../utils/sanitizeComplaint');
 
 // Initialize services
 const locationPriorityService = new LocationPriorityService();
@@ -18,10 +19,10 @@ const locationPriorityService = new LocationPriorityService();
  * complaint description together, so both the pre-submit check and the
  * final submission use one source of truth.
  */
-async function analyzeComplaintText({ description, category, imagePrimaryClass, translation, language }) {
+async function analyzeComplaintText({ title, description, category, imagePrimaryClass, translation, language }) {
   const [emotionResult, authenticity] = await Promise.all([
     emotionService.analyzeEmotion(description, category, translation),
-    analyzeTextAuthenticityBlended({ text: description, category, imagePrimaryClass, language }),
+    analyzeTextAuthenticityBlended({ text: description, title, category, imagePrimaryClass, language }),
   ]);
 
   return { emotion: emotionResult, authenticity };
@@ -37,17 +38,22 @@ async function analyzeComplaintText({ description, category, imagePrimaryClass, 
  */
 router.post('/analyze-text', async (req, res) => {
   try {
-    const { description, category, imagePrimaryClass, translation, language } = req.body || {};
+    const { title, description, category, imagePrimaryClass, translation, language } = req.body || {};
 
-    if (typeof description !== 'string' || !description.trim()) {
+    // Either field is enough to run analysis on -- a citizen should get an
+    // immediate title-mismatch flag while typing the title, without having
+    // to wait until they've also written a description (and vice versa).
+    const hasTitle = typeof title === 'string' && title.trim();
+    const hasDescription = typeof description === 'string' && description.trim();
+    if (!hasTitle && !hasDescription) {
       return res.status(400).json({
         success: false,
-        error: 'description is required',
-        code: 'MISSING_DESCRIPTION'
+        error: 'title or description is required',
+        code: 'MISSING_TEXT'
       });
     }
 
-    const result = await analyzeComplaintText({ description, category, imagePrimaryClass, translation, language });
+    const result = await analyzeComplaintText({ title, description: description || '', category, imagePrimaryClass, translation, language });
 
     res.json({
       success: true,
@@ -361,6 +367,7 @@ router.post('/submit', async (req, res) => {
     // (does the text actually describe the declared/detected issue, and does
     // it read like a genuine report rather than spam/gibberish?)
     const textAnalysis = await analyzeComplaintText({
+      title: title.trim(),
       description: description.trim(),
       category: normalizedCategory,
       imagePrimaryClass: imageValidation?.primaryClass || null,
@@ -445,6 +452,20 @@ router.post('/submit', async (req, res) => {
       priority_score: safeFixedScore(priorityAnalysis.totalScore, 0),
       location_sensitivity_score: safeFixedScore(priorityAnalysis.locationScore, 0),
       emotion_score: safeFixedScore(textAnalysis.emotion?.emotionScore, 0.5),
+
+      // Full "how was this score calculated" explanation (signal scores,
+      // AHP weights, weighted contributions, human-readable reasoning,
+      // nearby facility analysis) -- computed above but previously
+      // discarded after the API response. Persisted so the admin UI can
+      // show it later instead of only the bare priority_score number.
+      // Dropped gracefully by filterComplaintDataForInsertion() if the
+      // database/add_priority_breakdown_column.sql migration hasn't run yet.
+      priority_breakdown: {
+        ...priorityAnalysis.breakdown,
+        reasoning: priorityAnalysis.reasoning,
+        facilitiesCount: priorityAnalysis.facilitiesCount || 0,
+        facilityAnalysis: priorityAnalysis.facilityAnalysis || null
+      },
 
       // Add AI confidence score if available
       ai_confidence_score: numericConfidence !== null
@@ -664,7 +685,8 @@ async function calculateComprehensivePriority({ imageValidation, locationData, c
         voteScore: 0,
         statusMultiplier: 1.0,
         degraded: true
-      }
+      },
+      facilityAnalysis: null
     };
   };
 
@@ -702,7 +724,8 @@ async function calculateComprehensivePriority({ imageValidation, locationData, c
       reasoning: priorityResult.reasoning,
       facilitiesCount: priorityResult.totalFacilities || 0,
       processingTime: Date.now() - startTime,
-      breakdown: priorityResult.breakdown
+      breakdown: priorityResult.breakdown,
+      facilityAnalysis: priorityResult.facilityAnalysis || null
     };
   } catch (priorityErr) {
     console.error('❌ Priority calculation error, using category-tier fallback:', priorityErr);
@@ -889,7 +912,7 @@ router.get('/', async (req, res) => {
     const totalCount = count || 0;
     res.json({
       success: true,
-      complaints,
+      complaints: stripAdminOnlyFieldsFromList(complaints),
       pagination: {
         total: totalCount,
         page: pageNum,
@@ -928,7 +951,7 @@ router.get('/all', async (req, res) => {
 
     res.json({
       success: true,
-      complaints
+      complaints: stripAdminOnlyFieldsFromList(complaints)
     });
   } catch (error) {
     console.error('Fetch all complaints error:', error);
@@ -1005,8 +1028,7 @@ router.get('/personal-reports', async (req, res) => {
             workflow?.step_1_status === 'in_progress' ? 'in_progress' : 'pending',
           date: workflow?.step_1_timestamp,
           description: 'Our team is reviewing your complaint for validity and priority',
-          icon: '🔍',
-          officer: workflow?.step_1_officer_id ? 'Assigned to officer' : null
+          icon: '🔍'
         },
         {
           id: 3,
@@ -1016,7 +1038,6 @@ router.get('/personal-reports', async (req, res) => {
           date: workflow?.step_2_timestamp,
           description: 'Field assessment and resource planning in progress',
           icon: '📋',
-          officer: workflow?.step_2_officer_id ? 'Officer assigned' : null,
           estimatedCost: workflow?.step_2_estimated_cost
         },
         {
@@ -1068,7 +1089,7 @@ router.get('/personal-reports', async (req, res) => {
     res.json({
       success: true,
       data: {
-        complaints: complaintsWithTracking,
+        complaints: stripAdminOnlyFieldsFromList(complaintsWithTracking),
         stats
       }
     });
@@ -1247,7 +1268,7 @@ router.get('/:id', async (req, res) => {
 
     res.json({
       success: true,
-      complaint: complaint
+      complaint: stripAdminOnlyFields(complaint)
     });
   } catch (error) {
     console.error('❌ Get complaint error:', error);
@@ -1332,6 +1353,95 @@ router.post('/vote', async (req, res) => {
       success: false,
       message: 'Internal server error while processing vote'
     });
+  }
+});
+
+/**
+ * POST /api/complaints/:id/reopen
+ * Lets the citizen who filed a complaint reopen it if they're not satisfied
+ * with a 'resolved' outcome -- resets the resolution stage to in_progress
+ * and bumps complaint_workflow.reopened_count, rather than making them file
+ * a brand new complaint for the same issue.
+ */
+router.post('/:id/reopen', async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ success: false, message: 'Authentication required to reopen a complaint' });
+    }
+
+    const { id } = req.params;
+    const { data: complaint, error: complaintError } = await supabase
+      .from('complaints')
+      .select('id, user_id, status')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (complaintError) {
+      console.error('❌ Error looking up complaint for reopen:', complaintError);
+      return res.status(500).json({ success: false, message: 'Internal server error while looking up complaint' });
+    }
+    if (!complaint) {
+      return res.status(404).json({ success: false, message: 'Complaint not found' });
+    }
+    if (complaint.user_id !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'You can only reopen your own complaints' });
+    }
+    if (complaint.status !== 'resolved') {
+      return res.status(400).json({ success: false, message: 'Only resolved complaints can be reopened' });
+    }
+
+    const nowIso = new Date().toISOString();
+
+    const { data: updatedComplaint, error: updateError } = await supabase
+      .from('complaints')
+      .update({ status: 'in_progress', resolved_at: null, updated_at: nowIso })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('❌ Error reopening complaint:', updateError);
+      return res.status(500).json({ success: false, message: 'Failed to reopen complaint' });
+    }
+
+    // Best-effort: reset the resolution stage and bump the reopen counter.
+    // reopened_count/the stage reset only exist once
+    // database/create_municipal_workforce_tables.sql has been applied --
+    // the complaint's own status flip above already succeeded either way.
+    const { data: workflow } = await supabase
+      .from('complaint_workflow')
+      .select('reopened_count')
+      .eq('complaint_id', id)
+      .maybeSingle();
+
+    if (workflow) {
+      const { error: workflowUpdateError } = await supabase
+        .from('complaint_workflow')
+        .update({
+          step_3_status: 'in_progress',
+          step_3_completion_date: null,
+          reopened_count: (workflow.reopened_count || 0) + 1,
+          updated_at: nowIso,
+        })
+        .eq('complaint_id', id);
+      if (workflowUpdateError) {
+        console.warn('Failed to reset workflow on reopen (migration applied?):', workflowUpdateError.message);
+      }
+    }
+
+    await supabase.from('complaint_updates').insert({
+      complaint_id: id,
+      updated_by_id: req.user.id,
+      old_status: 'resolved',
+      new_status: 'in_progress',
+      update_notes: 'Citizen reopened this complaint as unresolved.',
+      created_at: nowIso,
+    });
+
+    res.json({ success: true, message: 'Complaint reopened', data: updatedComplaint });
+  } catch (error) {
+    console.error('❌ Reopen complaint error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error while reopening complaint' });
   }
 });
 
