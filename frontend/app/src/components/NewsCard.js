@@ -93,9 +93,11 @@ const getCategoryColor = (category) => {
 
 // Helper function to format time
 const getTimeAgo = (publishedAt) => {
+  if (!publishedAt) return 'Recently';
   const now = new Date();
   const published = new Date(publishedAt);
-  const diffInMinutes = Math.floor((now - published) / (1000 * 60));
+  if (Number.isNaN(published.getTime())) return 'Recently';
+  const diffInMinutes = Math.max(0, Math.floor((now - published) / (1000 * 60)));
 
   if (diffInMinutes < 60) {
     return `${diffInMinutes}m ago`;

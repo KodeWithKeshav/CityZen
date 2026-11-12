@@ -18,7 +18,7 @@ import { apiClient, makeApiCall } from '../../../config/supabase';
 const { width } = Dimensions.get('window');
 
 const CitizenDetails = ({ route, navigation }) => {
-  const { citizenId } = route.params;
+  const { citizenId } = route.params || {};
   const [citizenData, setCitizenData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,6 +27,11 @@ const CitizenDetails = ({ route, navigation }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
+    if (!citizenId) {
+      Alert.alert('Error', 'Missing citizen ID');
+      navigation.goBack();
+      return;
+    }
     loadCitizenDetails();
   }, [citizenId]);
 
@@ -62,7 +67,7 @@ const CitizenDetails = ({ route, navigation }) => {
     try {
       const response = await makeApiCall(
         `${apiClient.baseUrl}/api/admin-enhanced/citizens/${citizenId}`,
-        'DELETE'
+        { method: 'DELETE' }
       );
       
       if (response.success) {
@@ -177,7 +182,7 @@ const CitizenDetails = ({ route, navigation }) => {
             { backgroundColor: getStatusColor(complaint.status) }
           ]}>
             <Text style={styles.statusText}>
-              {complaint.status.replace('_', ' ').toUpperCase()}
+              {(complaint.status || 'pending').replace('_', ' ').toUpperCase()}
             </Text>
           </View>
         </View>
@@ -257,7 +262,7 @@ const CitizenDetails = ({ route, navigation }) => {
             style={styles.deleteButton}
             onPress={() => setShowDeleteConfirm(true)}
           >
-            <Ionicons name="trash-outline" size={24} color="#1A1A1A" />
+            <Ionicons name="trash-outline" size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </LinearGradient>

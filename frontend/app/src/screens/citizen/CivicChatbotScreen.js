@@ -95,7 +95,7 @@ const CivicChatbotScreen = ({ navigation }) => {
     });
 
     return () => {
-      if (isRecording) speechService.stopSpeech();
+      speechService.stopSpeech();
     };
   }, []);
 

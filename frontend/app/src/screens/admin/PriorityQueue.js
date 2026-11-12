@@ -305,7 +305,7 @@ const PriorityQueue = ({ navigation }) => {
               {complaint.title}
             </Text>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(complaint.status) }]}>
-              <Text style={styles.statusText}>{complaint.status.toUpperCase()}</Text>
+              <Text style={styles.statusText}>{(complaint.status || 'pending').toUpperCase()}</Text>
             </View>
           </View>
 
@@ -724,7 +724,7 @@ const PriorityQueue = ({ navigation }) => {
                     <View style={styles.currentStatusContainer}>
                       <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(selectedComplaint.status) }]} />
                       <Text style={styles.modernCurrentStatus}>
-                        Current: {selectedComplaint.status.replace('_', ' ').toUpperCase()}
+                        Current: {(selectedComplaint.status || 'pending').replace('_', ' ').toUpperCase()}
                       </Text>
                     </View>
                   </View>

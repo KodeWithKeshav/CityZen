@@ -11,7 +11,8 @@ import {
  RefreshControl,
  ActivityIndicator,
  Platform,
- Alert
+ Alert,
+ Linking
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -68,16 +69,19 @@ const ComplaintFeedScreen = ({ navigation }) => {
 
  if (locationData) {
  console.log(' User location:', locationData);
- setUserLocation({
+ const coords = {
  latitude: locationData.latitude,
  longitude: locationData.longitude,
- });
+ };
+ setUserLocation(coords);
+ return coords;
  } else {
  Alert.alert(
  "Location Error",
  "We couldn't determine your current location. Please check your device settings and try again.",
  [{ text: "OK" }]
  );
+ return null;
  }
  } catch (error) {
  console.error(' Error getting location:', error);
@@ -103,14 +107,15 @@ const ComplaintFeedScreen = ({ navigation }) => {
  }
  };
 
- const fetchNearbyComplaints = async () => {
- if (!userLocation) return;
+ const fetchNearbyComplaints = async (locationOverride = null) => {
+ const targetLocation = locationOverride || userLocation;
+ if (!targetLocation) return;
  
  setLoading(true);
  try {
  // Call the backend API to get complaints within 5km
  const response = await makeApiCall(
- `${apiClient.baseUrl}/api/complaints?latitude=${userLocation.latitude}&longitude=${userLocation.longitude}&radius=5000`,
+ `${apiClient.baseUrl}/api/complaints?latitude=${targetLocation.latitude}&longitude=${targetLocation.longitude}&radius=5000`,
  { method: 'GET' }
  );
  
@@ -154,14 +159,14 @@ const ComplaintFeedScreen = ({ navigation }) => {
 
  const onRefresh = async () => {
  setRefreshing(true);
- await fetchUserLocation();
- if (userLocation) {
- await fetchNearbyComplaints();
- } else {
- setRefreshing(false);
+ const latestLocation = await fetchUserLocation();
+ const targetLocation = latestLocation || userLocation;
+ if (targetLocation) {
+ await fetchNearbyComplaints(targetLocation);
  }
  // Also refresh news
  await fetchNews();
+ setRefreshing(false);
  };
 
  // Fetch civic news for header carousel only
@@ -427,7 +432,8 @@ const ComplaintFeedScreen = ({ navigation }) => {
  });
 
  // Like button animation
- const likeScale = likeAnimations.current[item.id].interpolate({
+ const likeAnim = likeAnimations.current[item.id] || new Animated.Value(item.userVoted ? 1 : 0);
+ const likeScale = likeAnim.interpolate({
  inputRange: [0, 0.5, 1],
  outputRange: [1, 1.3, 1],
  });
@@ -466,7 +472,7 @@ const ComplaintFeedScreen = ({ navigation }) => {
  <Text style={styles.timeAgo}>{item.timeAgo}</Text>
  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
  <Text style={styles.statusText}>
- {item.status?.charAt(0).toUpperCase() + item.status?.slice(1).replace('_', ' ')}
+ {((item.status || 'pending').charAt(0).toUpperCase() + (item.status || 'pending').slice(1)).replace('_', ' ')}
  </Text>
  </View>
  </View>

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { apiClient, makeApiCall } from '../../../config/supabase';
 
 const FeedbackScreen = ({ route, navigation }) => {
   const { complaintId, complaintTitle } = route.params || {};
@@ -32,11 +33,25 @@ const FeedbackScreen = ({ route, navigation }) => {
     }
 
     setSubmitting(true);
-    
-    // Simulate processing time
-    setTimeout(() => {
-      setSubmitting(false);
-      
+
+    try {
+      if (complaintId) {
+        const result = await makeApiCall(`${apiClient.baseUrl}/api/feedback/submit`, {
+          method: 'POST',
+          body: JSON.stringify({
+            complaintId,
+            rating,
+            feedback: feedback.trim(),
+            improvements: improvements.trim(),
+            submittedAt: new Date().toISOString(),
+          }),
+        });
+
+        if (!result?.success) {
+          throw new Error(result?.message || 'Failed to submit feedback');
+        }
+      }
+
       Alert.alert(
         'Thank You!',
         'Your feedback has been submitted successfully. It helps us improve our service.',
@@ -53,7 +68,15 @@ const FeedbackScreen = ({ route, navigation }) => {
           }
         ]
       );
-    }, 1000); // 1 second delay to simulate processing
+    } catch (error) {
+      console.error('Feedback submission error:', error);
+      Alert.alert(
+        'Submission Error',
+        error.message || 'Could not submit your feedback. Please try again.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSkip = () => {

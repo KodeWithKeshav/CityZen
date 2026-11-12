@@ -118,7 +118,7 @@ const EnhancedAdminDashboard = ({ navigation }) => {
         <View style={styles.headerContent}>
           <View>
             <Text style={styles.greeting}>Welcome back,</Text>
-            <Text style={styles.adminName}>{userData?.full_name || 'Admin'}</Text>
+            <Text style={styles.adminName}>{userData?.fullName || userData?.full_name || 'Admin'}</Text>
           </View>
           <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
             <Ionicons name="log-out-outline" size={24} color="#fff" />
@@ -211,20 +211,22 @@ const EnhancedAdminDashboard = ({ navigation }) => {
               >
                 <View style={styles.priorityHeader}>
                   <View style={styles.priorityBadge}>
-                    <Text style={styles.priorityScore}>{(complaint.priority_score * 100).toFixed(0)}%</Text>
+                    <Text style={styles.priorityScore}>
+                      {typeof complaint.priority_score === 'number' ? `${(complaint.priority_score * 100).toFixed(0)}%` : 'N/A'}
+                    </Text>
                   </View>
                   <View style={styles.priorityInfo}>
                     <Text style={styles.priorityTitle} numberOfLines={2}>
                       {complaint.category?.replace(/_/g, ' ').toUpperCase() || 'Complaint'}
                     </Text>
                     <Text style={styles.priorityLocation} numberOfLines={1}>
-                      Priority Score: {complaint.priority_score || 'N/A'}
+                      Priority Score: {complaint.priority_score ?? 'N/A'}
                     </Text>
                   </View>
                 </View>
                 <View style={styles.priorityFooter}>
                   <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>{complaint.status.toUpperCase()}</Text>
+                    <Text style={styles.statusText}>{(complaint.status || 'pending').toUpperCase()}</Text>
                   </View>
                   <Text style={styles.priorityDate}>
                     {new Date(complaint.created_at).toLocaleDateString()}

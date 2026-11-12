@@ -3,16 +3,7 @@ import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 import { appendFileToFormData } from '../utils/formDataHelper';
 
-// Get API base URL from environment - avoid potential import cycles
-const getApiBaseUrl = () => {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
-  }
-
-  const host = process.env.EXPO_PUBLIC_API_HOST || 'localhost';
-  const port = process.env.EXPO_PUBLIC_API_PORT || '3001';
-  return `http://${host}:${port}`;
-};
+import { API_BASE_URL } from '../../config/supabase';
 
 export default class SarvamSpeechService {
   constructor() {
@@ -120,6 +111,11 @@ export default class SarvamSpeechService {
       return;
     }
 
+    if (this.recordingTimeout) {
+      clearTimeout(this.recordingTimeout);
+      this.recordingTimeout = null;
+    }
+
     try {
       // Stop recording
       await this.recording.stopAndUnloadAsync();
@@ -218,8 +214,6 @@ export default class SarvamSpeechService {
     let timeoutId; // Declare timeoutId outside try block so it's accessible in catch/finally
 
     try {
-      // Get the base URL directly from environment
-      const API_BASE_URL = getApiBaseUrl();
       console.log('🔗 Using API_BASE_URL:', API_BASE_URL);
 
       // Convert language code to Sarvam format

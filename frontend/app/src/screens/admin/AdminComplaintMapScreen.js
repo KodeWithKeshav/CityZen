@@ -17,7 +17,7 @@ import MapView, { Marker, Circle } from 'react-native-maps';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { API_BASE_URL } from '../../../config/supabase';
+import { API_BASE_URL, makeApiCall } from '../../../config/supabase';
 
 const AdminComplaintMapScreen = ({ navigation, route }) => {
   const [complaints, setComplaints] = useState([]);
@@ -65,15 +65,10 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
     setShowAiExplainModal(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/image-analysis/explain`, {
+      const data = await makeApiCall(`${API_BASE_URL}/api/image-analysis/explain`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ imageUrl, category: selectedComplaint?.category, complaintId: selectedComplaint?.id })
       });
-
-      const data = await response.json();
 
       if (data.success) {
         setAiExplainResult(data);
@@ -126,16 +121,14 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
     if (!selectedComplaint?.id || !imageUrl) return;
     setGeometryRetryLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/image-analysis/estimate-geometry`, {
+      const data = await makeApiCall(`${API_BASE_URL}/api/image-analysis/estimate-geometry`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           complaintId: selectedComplaint.id,
           imageUrl,
           category: selectedComplaint.category,
         }),
       });
-      const data = await response.json();
       if (data.success && data.geometry) {
         setSelectedComplaint((prev) => (prev ? { ...prev, ...data.geometry } : prev));
         setComplaints((prev) =>
@@ -358,8 +351,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   const fetchHeatMapData = async () => {
     try {
       console.log('️ Admin fetching heat map data...');
-      const response = await fetch(`${API_BASE_URL}/api/heat-map/data?days=30`);
-      const data = await response.json();
+      const data = await makeApiCall(`${API_BASE_URL}/api/heat-map/data?days=30`);
       
       if (data.success && data.data && data.data.points) {
         console.log(' Admin heat map data received:', data.data.points.length, 'points');
@@ -374,8 +366,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   const fetchComplaints = async () => {
     try {
       console.log(' Admin fetching complaints from:', `${API_BASE_URL}/api/complaints/all`);
-      const response = await fetch(`${API_BASE_URL}/api/complaints/all`);
-      const data = await response.json();
+      const data = await makeApiCall(`${API_BASE_URL}/api/complaints/all`);
       
       if (data.success && data.complaints) {
         console.log(' Admin fetched complaints:', data.complaints.length);
@@ -790,7 +781,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
                         </View>
                         <View style={styles.clusterInfo}>
                           <Text style={styles.clusterTitle}>{complaint.title}</Text>
-                          <Text style={styles.clusterStatus}>Status: {complaint.status.replace('_', ' ')}</Text>
+                          <Text style={styles.clusterStatus}>Status: {(complaint.status || 'pending').replace('_', ' ')}</Text>
                           <Text style={styles.clusterCategory}>Category: {complaint.category}</Text>
                           <Text style={[styles.clusterPriority, { color: getPriorityColor(complaint.priority_score) }]}>
                             Priority: {Math.round(complaint.priority_score || 0)}
@@ -811,7 +802,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
                 <>
                   <View style={styles.statusSection}>
                     <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedComplaint.status) }]}>
-                      <Text style={styles.statusText}>{selectedComplaint.status.toUpperCase()}</Text>
+                      <Text style={styles.statusText}>{(selectedComplaint.status || 'pending').toUpperCase()}</Text>
                     </View>
                     <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(selectedComplaint.priority_score) }]}>
                       <Text style={styles.statusText}>PRIORITY: {Math.round(selectedComplaint.priority_score || 0)}</Text>

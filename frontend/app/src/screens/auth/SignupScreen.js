@@ -33,8 +33,13 @@ const SignupScreen = ({ navigation }) => {
   };
 
   const handleSignup = async () => {
+    const fullName = formData.fullName.trim();
+    const email = formData.email.trim().toLowerCase();
+    const phoneNumber = formData.phoneNumber.trim();
+    const address = formData.address ? formData.address.trim() : '';
+
     // Validation
-    if (!formData.fullName || !formData.email || !formData.phoneNumber || !formData.password) {
+    if (!fullName || !email || !phoneNumber || !formData.password) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
@@ -49,15 +54,20 @@ const SignupScreen = ({ navigation }) => {
       return;
     }
 
+    if (phoneNumber.replace(/\D/g, '').length < 10) {
+      Alert.alert('Error', 'Please enter a valid phone number (at least 10 digits)');
+      return;
+    }
+
     setLoading(true);
     try {
       const signupData = {
-        fullName: formData.fullName,
-        email: formData.email,
-        phoneNumber: formData.phoneNumber,
+        fullName,
+        email,
+        phoneNumber,
         password: formData.password,
         userType: formData.userType,
-        address: formData.address,
+        address,
       };
 
       const response = await makeApiCall(apiClient.auth.signup, {

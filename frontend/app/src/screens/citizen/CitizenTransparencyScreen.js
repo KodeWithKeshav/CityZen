@@ -164,7 +164,9 @@ const CitizenTransparencyScreen = ({ navigation }) => {
       <Text style={styles.sectionTitle}>Category Breakdown</Text>
       <View style={styles.categoriesContainer}>
         {statsData.categoryStats.map((category, index) => {
-          const percentage = Math.round((category.total / statsData.totalComplaints) * 100);
+          const percentage = statsData.totalComplaints > 0
+            ? Math.round((category.total / statsData.totalComplaints) * 100)
+            : 0;
           return (
             <View key={index} style={styles.categoryItem}>
               <View style={styles.categoryBar}>

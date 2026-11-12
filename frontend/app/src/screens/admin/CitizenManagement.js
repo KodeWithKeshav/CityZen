@@ -89,8 +89,10 @@ const CitizenManagement = ({ navigation }) => {
     try {
       const response = await makeApiCall(
         `${apiClient.baseUrl}/api/admin-enhanced/citizens/${citizenId}/status`,
-        'PUT',
-        { status: newStatus }
+        {
+          method: 'PUT',
+          body: JSON.stringify({ status: newStatus }),
+        }
       );
 
       if (response.success) {
@@ -349,7 +351,7 @@ const CitizenManagement = ({ navigation }) => {
                       { backgroundColor: getStatusColor(selectedCitizen.status) }
                     ]}>
                       <Text style={styles.modalStatusText}>
-                        {selectedCitizen.status.toUpperCase()}
+                        {(selectedCitizen.status || 'active').toUpperCase()}
                       </Text>
                     </View>
                   </View>
@@ -422,7 +424,7 @@ const CitizenManagement = ({ navigation }) => {
                             {complaint.title}
                           </Text>
                           <Text style={styles.modalComplaintStatus}>
-                            {complaint.status.toUpperCase()}
+                            {(complaint.status || 'pending').toUpperCase()}
                           </Text>
                           <Text style={styles.modalComplaintDate}>
                             {new Date(complaint.created_at).toLocaleDateString()}
@@ -475,9 +477,7 @@ const CitizenManagement = ({ navigation }) => {
                     style={[styles.modalActionButton, { backgroundColor: '#1A1A1A' }]}
                     onPress={() => {
                       setShowCitizenModal(false);
-                      navigation.navigate('AdminCitizenChat', { 
-                        citizenId: selectedCitizen.id 
-                      });
+                      Alert.alert('Coming Soon', 'Direct citizen messaging is not available yet.');
                     }}
                   >
                     <Ionicons name="chatbubble-outline" size={18} color="#fff" />
