@@ -35,12 +35,22 @@ const GENUINENESS_LABELS = [
   'gibberish or nonsensical text',
 ];
 
+function getHfApiKey() {
+  return (
+    process.env.HUGGING_FACE_API_KEY ||
+    process.env.HUGGINGFACE_API_TOKEN ||
+    process.env.HF_TOKEN ||
+    ''
+  ).trim();
+}
+
 async function callZeroShot(text, candidateLabels) {
+  const apiKey = getHfApiKey();
   const response = await axios.post(
     HF_API_URL,
     { inputs: text, parameters: { candidate_labels: candidateLabels, multi_label: false } },
     {
-      headers: { Authorization: `Bearer ${process.env.HUGGING_FACE_API_KEY}` },
+      headers: { Authorization: `Bearer ${apiKey}` },
       timeout: CALL_TIMEOUT_MS,
     }
   );
@@ -94,14 +104,16 @@ function rankAwareConfidence(result, label) {
  * @param {string} params.text - the complaint description
  * @param {string} params.category - the declared/detected category key
  *   (one of TextAuthenticityService.CATEGORY_LABELS' keys)
- * @returns {Promise<{ available: boolean, categoryScore?: number, spamScore?: number, rawLabels?: object }>}
+ * @returns {Promise<{ available: boolean, categoryScore?: number, genuinenessScore?: number, spamLikelihood?: number, spamScore?: number, rawLabels?: object }>}
  */
-async function analyzeWithModel({ text, category }) {
-  if (!process.env.HUGGING_FACE_API_KEY || !text || !text.trim()) {
+async function analyzeWithModel({ text, category } = {}) {
+  const apiKey = getHfApiKey();
+  if (!apiKey || typeof text !== 'string' || !text.trim()) {
     return { available: false };
   }
 
-  const categoryLabel = CATEGORY_LABELS[category];
+  const normalizedCategory = typeof category === 'string' ? category.trim().toLowerCase() : '';
+  const categoryLabel = CATEGORY_LABELS[normalizedCategory];
   const candidateCategoryLabels = [
     ...Object.values(CATEGORY_LABELS).filter(Boolean),
     'none of these',
@@ -118,18 +130,31 @@ async function analyzeWithModel({ text, category }) {
     // there's no declared category to check against, e.g. "others").
     // Rank-aware, not a bare softmax probability -- see rankAwareConfidence.
     const categoryScore = categoryLabel ? rankAwareConfidence(categoryResult, categoryLabel) : 1;
-    const spamScore = scoreForLabel(genuinenessResult, GENUINENESS_LABELS[0]);
+    const genuinenessScore = scoreForLabel(genuinenessResult, GENUINENESS_LABELS[0]);
+    const spamLikelihood =
+      scoreForLabel(genuinenessResult, GENUINENESS_LABELS[1]) +
+      scoreForLabel(genuinenessResult, GENUINENESS_LABELS[2]);
 
     return {
       available: true,
       categoryScore,
-      spamScore,
+      genuinenessScore,
+      spamLikelihood,
+      // Kept for backwards-compatibility with callers expecting `spamScore` to
+      // hold the GENUINENESS_LABELS[0] ("genuine") score in the positive blend.
+      spamScore: genuinenessScore,
       rawLabels: { categoryResult, genuinenessResult },
     };
   })();
 
+  // Attach a no-op catch so if work rejects after the outer timeout resolves,
+  // it never triggers an unhandledPromiseRejection.
+  work.catch(() => {});
+
+  let timeoutId;
   const timeout = new Promise((resolve) => {
-    setTimeout(() => resolve({ available: false, reason: 'timeout' }), OUTER_TIMEOUT_MS);
+    timeoutId = setTimeout(() => resolve({ available: false, reason: 'timeout' }), OUTER_TIMEOUT_MS);
+    if (typeof timeoutId.unref === 'function') timeoutId.unref();
   });
 
   try {
@@ -137,6 +162,8 @@ async function analyzeWithModel({ text, category }) {
   } catch (error) {
     console.error('ModelAuthenticityService: HF call failed:', error.message);
     return { available: false, reason: error.message };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

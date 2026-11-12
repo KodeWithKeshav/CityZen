@@ -37,9 +37,14 @@ function sanitizeDeviceTilt(deviceTilt) {
   return deviceTilt;
 }
 
-async function estimateAndPersistGeometry({ complaintId, imageUrl, category, primaryClass, deviceTilt: rawDeviceTilt }) {
+async function estimateAndPersistGeometry({ complaintId, imageUrl, category, primaryClass, deviceTilt: rawDeviceTilt } = {}) {
+  if (!complaintId) {
+    return { status: 'failed', error: 'No complaintId provided' };
+  }
   const deviceTilt = sanitizeDeviceTilt(rawDeviceTilt);
-  const applicable = category === 'pothole' || primaryClass === 'pothole';
+  const normCategory = typeof category === 'string' ? category.trim().toLowerCase() : '';
+  const normPrimary = typeof primaryClass === 'string' ? primaryClass.trim().toLowerCase() : '';
+  const applicable = normCategory === 'pothole' || normPrimary === 'pothole';
 
   if (!applicable) {
     await safeUpdate(complaintId, { geometry_status: 'not_applicable' });
