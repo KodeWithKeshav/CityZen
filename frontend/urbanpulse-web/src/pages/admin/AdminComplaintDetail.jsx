@@ -2,27 +2,22 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
-import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
-import { HiArrowLeft, HiSave, HiExclamationCircle, HiShieldCheck, HiLocationMarker, HiSparkles } from 'react-icons/hi'
+import { HiArrowLeft, HiExclamationCircle, HiShieldCheck, HiLocationMarker, HiSparkles } from 'react-icons/hi'
 import { formatLocalizedDateTime } from '../../utils/dateLocale'
 import { getPriorityTier, getCategoryLabel } from '../../utils/priorityUtils'
 import { useTranslatedObject } from '../../context/TranslationContext'
 import ExplainAiModal from '../../components/ExplainAiModal'
 import GeometryEstimateCard from '../../components/GeometryEstimateCard'
-
-const STATUSES = ['pending', 'in_progress', 'resolved', 'rejected']
+import ScoreBreakdownPanel from '../../components/admin/ScoreBreakdownPanel'
+import ComplaintWorkflowPanel from '../../components/admin/ComplaintWorkflowPanel'
 
 export default function AdminComplaintDetail() {
   const { t, i18n } = useTranslation(['admin', 'citizen', 'complaint', 'common'])
   const { id } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const [complaint, setComplaint] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [updating, setUpdating] = useState(false)
-  const [status, setStatus] = useState('pending')
-  const [adminNote, setAdminNote] = useState('')
   const [showAiExplainModal, setShowAiExplainModal] = useState(false)
 
   const STATUS_CONFIG = {
@@ -51,7 +46,6 @@ export default function AdminComplaintDetail() {
         const res = await makeApiCall(apiClient.admin.complaintById(id))
         if (cancelled) return
         if (res?.success && res?.data) {
-          const rawStatus = (res.data.status || 'pending').toLowerCase().replace(/-/g, '_')
           const mapped = {
             ...res.data,
             createdAt: res.data.createdAt || res.data.created_at,
@@ -68,8 +62,6 @@ export default function AdminComplaintDetail() {
             imageUrl: res.data.imageUrl || (Array.isArray(res.data.image_urls) ? res.data.image_urls[0] : undefined),
           }
           setComplaint(mapped)
-          setStatus(STATUSES.includes(rawStatus) ? rawStatus : 'pending')
-          setAdminNote(mapped.adminNote || mapped.resolution_notes || '')
         } else {
           toast.error(res?.message || res?.error || t('complaintDossier.loadFailed'))
         }
@@ -84,36 +76,6 @@ export default function AdminComplaintDetail() {
     fetchComplaint()
     return () => { cancelled = true }
   }, [id])
-
-  const handleUpdate = async () => {
-    if (!status) {
-      toast.error(t('complaintDossier.selectStatus'))
-      return
-    }
-    setUpdating(true)
-    try {
-      const res = await makeApiCall(apiClient.complaints.updateStatus(id), {
-        method: 'PUT',
-        body: JSON.stringify({ status, notes: adminNote, adminId: user?.id }),
-      })
-      if (res?.success) {
-        toast.success(t('complaintDossier.statusUpdated'))
-        setComplaint(prev => ({
-          ...prev,
-          ...(res.data || {}),
-          status,
-          adminNote,
-          resolution_notes: adminNote,
-        }))
-      } else {
-        toast.error(res?.error || res?.message || t('complaintDossier.updateFailed'))
-      }
-    } catch (err) {
-      toast.error(err.message || t('complaintDossier.updateFailed'))
-    } finally {
-      setUpdating(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -296,6 +258,9 @@ export default function AdminComplaintDetail() {
         </div>
       </div>
 
+      {/* Score Breakdown (collapsible) */}
+      <ScoreBreakdownPanel breakdown={activeComplaint.priority_breakdown} />
+
       {/* Geometry Estimation */}
       <GeometryEstimateCard
         complaint={activeComplaint}
@@ -367,73 +332,8 @@ export default function AdminComplaintDetail() {
         </div>
       )}
 
-      {/* Admin Action Box: Status Update & Field Dispatch Notes */}
-      <div className="border border-black bg-white p-4 sm:p-6 md:p-8 space-y-6">
-        <div className="border-b border-neutral-200 pb-3">
-          <h3 className="font-serif text-lg font-bold uppercase text-neutral-900">
-            {t('complaintDossier.dispatcherProtocolTitle')}
-          </h3>
-          <p className="text-xs font-mono text-neutral-500 mt-0.5">
-            {t('complaintDossier.dispatcherProtocolDesc')}
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700 mb-2">
-              {t('complaintDossier.assignStatus')}
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {STATUSES.map(s => {
-                const isSelected = status === s
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setStatus(s)}
-                    className={`py-2.5 px-3 border font-mono text-xs uppercase tracking-wider transition-colors ${isSelected
-                      ? 'bg-neutral-900 text-white border-black font-bold'
-                      : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
-                      }`}
-                  >
-                    {t(`common:statusFilters.${s}`, s.replace(/_/g, ' '))}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700 mb-1">
-              {t('complaintDossier.officialResolutionNotes')}
-            </label>
-            <textarea
-              value={adminNote}
-              onChange={e => setAdminNote(e.target.value)}
-              placeholder={t('complaintDossier.notesPlaceholder')}
-              className="w-full px-3 py-2 border border-neutral-300 rounded-none text-xs font-mono focus:outline-none focus:border-black h-28 resize-none"
-            />
-          </div>
-
-          <button
-            onClick={handleUpdate}
-            disabled={updating}
-            className="w-full py-3 bg-black text-white font-mono text-xs font-bold uppercase tracking-wider hover:bg-neutral-800 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-          >
-            {updating ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>{t('complaintDossier.committingToLedger')}</span>
-              </>
-            ) : (
-              <>
-                <HiSave className="w-4 h-4" />
-                <span>{t('complaintDossier.commitDossierUpdate')}</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+      {/* Municipal Complaint Workflow: Initial Review -> Assessment -> Resolution */}
+      <ComplaintWorkflowPanel complaintId={id} />
 
       {/* Explain AI Modal (SAM-3 Segmentation & Reasoning) */}
       <ExplainAiModal

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
-import { HiArrowLeft, HiExclamationCircle, HiDocumentText, HiChevronRight } from 'react-icons/hi'
+import { HiArrowLeft, HiExclamationCircle, HiDocumentText, HiChevronRight, HiBan, HiCheckCircle, HiTrash } from 'react-icons/hi'
 import { formatLocalizedDate, formatLocalizedDateTime } from '../../utils/dateLocale'
 import { useTranslatedList, useTranslatedObject } from '../../context/TranslationContext'
 
@@ -14,6 +14,9 @@ export default function CitizenDetails() {
   const [citizen, setCitizen] = useState(null)
   const [complaints, setComplaints] = useState([])
   const [loading, setLoading] = useState(true)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const STATUS_CONFIG = {
     pending: { label: t('status.pending'), bg: 'bg-amber-50 text-amber-900 border-amber-300' },
@@ -58,6 +61,51 @@ export default function CitizenDetails() {
     fetchCitizenDetails()
     return () => { cancelled = true }
   }, [id])
+
+  const toggleStatus = async () => {
+    if (!citizen) return
+    const nextStatus = citizen.status === 'active' ? 'inactive' : 'active'
+    setUpdatingStatus(true)
+    try {
+      const res = await makeApiCall(apiClient.admin.citizenStatus(id), {
+        method: 'PUT',
+        body: JSON.stringify({ status: nextStatus }),
+      })
+      if (res?.success) {
+        toast.success(t('citizenDetails.statusUpdated'))
+        setCitizen(prev => ({ ...prev, status: nextStatus, is_active: nextStatus === 'active' }))
+      } else {
+        toast.error(res?.message || t('citizenDetails.statusUpdateFailed'))
+      }
+    } catch (err) {
+      toast.error(err.message || t('citizenDetails.statusUpdateFailed'))
+    } finally {
+      setUpdatingStatus(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true)
+      return
+    }
+    setDeleting(true)
+    try {
+      const res = await makeApiCall(apiClient.admin.deleteCitizen(id), { method: 'DELETE' })
+      if (res?.success) {
+        toast.success(t('citizenDetails.deleted'))
+        navigate('/admin/citizens', { replace: true })
+      } else {
+        toast.error(res?.message || t('citizenDetails.deleteFailed'))
+        setConfirmingDelete(false)
+      }
+    } catch (err) {
+      toast.error(err.message || t('citizenDetails.deleteFailed'))
+      setConfirmingDelete(false)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const translatedCitizen = useTranslatedObject(citizen, ['fullName', 'address'])
   const translatedComplaints = useTranslatedList(complaints, ['title', 'complaintTitle', 'description'])
@@ -151,6 +199,53 @@ export default function CitizenDetails() {
             <span className="font-bold text-neutral-900">{t('citizenDetails.submissionsCount', { count: complaints.length })}</span>
           </div>
         </div>
+
+        {/* Account Management */}
+        <div className="p-4 sm:p-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs uppercase tracking-wider text-neutral-500">{t('citizenDetails.accountStatus')}:</span>
+            <span className={`px-2 py-0.5 border font-mono text-[10px] uppercase tracking-wider font-bold ${
+              citizen.status === 'active' ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-neutral-100 border-neutral-300 text-neutral-600'
+            }`}>
+              {citizen.status === 'active' ? t('citizenDetails.statusActive') : t('citizenDetails.statusInactive')}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={toggleStatus}
+              disabled={updatingStatus}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-neutral-300 hover:border-black font-mono text-xs uppercase tracking-wider disabled:opacity-50"
+            >
+              {citizen.status === 'active' ? <HiBan className="w-3.5 h-3.5" /> : <HiCheckCircle className="w-3.5 h-3.5" />}
+              {citizen.status === 'active' ? t('citizenDetails.deactivate') : t('citizenDetails.reactivate')}
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 border font-mono text-xs uppercase tracking-wider disabled:opacity-50 ${
+                confirmingDelete ? 'bg-rose-600 text-white border-rose-700' : 'border-rose-300 text-rose-700 hover:bg-rose-50'
+              }`}
+            >
+              <HiTrash className="w-3.5 h-3.5" />
+              {confirmingDelete ? t('citizenDetails.confirmDelete') : t('citizenDetails.delete')}
+            </button>
+            {confirmingDelete && (
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                className="px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-neutral-500 hover:text-black"
+              >
+                {t('common:mobileNav.cancel')}
+              </button>
+            )}
+          </div>
+        </div>
+        {confirmingDelete && (
+          <div className="px-4 sm:px-6 pb-4 sm:pb-6 -mt-2">
+            <p className="text-xs font-sans text-rose-700 bg-rose-50 border border-rose-200 p-2">
+              {t('citizenDetails.deleteWarning')}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Citizen Complaint Submissions History */}

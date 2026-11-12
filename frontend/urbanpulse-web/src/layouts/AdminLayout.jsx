@@ -6,7 +6,7 @@ import { useTranslatedText } from '../context/TranslationContext'
 import LanguageSwitcher from '../components/LanguageSwitcher'
 import {
   HiViewGrid, HiDocumentText, HiExclamationCircle, HiMap,
-  HiUsers, HiCog, HiLogout, HiSearch,
+  HiUsers, HiCog, HiLogout, HiSearch, HiOfficeBuilding,
   HiBell, HiQuestionMarkCircle, HiMenu, HiX
 } from 'react-icons/hi'
 
@@ -16,7 +16,7 @@ export default function AdminLayout() {
   const { t } = useTranslation('common')
   const [searchQuery, setSearchQuery] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [activePopover, setActivePopover] = useState(null) // 'notifications' | 'help' | 'settings' | null
+  const [activePopover, setActivePopover] = useState(null) // 'notifications' | 'help' | null
 
   const navLinks = [
     { to: '/admin/dashboard', label: t('nav.admin.dashboard'), icon: HiViewGrid },
@@ -24,6 +24,7 @@ export default function AdminLayout() {
     { to: '/admin/priority', label: t('nav.admin.priority'), icon: HiExclamationCircle },
     { to: '/admin/map', label: t('nav.admin.map'), icon: HiMap },
     { to: '/admin/citizens', label: t('nav.admin.citizens'), icon: HiUsers },
+    { to: '/admin/workforce', label: t('nav.admin.workforce'), icon: HiOfficeBuilding },
   ]
 
   const handleLogout = () => {
@@ -100,8 +101,8 @@ export default function AdminLayout() {
       <div className="px-3 pb-2">
         <button
           type="button"
-          onClick={() => { setMobileNavOpen(false); togglePopover('settings') }}
-          className={`sidebar-link w-full ${activePopover === 'settings' ? 'active' : ''}`}
+          onClick={() => { setMobileNavOpen(false); navigate('/admin/settings') }}
+          className="sidebar-link w-full"
         >
           <HiCog className="w-[18px] h-[18px]" />
           <span>{t('nav.admin.settings')}</span>
@@ -204,7 +205,6 @@ export default function AdminLayout() {
                 <span className="text-label-sm text-on-surface">
                   {activePopover === 'notifications' && t('popovers.notificationsTitle')}
                   {activePopover === 'help' && t('popovers.helpTitle')}
-                  {activePopover === 'settings' && t('nav.admin.settings')}
                 </span>
                 <button
                   type="button"
@@ -237,19 +237,6 @@ export default function AdminLayout() {
                 </div>
               )}
 
-              {activePopover === 'settings' && (
-                <div className="space-y-2 text-on-surface-variant">
-                  <div>
-                    <span className="block text-[10px] uppercase text-primary-400">{t('popovers.account')}</span>
-                    <span className="font-semibold text-on-surface block truncate">{displayName}</span>
-                    {user?.email && <span className="block truncate">{user.email}</span>}
-                  </div>
-                  <div className="pt-2 border-t border-black/10 flex items-center justify-between">
-                    <span>{t('language.label')}</span>
-                    <LanguageSwitcher />
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </header>
