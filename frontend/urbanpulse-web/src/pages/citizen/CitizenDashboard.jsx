@@ -13,6 +13,7 @@ export default function CitizenDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [stats, setStats] = useState({ pending: 0, resolved: 0, total: 0 })
+  const [statsLoading, setStatsLoading] = useState(true)
 
   const actions = [
     { icon: HiPlusCircle, label: t('common:nav.citizen.newReport'), sub: t('citizen:dashboard.actions.newReport.sub'), to: '/citizen/submit' },
@@ -25,10 +26,11 @@ export default function CitizenDashboard() {
   ]
 
   useEffect(() => {
+    let isMounted = true
     const fetchStats = async () => {
       try {
         const res = await makeApiCall(apiClient.complaints.personalReports)
-        if (res.success && res.data?.stats) {
+        if (isMounted && res.success && res.data?.stats) {
           setStats({
             pending: res.data.stats.pending || 0,
             resolved: res.data.stats.resolved || 0,
@@ -37,17 +39,22 @@ export default function CitizenDashboard() {
         }
       } catch (err) {
         console.error('Failed to fetch stats', err)
+      } finally {
+        if (isMounted) setStatsLoading(false)
       }
     }
     fetchStats()
+    return () => { isMounted = false }
   }, [])
+
+  const firstName = (user?.fullName || user?.full_name || '').trim().split(/\s+/)[0]
 
   return (
     <div className="p-8 max-w-6xl mx-auto fade-in">
       {/* ─── Header ─── */}
       <div className="mb-stack-md">
         <h1 className="text-headline-lg font-epilogue text-on-surface">
-          {t('citizen:dashboard.greeting', { name: user?.fullName?.split(' ')[0] || t('citizen:dashboard.defaultName') })}
+          {t('citizen:dashboard.greeting', { name: firstName || t('citizen:dashboard.defaultName') })}
         </h1>
         <p className="text-body-md text-on-surface-variant mt-2">
           {t('citizen:dashboard.tagline')}
@@ -55,7 +62,7 @@ export default function CitizenDashboard() {
       </div>
 
       {/* ─── Stats Row ─── */}
-      <div className="grid grid-cols-3 gap-6 mb-stack-md">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-stack-md">
         {[
           { label: t('citizen:dashboard.statPending'), value: stats.pending, icon: HiClock },
           { label: t('citizen:dashboard.statResolved'), value: stats.resolved, icon: HiCheckCircle },
@@ -66,7 +73,9 @@ export default function CitizenDashboard() {
               <s.icon className="w-5 h-5 text-on-surface" />
               <span className="text-label-sm text-primary-400">{s.label}</span>
             </div>
-            <p className="font-epilogue text-4xl font-bold text-on-surface">{s.value}</p>
+            <p className="font-epilogue text-4xl font-bold text-on-surface">
+              {statsLoading ? '—' : s.value}
+            </p>
           </div>
         ))}
       </div>

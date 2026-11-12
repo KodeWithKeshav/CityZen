@@ -10,10 +10,7 @@ import {
   HiRefresh,
   HiExclamationCircle,
   HiSearch,
-  HiFilter,
   HiNewspaper,
-  HiChevronDown,
-  HiEye
 } from 'react-icons/hi'
 import { formatDistanceToNow } from 'date-fns'
 import { getPriorityTier } from '../../utils/priorityUtils'
@@ -54,14 +51,21 @@ function ComplaintCard({ c, onVote, onDetail }) {
     setVoting(false)
   }
 
-  const time = c.createdAt
-    ? formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })
+  const rawDate = c.createdAt || c.created_at
+  const parsedDate = rawDate ? new Date(rawDate) : null
+  const time = parsedDate && !isNaN(parsedDate.getTime())
+    ? formatDistanceToNow(parsedDate, { addSuffix: true })
     : t('citizen:feed.recently')
 
-  const statusInfo = STATUS_CONFIG[c.status] || {
+  const normalizedStatus = (c.status || '').toLowerCase()
+  const statusInfo = STATUS_CONFIG[normalizedStatus] || {
     label: (c.status || t('admin:status.pending')).toUpperCase(),
     bg: 'bg-neutral-100 text-neutral-800 border-neutral-300'
   }
+
+  const imageUrl = c.imageUrl || (Array.isArray(c.image_urls) ? c.image_urls[0] : null)
+  const address = typeof c.location === 'string' ? c.location : (c.location?.address || c.location_address)
+  const voteCount = c.upvotes ?? c.votes ?? c.vote_count ?? 0
 
   const citizenDisplayName = c.citizenName || c.userName || c.users?.full_name || c.user?.full_name || c.user_name || t('citizen:feed.verifiedCitizen')
   const citizenInitial = citizenDisplayName.charAt(0).toUpperCase()
@@ -76,7 +80,7 @@ function ComplaintCard({ c, onVote, onDetail }) {
         <div className="flex items-center justify-between gap-2 pb-3 border-b border-neutral-100 mb-4">
           <div className="flex items-center gap-2">
             <span className="font-mono text-xs text-neutral-500 font-semibold tracking-wider">
-              #{(c._id || c.id || '').slice(-6).toUpperCase()}
+              #{String(c._id || c.id || '').slice(-6).toUpperCase()}
             </span>
             <span className={`font-mono text-[10px] tracking-wider px-2 py-0.5 border ${statusInfo.bg}`}>
               {statusInfo.label}
@@ -105,10 +109,10 @@ function ComplaintCard({ c, onVote, onDetail }) {
                 <HiClock className="w-3 h-3" />
                 {time}
               </span>
-              {c.location?.address && (
+              {address && (
                 <>
                   <span>/</span>
-                  <span className="truncate max-w-[200px]">{c.location.address}</span>
+                  <span className="truncate max-w-[200px]">{address}</span>
                 </>
               )}
             </div>
@@ -124,10 +128,10 @@ function ComplaintCard({ c, onVote, onDetail }) {
         </p>
 
         {/* Image if present */}
-        {c.imageUrl && (
+        {imageUrl && (
           <div className="mb-4 border border-neutral-200 bg-neutral-50 overflow-hidden max-h-56">
             <img
-              src={c.imageUrl}
+              src={imageUrl}
               alt="Civic evidence"
               className="w-full h-48 object-cover filter contrast-[1.02]"
               onError={(e) => { e.target.style.display = 'none' }}
@@ -166,7 +170,7 @@ function ComplaintCard({ c, onVote, onDetail }) {
             className="flex items-center gap-1.5 px-2.5 py-1 border border-neutral-300 hover:border-black hover:bg-neutral-900 hover:text-white transition-colors duration-150 disabled:opacity-50 text-neutral-800"
           >
             <HiThumbUp className="w-3.5 h-3.5" />
-            <span className="font-bold">{c.upvotes || c.votes || 0}</span>
+            <span className="font-bold">{voteCount}</span>
           </button>
           <span className="text-neutral-400 group-hover:text-black flex items-center gap-1 text-xs uppercase tracking-wider">
             {t('citizen:feed.detailsArrow')}
@@ -201,8 +205,10 @@ export default function ComplaintFeed() {
     try {
       const res = await makeApiCall(apiClient.complaints.all)
       const dataArr = res.data || res.complaints || []
-      if (res.success) {
+      if (res.success && Array.isArray(dataArr)) {
         setAllComplaints(dataArr)
+      } else if (!res.success) {
+        toast.error(res.message || t('citizen:feed.loadFailed'))
       }
     } catch (err) {
       toast.error(t('citizen:feed.loadFailed'))
@@ -271,14 +277,23 @@ export default function ComplaintFeed() {
           prev.map(c => {
             if ((c._id || c.id) !== id) return c
             const voteCount = res?.data?.voteCount
+            const currentVotes = c.upvotes ?? c.votes ?? c.vote_count ?? 0
+            const nextCount = typeof voteCount === 'number' ? voteCount : currentVotes + 1
             return {
               ...c,
-              upvotes: typeof voteCount === 'number' ? voteCount : (c.upvotes || c.votes || 0) + 1,
-              votes: typeof voteCount === 'number' ? voteCount : (c.upvotes || c.votes || 0) + 1,
+              upvotes: nextCount,
+              votes: nextCount,
+              vote_count: nextCount,
             }
           })
         )
-        toast.success(t('citizen:feed.voteRecorded'))
+        if (res?.data?.action === 'unvoted' || res?.data?.action === 'removed') {
+          toast.success(res.message || t('citizen:feed.voteRecorded'))
+        } else {
+          toast.success(t('citizen:feed.voteRecorded'))
+        }
+      } else {
+        toast.error(res.message || t('citizen:feed.voteFailed'))
       }
     } catch (err) {
       toast.error(err.message || t('citizen:feed.voteFailed'))
@@ -294,10 +309,12 @@ export default function ComplaintFeed() {
   const filteredComplaints = useMemo(() => {
     return allComplaints
       .map(c => {
-        const lat = c.location?.latitude || c.location_latitude || c.latitude
-        const lng = c.location?.longitude || c.location_longitude || c.longitude
-        if (!userLoc || !lat || !lng) return { ...c, distanceKm: 999 }
-        const dist = getDistanceFromLatLonInKm(userLoc.lat, userLoc.lng, parseFloat(lat), parseFloat(lng))
+        const rawLat = c.location?.latitude ?? c.location?.lat ?? c.location_latitude ?? c.latitude
+        const rawLng = c.location?.longitude ?? c.location?.lng ?? c.location_longitude ?? c.longitude
+        const lat = parseFloat(rawLat)
+        const lng = parseFloat(rawLng)
+        if (!userLoc || !Number.isFinite(lat) || !Number.isFinite(lng)) return { ...c, distanceKm: 999 }
+        const dist = getDistanceFromLatLonInKm(userLoc.lat, userLoc.lng, lat, lng)
         return { ...c, distanceKm: dist }
       })
       .filter(c => {
@@ -308,7 +325,7 @@ export default function ComplaintFeed() {
         }
         // Status filter
         if (selectedStatus !== 'all') {
-          const st = (c.status || '').toLowerCase()
+          const st = (c.status || '').toLowerCase().replace(/-/g, '_')
           if (st !== selectedStatus.toLowerCase()) return false
         }
         // Distance filter
@@ -322,7 +339,8 @@ export default function ComplaintFeed() {
           const q = searchQuery.toLowerCase()
           const matchTitle = (c.title || c.complaintTitle || '').toLowerCase().includes(q)
           const matchDesc = (c.description || '').toLowerCase().includes(q)
-          const matchAddr = (c.location?.address || '').toLowerCase().includes(q)
+          const addr = typeof c.location === 'string' ? c.location : (c.location?.address || c.location_address || '')
+          const matchAddr = addr.toLowerCase().includes(q)
           if (!matchTitle && !matchDesc && !matchAddr) return false
         }
         return true
@@ -331,7 +349,7 @@ export default function ComplaintFeed() {
         if (userLoc && radiusFilter !== 'all') {
           return a.distanceKm - b.distanceKm
         }
-        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+        return new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0)
       })
   }, [allComplaints, userLoc, locStatus, selectedCategory, selectedStatus, radiusFilter, searchQuery])
 

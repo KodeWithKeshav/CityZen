@@ -1,28 +1,77 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
-import { HiStar, HiCheckCircle } from 'react-icons/hi'
+import { HiStar } from 'react-icons/hi'
 
 export default function FeedbackScreen() {
   const { t } = useTranslation('citizen')
-  const [form, setForm] = useState({ rating: 0, category: '', message: '' })
+  const [searchParams] = useSearchParams()
+  const initialComplaintId = searchParams.get('complaintId') || ''
+  const [form, setForm] = useState({
+    complaintId: initialComplaintId,
+    rating: 0,
+    category: '',
+    message: '',
+  })
+  const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+    const loadReports = async () => {
+      try {
+        const res = await makeApiCall(apiClient.complaints.personalReports)
+        if (!isMounted || !res?.success) return
+        const list = res.data?.complaints || res.complaints || []
+        if (Array.isArray(list)) {
+          setReports(list)
+          setForm(prev => {
+            if (prev.complaintId || list.length === 0) return prev
+            return { ...prev, complaintId: list[0]._id || list[0].id || '' }
+          })
+        }
+      } catch {
+        // Optional dropdown population; ignore if unavailable
+      }
+    }
+    loadReports()
+    return () => { isMounted = false }
+  }, [])
+
+  const ratingLabels = t('feedback.ratingLabels', { returnObjects: true })
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (form.rating === 0) { toast.error(t('feedback.ratingRequired')); return }
     if (!form.message.trim()) { toast.error(t('feedback.messageRequired')); return }
+    if (!form.complaintId) {
+      toast.error('Please select an incident report to evaluate')
+      return
+    }
     setLoading(true)
     try {
-      setTimeout(() => {
+      const res = await makeApiCall(apiClient.feedback.submit, {
+        method: 'POST',
+        body: JSON.stringify({
+          complaintId: form.complaintId,
+          rating: form.rating,
+          feedback: form.message.trim(),
+          improvements: form.category || undefined,
+          submittedAt: new Date().toISOString(),
+        }),
+      })
+      if (res?.success) {
         setSubmitted(true)
         toast.success(t('feedback.recorded'))
-        setLoading(false)
-      }, 500)
+      } else {
+        toast.error(res?.message || t('feedback.submissionFailed'))
+      }
     } catch (err) {
-      toast.error(t('feedback.submissionFailed'))
+      toast.error(err.message || t('feedback.submissionFailed'))
+    } finally {
       setLoading(false)
     }
   }
@@ -41,7 +90,7 @@ export default function FeedbackScreen() {
       <button
         onClick={() => {
           setSubmitted(false)
-          setForm({ rating: 0, category: '', message: '' })
+          setForm(prev => ({ ...prev, rating: 0, category: '', message: '' }))
         }}
         className="mt-8 px-6 py-2.5 bg-black text-white font-mono text-xs font-bold uppercase tracking-wider hover:bg-neutral-800"
       >
@@ -92,12 +141,44 @@ export default function FeedbackScreen() {
                   />
                 </button>
               ))}
-              {form.rating > 0 && (
+              {form.rating > 0 && Array.isArray(ratingLabels) && ratingLabels[form.rating] && (
                 <span className="font-mono text-xs uppercase tracking-wider text-neutral-800 ml-3 font-bold">
-                  {t('feedback.ratingLabels', { returnObjects: true })[form.rating]}
+                  {ratingLabels[form.rating]}
                 </span>
               )}
             </div>
+          </div>
+
+          {/* Incident Dossier Selection */}
+          <div>
+            <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700 mb-1">
+              RELATED INCIDENT DOSSIER *
+            </label>
+            {reports.length > 0 ? (
+              <select
+                value={form.complaintId}
+                onChange={e => setForm(p => ({ ...p, complaintId: e.target.value }))}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-none text-xs font-mono bg-white focus:outline-none focus:border-black"
+              >
+                <option value="">SELECT AN INCIDENT REPORT</option>
+                {reports.map(r => {
+                  const rId = r._id || r.id
+                  return (
+                    <option key={rId} value={rId}>
+                      #{String(rId).slice(-6).toUpperCase()} — {r.title || r.complaintTitle || 'Incident Report'}
+                    </option>
+                  )
+                })}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={form.complaintId}
+                onChange={e => setForm(p => ({ ...p, complaintId: e.target.value }))}
+                placeholder="Enter Complaint ID (file a report first if none exist)"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-none text-xs font-mono bg-white focus:outline-none focus:border-black"
+              />
+            )}
           </div>
 
           {/* Category */}

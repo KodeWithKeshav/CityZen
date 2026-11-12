@@ -2,10 +2,10 @@ import { useRef, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useChatContext } from '../../context/ChatContext'
 import {
-  HiPaperAirplane, HiChatAlt2, HiMicrophone, HiSparkles,
+  HiPaperAirplane, HiMicrophone, HiSparkles,
   HiTrash, HiExternalLink, HiX,
 } from 'react-icons/hi'
-import { makeApiCall, apiClient } from '../../services/api'
+import { apiClient, authStorage } from '../../services/api'
 import toast from 'react-hot-toast'
 import i18n from '../../i18n'
 
@@ -35,15 +35,14 @@ const formatMarkdown = (text) => {
 function SourceBadge({ source, confidence }) {
   if (!source) return null
   const map = {
-    knowledge_base:          { label: 'Knowledge Base', color: 'emerald' },
-    knowledge_base_fallback: { label: 'KB Fallback',    color: 'yellow'  },
-    groq:                    { label: 'Qwen3-27B AI',   color: 'violet'  },
-    groq_tool:               { label: 'AI + Navigate',  color: 'blue'    },
+    knowledge_base:          { label: 'Knowledge Base', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    knowledge_base_fallback: { label: 'KB Fallback',    cls: 'bg-yellow-50 text-yellow-700 border-yellow-200'  },
+    groq:                    { label: 'Groq AI',        cls: 'bg-violet-50 text-violet-700 border-violet-200'  },
+    groq_tool:               { label: 'AI + Navigate',  cls: 'bg-blue-50 text-blue-700 border-blue-200'        },
   }
-  const { label, color } = map[source] || { label: source, color: 'gray' }
+  const { label, cls } = map[source] || { label: source, cls: 'bg-gray-50 text-gray-700 border-gray-200' }
   return (
-    <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full
-      bg-${color}-50 text-${color}-700 border border-${color}-200`}>
+    <span className={`font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border ${cls}`}>
       {label}{typeof confidence === 'number' ? ` · ${Math.round(confidence * 100)}%` : ''}
     </span>
   )
@@ -102,17 +101,23 @@ export default function Chatbot() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
-  // Track nav actions per message
+  // Track nav actions per message (don't revive dismissed/executed cards)
   useEffect(() => {
-    const updates = {}
-    messages.forEach(m => {
-      if (m.action?.type === 'navigate') updates[m.id] = m.action
+    setPendingNavs(prev => {
+      let changed = false
+      const next = { ...prev }
+      messages.forEach(m => {
+        if (m.action?.type === 'navigate' && !(m.id in next)) {
+          next[m.id] = m.action
+          changed = true
+        }
+      })
+      return changed ? next : prev
     })
-    setPendingNavs(prev => ({ ...prev, ...updates }))
   }, [messages])
 
   const handleSend = (text) => {
-    const msg = text || input.trim()
+    const msg = (typeof text === 'string' ? text : input).trim()
     if (!msg || loading) return
     setInput('')
     sendMessage(msg)
@@ -123,6 +128,23 @@ export default function Chatbot() {
     mediaStreamRef.current?.getTracks().forEach(t => t.stop())
     mediaStreamRef.current = null
   }
+
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.onstop = null
+          mediaRecorderRef.current.stop()
+        } catch {
+          // ignore
+        }
+      }
+      stopMediaStream()
+    }
+  }, [])
 
   const handleVoiceInput = async () => {
     if (isRecording) { mediaRecorderRef.current?.stop(); return }
@@ -138,20 +160,32 @@ export default function Chatbot() {
 
       recorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
       recorder.onstop = async () => {
-        stopMediaStream(); setIsRecording(false); setTranscribing(true)
+        stopMediaStream()
+        if (!isMountedRef.current) return
+        setIsRecording(false); setTranscribing(true)
         try {
           const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
           const fd = new FormData()
           fd.append('audio', blob, 'recording.webm')
-          fd.append('language', i18n.language)
-          const r = await fetch(apiClient.transcribe.audio, { method: 'POST', body: fd })
-          const data = await r.json()
+          fd.append('language', (i18n.language || 'en').split('-')[0])
+          const token = authStorage.getToken()
+          const r = await fetch(apiClient.transcribe.audio, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            body: fd,
+          })
+          const data = await r.json().catch(() => ({}))
+          if (!isMountedRef.current) return
           if (r.ok && data.success && data.transcript) {
             setInput(prev => prev ? `${prev} ${data.transcript}` : data.transcript)
           } else {
             toast.error(data.message || 'Transcription failed')
           }
-        } catch { toast.error('Upload error') } finally { setTranscribing(false) }
+        } catch {
+          if (isMountedRef.current) toast.error('Upload error')
+        } finally {
+          if (isMountedRef.current) setTranscribing(false)
+        }
       }
       recorder.start(); setIsRecording(true)
     } catch { toast.error('Microphone access failed'); setIsRecording(false) }
@@ -170,7 +204,7 @@ export default function Chatbot() {
       <div className="px-6 py-4 border-b border-black bg-white flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center">
-            <HiSparkles className="w-4.5 h-4.5 text-white" />
+            <HiSparkles className="w-5 h-5 text-white" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -179,7 +213,7 @@ export default function Chatbot() {
               </h1>
               <span className="font-mono text-[10px] tracking-wider uppercase px-2 py-0.5
                 bg-violet-50 text-violet-700 border border-violet-200 rounded-full">
-                Qwen3-27B
+                Groq AI
               </span>
             </div>
             <p className="font-mono text-xs text-neutral-500 mt-0.5">
@@ -188,7 +222,7 @@ export default function Chatbot() {
           </div>
         </div>
         <button
-          onClick={clearChat}
+          onClick={() => { clearChat(); setPendingNavs({}) }}
           title="Clear conversation"
           className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 text-neutral-400 hover:text-neutral-700 transition-colors"
         >

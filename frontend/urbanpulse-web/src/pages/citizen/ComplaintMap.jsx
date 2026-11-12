@@ -6,7 +6,7 @@ import 'leaflet.heat'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
 import 'leaflet/dist/leaflet.css'
-import { HiX, HiArrowRight, HiMap, HiChartBar, HiSparkles } from 'react-icons/hi'
+import { HiX, HiArrowRight, HiSparkles } from 'react-icons/hi'
 import { getPriorityTier } from '../../utils/priorityUtils'
 import ExplainAiModal from '../../components/ExplainAiModal'
 
@@ -18,7 +18,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyBqn-8BPXpdcIAnjaEN9iwNC47epZP6Q6w'
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
 
 const MAP_LAYERS = {
   google: {
@@ -30,6 +30,12 @@ const MAP_LAYERS = {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }
 }
+
+const ACTIVE_MAP_LAYER = GOOGLE_MAPS_API_KEY ? MAP_LAYERS.google : MAP_LAYERS.osm
+
+const DEFAULT_MAP_LAT = Number(import.meta.env.VITE_MAP_DEFAULT_LAT) || 20.5937
+const DEFAULT_MAP_LNG = Number(import.meta.env.VITE_MAP_DEFAULT_LNG) || 78.9629
+const DEFAULT_MAP_ZOOM = Number(import.meta.env.VITE_MAP_DEFAULT_ZOOM) || 5
 
 const STATUS_COLORS = {
   pending: '#B45309', // amber-700
@@ -61,12 +67,14 @@ function HeatmapLayer({ points, maxZoom = 17, radius = 25, blur = 15, max = 5 })
   useEffect(() => {
     if (!map || !points || points.length === 0) return
     const heatData = points
-      .filter(p => (p.lat || p.latitude) && (p.lng || p.longitude))
       .map(p => [
-        Number(p.lat || p.latitude),
-        Number(p.lng || p.longitude),
+        Number(p.lat ?? p.latitude),
+        Number(p.lng ?? p.longitude),
         Number(p.weight || 1)
       ])
+      .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0))
+
+    if (heatData.length === 0) return
 
     if (typeof L.heatLayer === 'function') {
       const heat = L.heatLayer(heatData, { radius, blur, maxZoom, max }).addTo(map)
@@ -122,7 +130,7 @@ export default function ComplaintMap() {
   const [timeRange, setTimeRange] = useState('all') // 'all', '30', '90', '365'
   const [viewMode, setViewMode] = useState('heatmap') // 'heatmap' or 'pins'
   const [selectedZonePoints, setSelectedZonePoints] = useState(null)
-  const [explainModalState, setExplainModalState] = useState({ isOpen: false, imageUrl: null, title: '' })
+  const [explainModalState, setExplainModalState] = useState({ isOpen: false, imageUrl: null, title: '', category: undefined })
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -133,7 +141,11 @@ export default function ComplaintMap() {
           ? apiClient.heatMap.data
           : `${apiClient.heatMap.data}?days=${timeRange}`
         const res = await makeApiCall(url)
-        if (res.success && res.data) setData(res.data)
+        if (res.success && res.data) {
+          setData(res.data)
+        } else {
+          toast.error(res.message || 'Failed to load spatial map telemetry')
+        }
       } catch (err) {
         toast.error('Failed to load spatial map telemetry')
       } finally {
@@ -145,19 +157,21 @@ export default function ComplaintMap() {
 
   const mapped = useMemo(() => {
     return (data.points || []).filter(c => {
-      const lat = c.lat || c.latitude
-      const lng = c.lng || c.longitude
-      if (!lat || !lng) return false
+      const lat = Number(c.lat ?? c.latitude)
+      const lng = Number(c.lng ?? c.longitude)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return false
       if (filter === 'all') return true
-      return c.status === filter || c.status === filter.replace(/_/g, '-') || c.markerType === filter
+      const normalizedStatus = (c.status || '').toLowerCase().replace(/-/g, '_')
+      return normalizedStatus === filter || c.markerType === filter
     })
   }, [data.points, filter])
 
   const handleMapClick = (latlng) => {
     const radiusKm = 2.0
     const nearby = mapped.filter(p => {
-      const lat = p.lat || p.latitude
-      const lng = p.lng || p.longitude
+      const lat = Number(p.lat ?? p.latitude)
+      const lng = Number(p.lng ?? p.longitude)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false
       const dist = getDistanceFromLatLonInKm(latlng.lat, latlng.lng, lat, lng)
       return dist <= radiusKm
     })
@@ -165,8 +179,8 @@ export default function ComplaintMap() {
   }
 
   const center = mapped.length > 0
-    ? [mapped[0].lat || mapped[0].latitude, mapped[0].lng || mapped[0].longitude]
-    : [20.5937, 78.9629]
+    ? [Number(mapped[0].lat ?? mapped[0].latitude), Number(mapped[0].lng ?? mapped[0].longitude)]
+    : [DEFAULT_MAP_LAT, DEFAULT_MAP_LNG]
 
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] border border-neutral-300 bg-white">
@@ -217,7 +231,7 @@ export default function ComplaintMap() {
                 TOTAL TELEMETRY
               </span>
               <span className="text-xl font-bold text-neutral-900">
-                {data.statistics.total}
+                {data.statistics.total ?? 0}
               </span>
             </div>
             <div className="border border-neutral-200 p-3 bg-neutral-50">
@@ -225,7 +239,7 @@ export default function ComplaintMap() {
                 RESOLVED INCIDENTS
               </span>
               <span className="text-xl font-bold text-neutral-900">
-                {data.statistics.resolved}
+                {data.statistics.resolved ?? 0}
               </span>
             </div>
             <div className="border border-neutral-200 p-3 bg-neutral-50">
@@ -233,7 +247,7 @@ export default function ComplaintMap() {
                 RESOLUTION EFFICIENCY
               </span>
               <span className="text-xl font-bold text-neutral-900">
-                {data.statistics.resolutionRate}%
+                {data.statistics.resolutionRate ?? 0}%
               </span>
             </div>
           </div>
@@ -243,7 +257,7 @@ export default function ComplaintMap() {
         <div className="flex items-center justify-between flex-wrap gap-3 font-mono text-xs pt-1">
           <div className="flex gap-1.5 flex-wrap items-center">
             <span className="text-[10px] text-neutral-400 uppercase font-mono mr-1">Status:</span>
-            {['all', 'pending', 'resolved'].map(f => (
+            {['all', 'pending', 'in_progress', 'resolved'].map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -253,7 +267,7 @@ export default function ComplaintMap() {
                     : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
                 }`}
               >
-                {f}
+                {f.replace(/_/g, ' ')}
               </button>
             ))}
 
@@ -302,12 +316,12 @@ export default function ComplaintMap() {
             <div className="flex-1 relative h-full">
               <MapContainer
                 center={center}
-                zoom={mapped.length > 0 ? 13 : 5}
+                zoom={mapped.length > 0 ? 13 : DEFAULT_MAP_ZOOM}
                 style={{ height: '100%', width: '100%' }}
               >
                 <TileLayer
-                  attribution={MAP_LAYERS.google.attribution}
-                  url={MAP_LAYERS.google.url}
+                  attribution={ACTIVE_MAP_LAYER.attribution}
+                  url={ACTIVE_MAP_LAYER.url}
                 />
 
                 <MapClickHandler onMapClick={handleMapClick} />
@@ -317,8 +331,8 @@ export default function ComplaintMap() {
 
                 {viewMode === 'pins' &&
                   mapped.map(c => {
-                    const lat = c.lat || c.latitude
-                    const lng = c.lng || c.longitude
+                    const lat = Number(c.lat ?? c.latitude)
+                    const lng = Number(c.lng ?? c.longitude)
                     const color = STATUS_COLORS[c.status] || STATUS_COLORS.pending
                     return (
                       <CircleMarker
@@ -356,7 +370,8 @@ export default function ComplaintMap() {
                                   setExplainModalState({
                                     isOpen: true,
                                     imageUrl: c.imageUrl,
-                                    title: c.title || c.tooltip?.split('\n')[0] || 'Civic Incident'
+                                    title: c.title || c.tooltip?.split('\n')[0] || 'Civic Incident',
+                                    category: c.complaintType || c.category,
                                   })
                                 }}
                                 className="mb-2 w-full py-1 bg-neutral-900 text-white hover:bg-neutral-800 border border-black font-mono text-[10px] uppercase font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
@@ -386,7 +401,7 @@ export default function ComplaintMap() {
 
             {/* Side Panel for Clicked Coordinate Zone */}
             {selectedZonePoints && (
-              <div className="w-88 border-l border-neutral-300 bg-white flex flex-col h-full z-[1000] shadow-xl">
+              <div className="w-80 sm:w-96 border-l border-neutral-300 bg-white flex flex-col h-full z-[1000] shadow-xl">
                 <div className="p-4 border-b border-neutral-200 flex justify-between items-center bg-neutral-50 font-mono text-xs">
                   <div>
                     <h3 className="font-bold uppercase tracking-wider text-neutral-900">
@@ -454,6 +469,7 @@ export default function ComplaintMap() {
         onClose={() => setExplainModalState(prev => ({ ...prev, isOpen: false }))}
         imageUrl={explainModalState.imageUrl}
         title={explainModalState.title}
+        category={explainModalState.category}
       />
     </div>
   )

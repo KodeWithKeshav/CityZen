@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { HiX, HiPhotograph, HiSparkles, HiRefresh, HiShieldCheck } from 'react-icons/hi';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { HiX, HiSparkles, HiRefresh, HiShieldCheck } from 'react-icons/hi';
 import { makeApiCall, apiClient } from '../services/api';
 
 export default function ExplainAiModal({ isOpen, onClose, imageUrl, title = 'Civic Incident', category }) {
@@ -7,9 +7,11 @@ export default function ExplainAiModal({ isOpen, onClose, imageUrl, title = 'Civ
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [activeView, setActiveView] = useState('segmented'); // 'segmented' | 'original' | 'split'
+  const requestIdRef = useRef(0);
 
-  const fetchExplanation = async () => {
+  const fetchExplanation = useCallback(async () => {
     if (!imageUrl) return;
+    const reqId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -18,27 +20,34 @@ export default function ExplainAiModal({ isOpen, onClose, imageUrl, title = 'Civ
         body: JSON.stringify({ imageUrl, category }),
       });
 
+      if (reqId !== requestIdRef.current) return;
+
       if (res && res.success) {
         setData(res);
       } else {
         setError(res?.error || res?.message || 'Failed to generate SAM-3 neural explanation.');
       }
     } catch (err) {
+      if (reqId !== requestIdRef.current) return;
       setError(err.message || 'Unable to connect to image analysis engine.');
     } finally {
-      setLoading(false);
+      if (reqId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, [imageUrl, category]);
 
   useEffect(() => {
     if (isOpen && imageUrl) {
       fetchExplanation();
     } else if (!isOpen) {
+      requestIdRef.current += 1;
+      setLoading(false);
       setData(null);
       setError(null);
       setActiveView('segmented');
     }
-  }, [isOpen, imageUrl]);
+  }, [isOpen, imageUrl, category, fetchExplanation]);
 
   // Handle escape key
   useEffect(() => {
@@ -53,14 +62,20 @@ export default function ExplainAiModal({ isOpen, onClose, imageUrl, title = 'Civ
 
   if (!isOpen) return null;
 
-  const annotatedSrc = data?.annotatedImage?.value
-    ? `data:image/jpeg;base64,${data.annotatedImage.value}`
+  const rawAnnotated = data?.annotatedImage?.value;
+  const annotatedSrc = rawAnnotated
+    ? (rawAnnotated.startsWith('data:') || rawAnnotated.startsWith('http')
+        ? rawAnnotated
+        : `data:image/jpeg;base64,${rawAnnotated}`)
     : data?.annotatedImageUrl || null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-      <div 
-        className="relative w-full max-w-4xl bg-white border border-black max-h-[90vh] flex flex-col font-sans animate-in fade-in duration-200"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="relative w-full max-w-4xl bg-white border border-black max-h-[90vh] flex flex-col font-sans fade-in"
         role="dialog"
         aria-modal="true"
       >
@@ -230,9 +245,9 @@ export default function ExplainAiModal({ isOpen, onClose, imageUrl, title = 'Civ
                         <span className="font-bold text-neutral-900 uppercase">
                           {det.label || det.class || det.category || `DETECTION #${idx + 1}`}
                         </span>
-                        {det.confidence !== undefined && (
+                        {typeof det.confidence === 'number' && (
                           <span className="text-[10px] text-neutral-500 border-l border-neutral-200 pl-2">
-                            CONF: {Math.round(det.confidence * 100)}%
+                            CONF: {det.confidence > 1 ? Math.round(det.confidence) : Math.round(det.confidence * 100)}%
                           </span>
                         )}
                       </div>

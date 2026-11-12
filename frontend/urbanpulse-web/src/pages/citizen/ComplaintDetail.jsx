@@ -13,10 +13,16 @@ import {
   HiSparkles,
   HiChartBar,
 } from 'react-icons/hi'
-import { formatDistanceToNow, format } from 'date-fns'
+import { format } from 'date-fns'
 import { getPriorityTier, normalizePriorityScore } from '../../utils/priorityUtils'
 import ExplainAiModal from '../../components/ExplainAiModal'
 import GeometryEstimateCard from '../../components/GeometryEstimateCard'
+
+const formatDateSafe = (value, pattern) => {
+  if (!value) return null
+  const d = new Date(value)
+  return !isNaN(d.getTime()) ? format(d, pattern) : null
+}
 
 const STATUS_CONFIG = {
   pending: { label: 'PENDING DISPATCH', bg: 'bg-amber-50 text-amber-900 border-amber-300' },
@@ -41,29 +47,60 @@ export default function ComplaintDetail() {
         makeApiCall(apiClient.complaints.byId(id)),
         makeApiCall(apiClient.complaints.progress(id)),
       ])
-      if (cRes.status === 'fulfilled' && cRes.value.success) {
+      let fetchedComplaint = null
+      if (cRes.status === 'fulfilled' && cRes.value?.success) {
         const c = cRes.value.complaint || cRes.value.data || {}
-        setComplaint({
+        fetchedComplaint = {
           ...c,
           citizenName: c.users?.full_name || c.user?.full_name || c.citizenName || c.user_name || c.full_name || 'Verified Citizen',
           createdAt: c.createdAt || c.created_at,
-          imageUrl: c.imageUrl || (c.image_urls && c.image_urls[0]),
+          imageUrl: c.imageUrl || (Array.isArray(c.image_urls) ? c.image_urls[0] : null),
           location: c.location || {
             address: c.location_address,
             lat: c.location_latitude,
             lng: c.location_longitude,
           },
-          votes: c.votes || c.vote_count || 0,
-        })
+          votes: c.votes ?? c.vote_count ?? 0,
+        }
+        setComplaint(fetchedComplaint)
+      } else if (cRes.status === 'rejected') {
+        toast.error(cRes.reason?.message || 'Failed to load incident dispatch detail')
+      } else if (cRes.status === 'fulfilled' && !cRes.value?.success) {
+        toast.error(cRes.value?.message || 'Failed to load incident dispatch detail')
       }
-      if (pRes.status === 'fulfilled' && pRes.value.success) {
+
+      if (pRes.status === 'fulfilled' && pRes.value?.success) {
         const data = pRes.value.data || {}
-        const timelineData = (data.stages || []).map(s => ({
+        const stageTimeline = (data.stages || []).map(s => ({
           status: s.stage_name || s.stage_status || s.status,
           note: s.stage_description || s.note,
           updatedAt: s.updated_at || s.updatedAt || s.created_at,
         }))
-        setProgress(timelineData.length ? timelineData : data.timeline || [])
+        const actionTimeline = (data.timeline || []).map(entry => ({
+          status: entry.action_type || entry.status || 'UPDATE',
+          note: entry.action_description || entry.note,
+          updatedAt: entry.created_at || entry.updatedAt,
+        }))
+        const updatesTimeline = (fetchedComplaint?.updates || []).map(u => ({
+          status: u.new_status || u.status || 'UPDATE',
+          note: u.update_notes || u.note,
+          updatedAt: u.created_at || u.updatedAt,
+        }))
+        setProgress(
+          stageTimeline.length
+            ? stageTimeline
+            : actionTimeline.length
+            ? actionTimeline
+            : updatesTimeline
+        )
+      } else if (fetchedComplaint?.updates?.length) {
+        setProgress(
+          fetchedComplaint.updates.map(u => ({
+            status: u.new_status || u.status || 'UPDATE',
+            note: u.update_notes || u.note,
+            updatedAt: u.created_at || u.updatedAt,
+          }))
+        )
       }
     } catch (err) {
       toast.error('Failed to load incident dispatch detail')
@@ -86,11 +123,21 @@ export default function ComplaintDetail() {
       })
       if (res.success) {
         const voteCount = res?.data?.voteCount
+        const currentVotes = complaint.votes ?? complaint.vote_count ?? 0
+        const nextVotes = typeof voteCount === 'number' ? voteCount : currentVotes + 1
         setComplaint(prev => ({
           ...prev,
-          votes: typeof voteCount === 'number' ? voteCount : (prev.votes || 0) + 1,
+          votes: nextVotes,
+          vote_count: nextVotes,
+          userVoted: typeof res?.data?.userVoted === 'boolean' ? res.data.userVoted : prev.userVoted,
         }))
-        toast.success('Civic concurrence vote logged')
+        toast.success(
+          res?.data?.action === 'unvoted' || res?.data?.action === 'removed'
+            ? (res.message || 'Vote removed')
+            : 'Civic concurrence vote logged'
+        )
+      } else {
+        toast.error(res.message || 'Voting unavailable')
       }
     } catch (err) {
       toast.error(err.message || 'Voting unavailable')
@@ -145,9 +192,8 @@ export default function ComplaintDetail() {
     bg: 'bg-neutral-100 text-neutral-800 border-neutral-300',
   }
 
-  const createdAtFormatted = complaint.createdAt
-    ? format(new Date(complaint.createdAt), 'yyyy-MM-dd · HH:mm')
-    : 'UNDATED'
+  const createdAtFormatted = formatDateSafe(complaint.createdAt, 'yyyy-MM-dd · HH:mm') || 'UNDATED'
+  const voteTotal = complaint.votes ?? complaint.vote_count ?? 0
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -175,7 +221,7 @@ export default function ComplaintDetail() {
             className="px-4 py-1.5 bg-black text-white font-mono text-xs font-bold uppercase tracking-wider hover:bg-neutral-800 flex items-center gap-1.5 disabled:opacity-50"
           >
             <HiThumbUp className="w-3.5 h-3.5" />
-            <span>CONCUR ({complaint.votes || 0})</span>
+            <span>{complaint.userVoted ? 'CONCURRED' : 'CONCUR'} ({voteTotal})</span>
           </button>
         </div>
       </div>
@@ -265,10 +311,11 @@ export default function ComplaintDetail() {
               <span className="font-semibold text-neutral-900">
                 {complaint.location?.address || 'Municipal Zone Address Not Specified'}
               </span>
-              {(complaint.location?.lat || complaint.location?.latitude) && (
+              {(complaint.location?.lat ?? complaint.location?.latitude) != null &&
+                (complaint.location?.lng ?? complaint.location?.longitude) != null && (
                 <span className="text-neutral-500 block mt-1">
-                  GPS: {complaint.location.lat || complaint.location.latitude},{' '}
-                  {complaint.location.lng || complaint.location.longitude}
+                  GPS: {complaint.location.lat ?? complaint.location.latitude},{' '}
+                  {complaint.location.lng ?? complaint.location.longitude}
                 </span>
               )}
             </div>
@@ -396,9 +443,9 @@ export default function ComplaintDetail() {
                     <span className="font-bold uppercase text-neutral-900 tracking-wider">
                       {stage.status}
                     </span>
-                    {stage.updatedAt && (
+                    {formatDateSafe(stage.updatedAt, 'yyyy-MM-dd HH:mm') && (
                       <span className="text-neutral-400 text-[11px]">
-                        [{format(new Date(stage.updatedAt), 'yyyy-MM-dd HH:mm')}]
+                        [{formatDateSafe(stage.updatedAt, 'yyyy-MM-dd HH:mm')}]
                       </span>
                     )}
                   </div>
@@ -419,9 +466,9 @@ export default function ComplaintDetail() {
       </div>
 
       {/* Priority Engine Diagnostic Breakdown */}
-      {(complaint.location_sensitivity_score !== undefined ||
-        complaint.ai_confidence_score !== undefined ||
-        complaint.emotion_score !== undefined) && (
+      {(complaint.location_sensitivity_score != null ||
+        complaint.ai_confidence_score != null ||
+        complaint.emotion_score != null) && (
         <div className="border border-neutral-200 bg-white p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
             <div className="flex items-center gap-2 font-serif font-bold text-sm uppercase text-neutral-900">
@@ -434,7 +481,7 @@ export default function ComplaintDetail() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
-            {complaint.location_sensitivity_score !== undefined && (
+            {normalizePriorityScore(complaint.location_sensitivity_score) !== null && (
               <div className="border border-neutral-200 p-3 bg-neutral-50">
                 <span className="text-[10px] text-neutral-500 uppercase block">INFRASTRUCTURE IMPACT</span>
                 <span className="font-bold text-neutral-900 text-sm">
@@ -443,7 +490,7 @@ export default function ComplaintDetail() {
                 <span className="text-[10px] text-neutral-400 block mt-0.5">Emergency access routes</span>
               </div>
             )}
-            {complaint.ai_confidence_score !== undefined && (
+            {normalizePriorityScore(complaint.ai_confidence_score) !== null && (
               <div className="border border-neutral-200 p-3 bg-neutral-50">
                 <span className="text-[10px] text-neutral-500 uppercase block">MODEL CONFIDENCE</span>
                 <span className="font-bold text-neutral-900 text-sm">
@@ -452,7 +499,7 @@ export default function ComplaintDetail() {
                 <span className="text-[10px] text-neutral-400 block mt-0.5">Visual verification</span>
               </div>
             )}
-            {complaint.emotion_score !== undefined && (
+            {normalizePriorityScore(complaint.emotion_score) !== null && (
               <div className="border border-neutral-200 p-3 bg-neutral-50">
                 <span className="text-[10px] text-neutral-500 uppercase block">SEVERITY / URGENCY</span>
                 <span className="font-bold text-neutral-900 text-sm">
@@ -464,7 +511,7 @@ export default function ComplaintDetail() {
             <div className="border border-neutral-200 p-3 bg-neutral-50">
               <span className="text-[10px] text-neutral-500 uppercase block">COMMUNITY VOTES</span>
               <span className="font-bold text-neutral-900 text-sm">
-                {complaint.votes || complaint.vote_count || 0} VOTES
+                {voteTotal} VOTES
               </span>
               <span className="text-[10px] text-neutral-400 block mt-0.5">Civic crowd verification</span>
             </div>
@@ -478,7 +525,7 @@ export default function ComplaintDetail() {
         onClose={() => setShowAiExplainModal(false)}
         imageUrl={complaint.imageUrl}
         title={complaint.title || complaint.complaintTitle}
-        category={complaint.category}
+        category={complaint.category || complaint.issueType}
       />
     </div>
   )

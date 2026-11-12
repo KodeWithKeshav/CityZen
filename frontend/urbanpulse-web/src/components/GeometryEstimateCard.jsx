@@ -9,10 +9,12 @@ export default function GeometryEstimateCard({ complaint, onGeometryUpdated }) {
   if (!complaint) return null;
 
   const isPothole = (complaint.category || complaint.issueType || '').toLowerCase() === 'pothole';
-  const hasGeometry = complaint.geometry_status || complaint.estimated_width_cm;
+  const hasCompletedGeometry = complaint.geometry_status === 'completed' || complaint.estimated_width_cm != null;
 
-  // Only render for potholes or if geometry data exists
-  if (!isPothole && !hasGeometry) return null;
+  // Only render for potholes or if completed geometry data exists
+  if (complaint.geometry_status === 'not_applicable' || (!isPothole && !hasCompletedGeometry)) {
+    return null;
+  }
 
   const handleRetryGeometry = async () => {
     const imageUrl = complaint.imageUrl || (Array.isArray(complaint.image_urls) ? complaint.image_urls[0] : null);
@@ -30,12 +32,19 @@ export default function GeometryEstimateCard({ complaint, onGeometryUpdated }) {
         body: JSON.stringify({
           complaintId,
           imageUrl,
-          category: complaint.category || 'pothole',
+          category: complaint.category || complaint.issueType || 'pothole',
+          primaryClass: complaint.imagePrimaryClass || undefined,
         }),
       });
 
       if (res && res.success && res.geometry) {
-        toast.success('Pothole geometric dimensions re-calculated');
+        if (res.geometry.geometry_status === 'completed') {
+          toast.success('Pothole geometric dimensions re-calculated');
+        } else if (res.geometry.geometry_status === 'failed') {
+          toast.error(res.geometry.geometry_error || 'Geometry estimation failed.');
+        } else {
+          toast(res.message || 'Geometry estimation skipped.');
+        }
         if (onGeometryUpdated) {
           onGeometryUpdated(res.geometry);
         }
@@ -63,9 +72,9 @@ export default function GeometryEstimateCard({ complaint, onGeometryUpdated }) {
         </span>
       </div>
 
-      {status === 'completed' || complaint.estimated_width_cm ? (
+      {(status === 'completed' && complaint.estimated_width_cm != null) || complaint.estimated_width_cm != null ? (
         <div className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
+          <div className={`grid grid-cols-1 ${complaint.estimated_depth_cm != null ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-3 font-mono text-xs`}>
             <div className="border border-neutral-200 p-3 bg-neutral-50">
               <span className="text-[10px] text-neutral-500 uppercase block">SURFACE FOOTPRINT</span>
               <span className="font-bold text-neutral-900 text-sm">
@@ -78,10 +87,18 @@ export default function GeometryEstimateCard({ complaint, onGeometryUpdated }) {
                 {complaint.estimated_area_cm2} <span className="text-[10px] font-normal text-neutral-500">cm²</span>
               </span>
             </div>
+            {complaint.estimated_depth_cm != null && (
+              <div className="border border-neutral-200 p-3 bg-neutral-50">
+                <span className="text-[10px] text-neutral-500 uppercase block">ESTIMATED DEPTH</span>
+                <span className="font-bold text-neutral-900 text-sm">
+                  {complaint.estimated_depth_cm} <span className="text-[10px] font-normal text-neutral-500">cm</span>
+                </span>
+              </div>
+            )}
             <div className="border border-neutral-200 p-3 bg-neutral-50">
               <span className="text-[10px] text-neutral-500 uppercase block">CONFIDENCE METRIC</span>
               <span className="font-bold text-neutral-900 text-sm">
-                {Math.round((complaint.geometry_confidence || 0.85) * 100)}%
+                {complaint.geometry_confidence != null ? `${Math.round(complaint.geometry_confidence * 100)}%` : '—'}
               </span>
             </div>
           </div>
