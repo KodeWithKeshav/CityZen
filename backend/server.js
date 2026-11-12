@@ -1,6 +1,6 @@
 // Load environment variables from the project .env (resolve relative to this file)
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env'), override: true });
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -19,7 +19,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Ensure JWT secret exists
-if (!process.env.JWT_SECRET) {
+if (!process.env.JWT_SECRET || !process.env.JWT_SECRET.trim()) {
   if (process.env.NODE_ENV === 'production') {
     throw new Error('JWT_SECRET environment variable is required in production');
   } else {
@@ -42,6 +42,10 @@ app.use(helmet());
 app.use(compression());
 
 // CORS configuration - allow frontend origins
+const customFrontendOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map((u) => u.trim().replace(/\/+$/, '')).filter(Boolean)
+  : [];
+
 const allowedOrigins = [
   'http://localhost:8081',   // Expo development server
   'http://localhost:3000',   // React development server
@@ -50,8 +54,8 @@ const allowedOrigins = [
   'https://civic-rezo-frontend.netlify.app',           // Netlify (legacy)
   'https://urbanpulse-frontend-gamma.vercel.app',      // Vercel production
   /^https:\/\/urbanpulse-frontend-gamma-.*\.vercel\.app$/, // Vercel preview deployments
-  process.env.FRONTEND_URL   // Custom frontend URL override
-].filter(Boolean);
+  ...customFrontendOrigins
+];
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -69,10 +73,12 @@ app.use(cors({
       return callback(null, true);
     }
 
-    callback(new Error('Not allowed by CORS'));
+    const corsError = new Error('Not allowed by CORS');
+    corsError.status = 403;
+    callback(corsError);
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
@@ -86,16 +92,16 @@ if (process.env.NODE_ENV !== 'production') {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Auth middleware - applies to all routes
-const { authenticateUser } = require('./middleware/auth');
+// Auth middleware - attaches req.user when a valid Bearer JWT is present
+const { authenticateUser, authorizeUserType } = require('./middleware/auth');
 app.use(authenticateUser);
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/complaints', require('./routes/complaints'));
 app.use('/api/complaint-details', require('./routes/complaintDetails'));
-app.use('/api/admin', require('./routes/admin'));
-app.use('/api/admin-enhanced', require('./routes/adminMinimal'));
+app.use('/api/admin', authorizeUserType(['admin']), require('./routes/admin'));
+app.use('/api/admin-enhanced', authorizeUserType(['admin']), require('./routes/adminMinimal'));
 app.use('/api/image-analysis', require('./routes/imageAnalysis'));
 app.use('/cloudinary', require('./routes/cloudinary'));
 app.use('/api/location-priority', require('./routes/locationPriority'));
@@ -134,17 +140,7 @@ app.get('/', (req, res) => {
   });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Something went wrong!',
-    error: process.env.NODE_ENV === 'development' ? err.message : {}
-  });
-});
-
-// 404 handler
+// 404 handler — must come before the error handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -152,12 +148,27 @@ app.use((req, res) => {
   });
 });
 
-app.listen(port, host, () => {
-  console.log(`🚀 CivicStack Backend Server is running on ${url}`);
-  console.log(`📊 Health check: ${url}/health`);
-  console.log(`📱 API endpoints: ${url}/api`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log('⭐ Server is ready to accept connections');
+// Error handling middleware — must be last (4-arg signature)
+app.use((err, req, res, next) => {
+  const status = err.status || err.statusCode || 500;
+  if (status >= 500) {
+    console.error(err.stack);
+  }
+  res.status(status).json({
+    success: false,
+    message: status < 500 ? err.message : 'Something went wrong!',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
 });
+
+if (require.main === module) {
+  app.listen(port, host, () => {
+    console.log(`🚀 CivicStack Backend Server is running on ${url}`);
+    console.log(`📊 Health check: ${url}/health`);
+    console.log(`📱 API endpoints: ${url}/api`);
+    console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log('⭐ Server is ready to accept connections');
+  });
+}
 
 module.exports = app;

@@ -3,26 +3,39 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
+const { authenticateUser } = require('../middleware/auth');
+const logger = require('../utils/logger');
 
 // Validation middleware
 const validateSignup = [
   body('email').isEmail().normalizeEmail(),
-  body('password').isLength({ min: 6 }),
-  body('fullName').trim().isLength({ min: 2 }),
-  body('phoneNumber').isLength({ min: 10 }),
-  body('userType').isIn(['citizen', 'admin'])
+  body('password')
+    .isString()
+    .isLength({ min: 6, max: 128 })
+    .custom((value) => value.trim().length > 0)
+    .withMessage('Password cannot be blank'),
+  body('fullName').isString().trim().isLength({ min: 2, max: 100 }),
+  body('phoneNumber')
+    .isString()
+    .trim()
+    .matches(/^[+\d\s()-]{10,20}$/)
+    .withMessage('Valid phone number is required')
+    .custom((value) => value.replace(/\D/g, '').length >= 10)
+    .withMessage('Phone number must contain at least 10 digits'),
+  body('userType').isIn(['citizen', 'admin']),
+  body('address').optional({ values: 'falsy' }).isString().trim().isLength({ max: 500 })
 ];
 
 const validateLogin = [
   body('email').isEmail().normalizeEmail(),
-  body('password').exists()
+  body('password').isString().notEmpty()
 ];
 
 // Sign up route
 router.post('/signup', validateSignup, async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-    
+
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -36,14 +49,22 @@ router.post('/signup', validateSignup, async (req, res) => {
     const { email, password, fullName, phoneNumber, userType, address } = req.body;
 
     // Check if user already exists
-    const { data: existingUser } = await supabase
+    const { data: existingUser, error: existingError } = await supabase
       .from('users')
       .select('id')
       .eq('email', email)
-      .single();
+      .maybeSingle();
+
+    if (existingError) {
+      console.error('Supabase lookup error:', existingError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to check existing user'
+      });
+    }
 
     if (existingUser) {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         message: 'User already exists with this email'
       });
@@ -71,6 +92,12 @@ router.post('/signup', validateSignup, async (req, res) => {
       .single();
 
     if (error) {
+      if (error.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          message: 'User already exists with this email'
+        });
+      }
       console.error('Supabase error:', error);
       return res.status(500).json({
         success: false,
@@ -80,10 +107,10 @@ router.post('/signup', validateSignup, async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { 
-        userId: user.id, 
-        email: user.email, 
-        userType: user.user_type 
+      {
+        userId: user.id,
+        email: user.email,
+        userType: user.user_type
       },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
@@ -118,7 +145,7 @@ router.post('/signup', validateSignup, async (req, res) => {
 router.post('/login', validateLogin, async (req, res) => {
   try {
     const supabase = req.app.get('supabase');
-    
+
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -131,15 +158,23 @@ router.post('/login', validateLogin, async (req, res) => {
 
     const { email, password } = req.body;
 
-    // Find user
+    // Find active user
     const { data: user, error } = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, password, full_name, phone_number, user_type, address, is_active')
       .eq('email', email)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
-    if (error || !user) {
+    if (error) {
+      console.error('Supabase login lookup error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+
+    if (!user || !user.password) {
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password'
@@ -157,20 +192,24 @@ router.post('/login', validateLogin, async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { 
-        userId: user.id, 
-        email: user.email, 
-        userType: user.user_type 
+      {
+        userId: user.id,
+        email: user.email,
+        userType: user.user_type
       },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    // Update last login
-    await supabase
+    // Update last login (non-fatal if update fails)
+    const { error: updateError } = await supabase
       .from('users')
       .update({ last_login: new Date().toISOString() })
       .eq('id', user.id);
+
+    if (updateError) {
+      logger.warn('Failed to update last_login:', updateError.message);
+    }
 
     res.json({
       success: true,
@@ -198,27 +237,38 @@ router.post('/login', validateLogin, async (req, res) => {
 });
 
 // Get user profile
-router.get('/profile', async (req, res) => {
+router.get('/profile', authenticateUser, async (req, res) => {
   try {
-    const supabase = req.app.get('supabase');
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    
-    if (!token) {
+    if (!req.user || !req.user.isAuthenticated) {
+      const message = req.authError === 'TokenExpiredError'
+        ? 'Token expired'
+        : req.authError
+          ? 'Invalid token'
+          : 'No token provided';
       return res.status(401).json({
         success: false,
-        message: 'No token provided'
+        message
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+    const supabase = req.app.get('supabase');
+
     const { data: user, error } = await supabase
       .from('users')
       .select('id, email, full_name, phone_number, user_type, address, created_at')
-      .eq('id', decoded.userId)
-      .single();
+      .eq('id', req.user.id)
+      .eq('is_active', true)
+      .maybeSingle();
 
-    if (error || !user) {
+    if (error) {
+      console.error('Profile lookup error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+
+    if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
@@ -242,9 +292,9 @@ router.get('/profile', async (req, res) => {
 
   } catch (error) {
     console.error('Profile error:', error);
-    res.status(401).json({
+    res.status(500).json({
       success: false,
-      message: 'Invalid token'
+      message: 'Internal server error'
     });
   }
 });
