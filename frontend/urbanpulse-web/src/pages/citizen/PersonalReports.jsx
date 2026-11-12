@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
-import { HiDocumentReport, HiPlus, HiExclamationCircle, HiChevronRight, HiFilter } from 'react-icons/hi'
+import { HiDocumentReport, HiPlus, HiChevronRight } from 'react-icons/hi'
 import { format } from 'date-fns'
 import { getPriorityTier } from '../../utils/priorityUtils'
 
@@ -23,12 +23,14 @@ export default function PersonalReports() {
   }
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchReports = async () => {
       try {
         const res = await makeApiCall(apiClient.complaints.personalReports)
         if (res.success) {
           const arr = res.data?.complaints || res.complaints || res.data || []
-          setReports(Array.isArray(arr) ? arr : Object.values(arr).filter(x => typeof x === 'object'))
+          setReports(Array.isArray(arr) ? arr : [])
+        } else {
+          toast.error(res.message || t('citizen:personalReports.loadFailed'))
         }
       } catch (err) {
         toast.error(t('citizen:personalReports.loadFailed'))
@@ -36,12 +38,12 @@ export default function PersonalReports() {
         setLoading(false)
       }
     }
-    fetch()
+    fetchReports()
   }, [])
 
   const filteredReports = useMemo(() => {
     if (filter === 'all') return reports
-    return reports.filter(r => (r.status || '').toLowerCase() === filter.toLowerCase())
+    return reports.filter(r => (r.status || '').toLowerCase().replace(/-/g, '_') === filter.toLowerCase())
   }, [reports, filter])
 
   return (
@@ -132,7 +134,9 @@ export default function PersonalReports() {
               label: (r.status || t('admin:status.pending')).toUpperCase(),
               bg: 'bg-neutral-100 text-neutral-800 border-neutral-300',
             }
-            const dateStr = r.createdAt ? format(new Date(r.createdAt), 'yyyy-MM-dd') : '—'
+            const rawDate = r.createdAt || r.created_at
+            const parsedDate = rawDate ? new Date(rawDate) : null
+            const dateStr = parsedDate && !isNaN(parsedDate.getTime()) ? format(parsedDate, 'yyyy-MM-dd') : '—'
 
             return (
               <div
@@ -143,7 +147,7 @@ export default function PersonalReports() {
                 <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono text-xs text-neutral-500 font-semibold">
-                      #{(r._id || r.id || '').slice(-6).toUpperCase()}
+                      #{String(r._id || r.id || '').slice(-6).toUpperCase()}
                     </span>
                     <span className={`px-2 py-0.5 border font-mono text-[10px] tracking-wider uppercase font-semibold ${statusInfo.bg}`}>
                       {statusInfo.label}

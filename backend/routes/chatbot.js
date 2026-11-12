@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Groq = require('groq-sdk');
+const axios = require('axios');
 
 const { ChatbotKnowledgeMatcher } = require('../services/ChatbotKnowledgeBase');
 
@@ -18,13 +18,11 @@ const initKB = () => {
 };
 initKB();
 
-// GROQ client (lazy — only if key present)
-const groq = process.env.GROQ_API_KEY
-  ? new Groq({ apiKey: process.env.GROQ_API_KEY })
-  : null;
-
-const GROQ_MODEL = 'qwen/qwen3.8-27b';
+const GROQ_API_BASE = process.env.GROQ_API_BASE || 'https://api.groq.com/openai/v1';
+const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+const GROQ_TIMEOUT_MS = 15000;
 const KB_CONFIDENCE_THRESHOLD = 0.55;
+const MAX_SESSIONS = 200;
 
 // In-memory sessions
 const sessions = new Map();
@@ -87,16 +85,38 @@ Always respond in a helpful, concise, friendly tone. Use markdown formatting (bo
 Keep responses short unless the user asks for more detail. Never make up data.`;
 
 // ─── GROQ call with tool support ─────────────────────────────────────────────
+async function createGroqChatCompletion(payload) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ client not initialised — check GROQ_API_KEY');
+
+  const response = await axios.post(
+    `${GROQ_API_BASE}/chat/completions`,
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: GROQ_TIMEOUT_MS,
+    }
+  );
+  return response.data;
+}
+
 async function callGroq(userMessage, history = []) {
-  if (!groq) throw new Error('GROQ client not initialised — check GROQ_API_KEY');
+  const sanitizedHistory = Array.isArray(history)
+    ? history
+        .filter(m => m && typeof m.text === 'string' && m.text.trim().length > 0)
+        .map(m => ({ role: m.type === 'bot' ? 'assistant' : 'user', content: m.text }))
+    : [];
 
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
-    ...history.map(m => ({ role: m.type === 'bot' ? 'assistant' : 'user', content: m.text })),
+    ...sanitizedHistory,
     { role: 'user', content: userMessage },
   ];
 
-  const response = await groq.chat.completions.create({
+  const response = await createGroqChatCompletion({
     model: GROQ_MODEL,
     messages,
     tools: NAV_TOOLS,
@@ -105,39 +125,59 @@ async function callGroq(userMessage, history = []) {
     max_tokens: 1024,
   });
 
-  const choice = response.choices[0];
-  const msg = choice.message;
+  const msg = response?.choices?.[0]?.message;
+  if (!msg) throw new Error('Empty response from Groq API');
 
   // ── Tool call: navigation ──
   if (msg.tool_calls && msg.tool_calls.length > 0) {
     const call = msg.tool_calls[0];
-    const args = JSON.parse(call.function.arguments);
-    const pageName = PAGE_LABELS[args.page] || args.page;
+    let args;
+    try {
+      args = JSON.parse(call.function?.arguments || '{}');
+    } catch {
+      throw new Error('Invalid tool call arguments from Groq API');
+    }
+
+    const isValidPage = typeof args?.page === 'string' && Object.prototype.hasOwnProperty.call(PAGE_LABELS, args.page);
+    const pageName = isValidPage ? PAGE_LABELS[args.page] : null;
 
     const followUpMessages = [
       ...messages,
-      msg,
+      {
+        role: 'assistant',
+        content: msg.content || '',
+        tool_calls: msg.tool_calls,
+      },
       {
         role: 'tool',
         tool_call_id: call.id,
-        content: JSON.stringify({ success: true, navigatedTo: args.page }),
+        content: JSON.stringify(
+          isValidPage
+            ? { success: true, navigatedTo: args.page }
+            : { success: false, error: 'Unknown page slug' }
+        ),
       },
     ];
 
-    const followUp = await groq.chat.completions.create({
+    const followUp = await createGroqChatCompletion({
       model: GROQ_MODEL,
       messages: followUpMessages,
       temperature: 0.5,
       max_tokens: 512,
     });
 
+    const followUpReply = followUp?.choices?.[0]?.message?.content;
+    if (!followUpReply) throw new Error('Empty follow-up response from Groq API');
+
     return {
-      reply:      followUp.choices[0].message.content,
-      action:     { type: 'navigate', page: args.page, label: pageName },
+      reply:      followUpReply,
+      action:     isValidPage ? { type: 'navigate', page: args.page, label: pageName } : null,
       source:     'groq_tool',
       confidence: 0.9,
     };
   }
+
+  if (!msg.content) throw new Error('Empty response from Groq API');
 
   return {
     reply:      msg.content,
@@ -150,11 +190,14 @@ async function callGroq(userMessage, history = []) {
 // ─── POST /api/chatbot/message ────────────────────────────────────────────────
 router.post('/message', async (req, res) => {
   try {
-    const { message, conversationHistory = [], userId = 'anonymous' } = req.body;
+    const { message, conversationHistory = [], userId = 'anonymous' } = req.body || {};
 
-    if (!message || typeof message !== 'string') {
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
       return res.status(400).json({ success: false, error: 'Message is required' });
     }
+
+    const trimmedMessage = message.trim();
+    const normalizedUserId = (typeof userId === 'string' && userId.trim()) ? userId.trim() : 'anonymous';
 
     if (!knowledgeMatcher) {
       initKB();
@@ -163,12 +206,16 @@ router.post('/message', async (req, res) => {
       }
     }
 
-    let session = sessions.get(userId) || { messages: [], startTime: new Date() };
-    session.messages.push({ type: 'user', text: message, timestamp: new Date() });
-    const recentHistory = session.messages.slice(-8);
+    let session = sessions.get(normalizedUserId) || { messages: [], startTime: new Date() };
+    // Use client-supplied history as prior context if this in-memory session has none (e.g. after restart)
+    const priorMessages = session.messages.length > 0
+      ? session.messages.slice(-8)
+      : (Array.isArray(conversationHistory) ? conversationHistory.slice(-8) : []);
+
+    session.messages.push({ type: 'user', text: trimmedMessage, timestamp: new Date() });
 
     // ── 1. Rule-based match ──
-    const match = knowledgeMatcher.findBestMatch(message, recentHistory);
+    const match = knowledgeMatcher.findBestMatch(trimmedMessage, priorMessages);
     console.log(`🤖 KB match: category=${match.category}, confidence=${match.confidence}`);
 
     let reply, action = null, source, confidence;
@@ -183,7 +230,7 @@ router.post('/message', async (req, res) => {
     } else {
       console.log('⚡ KB confidence low — calling GROQ');
       try {
-        const groqResult = await callGroq(message, recentHistory);
+        const groqResult = await callGroq(trimmedMessage, priorMessages);
         reply      = groqResult.reply;
         action     = groqResult.action;
         source     = groqResult.source;
@@ -197,10 +244,12 @@ router.post('/message', async (req, res) => {
     }
 
     session.messages.push({ type: 'bot', text: reply, action, source, confidence, timestamp: new Date() });
-    sessions.set(userId, session);
-    if (sessions.size > 200) sessions.delete(sessions.keys().next().value);
+    // Refresh insertion order for true LRU eviction
+    sessions.delete(normalizedUserId);
+    sessions.set(normalizedUserId, session);
+    if (sessions.size > MAX_SESSIONS) sessions.delete(sessions.keys().next().value);
 
-    const followUpSuggestions = knowledgeMatcher.getFollowUpSuggestions(match.category, message);
+    const followUpSuggestions = knowledgeMatcher.getFollowUpSuggestions(match.category, trimmedMessage);
 
     res.json({
       success: true,
@@ -211,12 +260,16 @@ router.post('/message', async (req, res) => {
       action,
       suggestedActions:    match.suggestedActions || [],
       followUpSuggestions,
-      sessionId:           userId,
+      sessionId:           normalizedUserId,
     });
 
   } catch (err) {
     console.error('❌ Chatbot error:', err);
-    res.status(500).json({ success: false, error: 'Failed to process message', details: err.message });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to process message',
+      ...(process.env.NODE_ENV === 'development' ? { details: err.message } : {}),
+    });
   }
 });
 

@@ -7,7 +7,6 @@ import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement,
   Title, Tooltip, Legend, ArcElement
 } from 'chart.js'
-import { HiDocumentText, HiCheckCircle, HiClock, HiTrendingUp, HiLightningBolt } from 'react-icons/hi'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
 
@@ -20,11 +19,19 @@ export default function Transparency() {
     const fetchData = async () => {
       try {
         const res = await makeApiCall(apiClient.transparency.data)
-        if (res.success) setData(res.data)
+        if (res?.success && res.data) {
+          setData(res.data)
+        } else {
+          throw new Error(res?.message || 'Failed to load transparency data')
+        }
       } catch {
         try {
           const res = await makeApiCall(apiClient.admin.dashboard)
-          if (res.success) setData(res.data)
+          if (res?.success && res.data) {
+            setData(res.data)
+          } else {
+            toast.error(t('transparency.loadFailed'))
+          }
         } catch (err) {
           toast.error(t('transparency.loadFailed'))
         }
@@ -204,9 +211,9 @@ export default function Transparency() {
             {t('transparency.avgVelocity')}
           </span>
           <div className="text-2xl font-bold tracking-tight">
-            {avgResolutionDays !== undefined
+            {avgResolutionDays != null
               ? t('transparency.daysLabel', { days: avgResolutionDays })
-              : t('transparency.daysMean', { days: '3.4' })}
+              : '—'}
           </div>
           <p className="text-xs text-neutral-400 font-sans mt-0.5">
             {t('transparency.turnaroundDesc')}
@@ -214,7 +221,14 @@ export default function Transparency() {
         </div>
 
         <div className="border border-neutral-700 px-4 py-2 text-xs text-neutral-300">
-          {t('transparency.slaCompliance')} <span className="text-white font-bold">94.2%</span>
+          {t('transparency.slaCompliance')}{' '}
+          <span className="text-white font-bold">
+            {data?.slaCompliance !== undefined
+              ? `${data.slaCompliance}%`
+              : total > 0
+              ? `${resolutionRate}%`
+              : '—'}
+          </span>
         </div>
       </div>
     </div>

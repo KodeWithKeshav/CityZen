@@ -185,7 +185,7 @@ function assessTextQuality(text) {
   // reasonably long stretch of text, usually means random keypresses rather
   // than real sentences. Skip for non-Latin scripts (Hindi/Tamil/Telugu
   // etc.) where this heuristic doesn't apply.
-  const isLatinScript = /^[\x00-\x7F\s]*$/.test(trimmed);
+  const isLatinScript = /^[\x00-\x7F\u2013-\u2014\u2018-\u201F\s]*$/.test(trimmed);
   const letters = trimmed.replace(/[^a-zA-Z]/g, '');
   if (isLatinScript && letters.length >= 15) {
     const vowels = (letters.match(/[aeiouAEIOU]/g) || []).length;
@@ -194,9 +194,9 @@ function assessTextQuality(text) {
     const COMMON_WORDS = new Set([
       'the', 'is', 'a', 'an', 'to', 'and', 'of', 'in', 'on', 'at', 'this',
       'that', 'near', 'road', 'please', 'help', 'has', 'have', 'been',
-      'there', 'it', 'is', 'are', 'for', 'with', 'my', 'our', 'we', 'i',
+      'there', 'it', 'are', 'for', 'with', 'my', 'our', 'we', 'i',
       'not', 'no', 'very', 'be', 'was', 'were', 'here', 'they', 'due',
-      'from', 'because', 'since', 'over', 'near', 'area', 'street',
+      'from', 'because', 'since', 'over', 'area', 'street',
     ]);
     const tokens = trimmed.toLowerCase().match(/[a-z]+/g) || [];
     const hasCommonWord = tokens.some(t => COMMON_WORDS.has(t));
@@ -238,8 +238,12 @@ function analyzeTextAuthenticity({ text, category, imagePrimaryClass } = {}) {
   reasons.push(...qualityIssues);
 
   const categoryScores = scoreAllCategories(safeText);
-  const declaredCategory = CATEGORY_KEYWORDS[category] ? category : null;
+  const normCategory = typeof category === 'string' ? category.trim().toLowerCase() : '';
+  const declaredCategory = Object.prototype.hasOwnProperty.call(CATEGORY_KEYWORDS, normCategory)
+    ? normCategory
+    : null;
   const declaredScore = declaredCategory ? categoryScores[declaredCategory] : null;
+  const normImageClass = typeof imagePrimaryClass === 'string' ? imagePrimaryClass.trim().toLowerCase() : '';
 
   // Find the best-matching category other than the declared one.
   let bestAlt = null;
@@ -296,16 +300,16 @@ function analyzeTextAuthenticity({ text, category, imagePrimaryClass } = {}) {
   // photo of a pothole was uploaded but the typed-out category/description
   // is about something else entirely.
   if (
-    imagePrimaryClass &&
-    CATEGORY_KEYWORDS[imagePrimaryClass] &&
-    imagePrimaryClass !== declaredCategory
+    normImageClass &&
+    Object.prototype.hasOwnProperty.call(CATEGORY_KEYWORDS, normImageClass) &&
+    normImageClass !== declaredCategory
   ) {
     reasons.push(
-      `The uploaded photo was detected as "${CATEGORY_LABELS[imagePrimaryClass] || imagePrimaryClass}", ` +
+      `The uploaded photo was detected as "${CATEGORY_LABELS[normImageClass] || normImageClass}", ` +
       `which differs from the selected category "${declaredCategory ? CATEGORY_LABELS[declaredCategory] : category}".`
     );
     mismatchDetected = true;
-    suggestedCategory = suggestedCategory || imagePrimaryClass;
+    suggestedCategory = suggestedCategory || normImageClass;
     categoryMatchScore = Math.min(categoryMatchScore, 0.3);
   }
 
@@ -323,7 +327,7 @@ function analyzeTextAuthenticity({ text, category, imagePrimaryClass } = {}) {
 
   // Flag for admin review when the combined score is low enough that this
   // is unlikely to be a genuine, on-topic report.
-  const flagged = authenticityScore < 0.45;
+  const flagged = authenticityScore < priorityConfig.AUTHENTICITY_THRESHOLDS.flag;
 
   return {
     authenticityScore: parseFloat(authenticityScore.toFixed(2)),
@@ -362,9 +366,10 @@ const ModelAuthenticityService = require('./ModelAuthenticityService');
  *   regardless of language, no translation needed)
  */
 async function analyzeTextAuthenticityBlended({ text, category, imagePrimaryClass, language } = {}) {
-  const ruleBased = analyzeTextAuthenticity({ text, category, imagePrimaryClass });
+  const normalizedCategory = typeof category === 'string' ? category.trim().toLowerCase() : '';
+  const ruleBased = analyzeTextAuthenticity({ text, category: normalizedCategory || category, imagePrimaryClass });
 
-  const modelResult = await ModelAuthenticityService.analyzeWithModel({ text, category });
+  const modelResult = await ModelAuthenticityService.analyzeWithModel({ text, category: normalizedCategory || category });
 
   const { hardBlock, flag } = priorityConfig.AUTHENTICITY_THRESHOLDS;
 
@@ -385,9 +390,16 @@ async function analyzeTextAuthenticityBlended({ text, category, imagePrimaryClas
   // textQuality-style criticality judgment as the rule-based blend itself
   // (see priorityConfig.js section 4b) -- category relevance is the
   // stronger signal, genuineness the weaker one.
+  const genuinenessScore = typeof modelResult.genuinenessScore === 'number'
+    ? modelResult.genuinenessScore
+    : (modelResult.spamScore ?? 0);
+  const spamLikelihood = typeof modelResult.spamLikelihood === 'number'
+    ? modelResult.spamLikelihood
+    : (1 - genuinenessScore);
+
   const modelScore =
     modelResult.categoryScore * priorityConfig.AUTHENTICITY_WEIGHTS.categoryMatch +
-    modelResult.spamScore * priorityConfig.AUTHENTICITY_WEIGHTS.textQuality;
+    genuinenessScore * priorityConfig.AUTHENTICITY_WEIGHTS.textQuality;
 
   const { model: modelWeight, rule: ruleWeight } = priorityConfig.MODEL_VS_RULE_WEIGHTS;
   const blendedScore = Math.max(0, Math.min(1,
@@ -395,12 +407,12 @@ async function analyzeTextAuthenticityBlended({ text, category, imagePrimaryClas
   ));
 
   const reasons = [...ruleBased.reasons];
-  if (modelResult.spamScore > 0.6) {
+  if (spamLikelihood > 0.6) {
     reasons.push('The description reads like spam or gibberish to the multilingual content model.');
   }
-  if (category && CATEGORY_LABELS[category] && modelResult.categoryScore < 0.3) {
+  if (normalizedCategory && CATEGORY_LABELS[normalizedCategory] && modelResult.categoryScore < 0.3) {
     reasons.push(
-      `The multilingual content model does not find this description consistent with "${CATEGORY_LABELS[category]}".`
+      `The multilingual content model does not find this description consistent with "${CATEGORY_LABELS[normalizedCategory]}".`
     );
   }
 

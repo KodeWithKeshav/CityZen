@@ -64,6 +64,7 @@ export default function FloatingChat() {
   const [pendingNav, setPendingNav] = useState(null)
   const bottomRef               = useRef(null)
   const inputRef                = useRef(null)
+  const lastNavMsgIdRef         = useRef(null)
 
   // Register navigate fn into context so AI-triggered nav works
   useEffect(() => {
@@ -75,17 +76,21 @@ export default function FloatingChat() {
     if (!isMinimised) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isMinimised])
 
-  // Watch for nav actions in the latest bot message
+  // Watch for nav actions only on newly added assistant messages
   useEffect(() => {
-    const last = [...messages].reverse().find(m => m.role === 'assistant' && m.action)
-    if (last?.action?.type === 'navigate') {
+    const last = messages[messages.length - 1]
+    if (last?.role === 'assistant' && last?.action?.type === 'navigate' && last.id !== lastNavMsgIdRef.current) {
+      lastNavMsgIdRef.current = last.id
       setPendingNav(last.action)
     }
   }, [messages])
 
   // Focus input when panel opens
   useEffect(() => {
-    if (!isMinimised) setTimeout(() => inputRef.current?.focus(), 100)
+    if (!isMinimised) {
+      const id = setTimeout(() => inputRef.current?.focus(), 100)
+      return () => clearTimeout(id)
+    }
   }, [isMinimised])
 
   const handleSend = () => {
@@ -103,11 +108,6 @@ export default function FloatingChat() {
     if (pendingNav) { executeNav(pendingNav); setPendingNav(null) }
   }
 
-  // Don't render if no chat has started yet and minimised — show bubble only after first interaction
-  const showBubble = true  // always show the bubble so user can open it
-
-  if (!showBubble) return null
-
   return (
     <>
       {/* ── Floating Panel ── */}
@@ -124,23 +124,23 @@ export default function FloatingChat() {
           }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/8 flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 flex-shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center">
                 <HiSparkles className="w-3.5 h-3.5 text-white" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-white leading-none">CityZen AI</p>
-                <p className="text-[10px] text-violet-400 mt-0.5">Powered by Qwen3-27B</p>
+                <p className="text-[10px] text-violet-400 mt-0.5">Civic Intelligence Assistant</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <button onClick={clearChat} title="Clear chat"
-                className="p-1.5 rounded-md hover:bg-white/8 text-white/40 hover:text-white/70 transition-colors">
+              <button onClick={() => { clearChat(); setPendingNav(null) }} title="Clear chat"
+                className="p-1.5 rounded-md hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors">
                 <HiTrash className="w-3.5 h-3.5" />
               </button>
               <button onClick={closeChat}
-                className="p-1.5 rounded-md hover:bg-white/8 text-white/40 hover:text-white/70 transition-colors">
+                className="p-1.5 rounded-md hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors">
                 <HiChevronDown className="w-4 h-4" />
               </button>
             </div>
@@ -159,7 +159,7 @@ export default function FloatingChat() {
                   className={`max-w-[82%] px-3 py-2.5 rounded-2xl text-xs leading-relaxed ${
                     m.role === 'user'
                       ? 'bg-violet-600 text-white rounded-br-sm'
-                      : 'bg-white/8 text-white/90 rounded-bl-sm border border-white/6'
+                      : 'bg-white/10 text-white/90 rounded-bl-sm border border-white/5'
                   }`}
                 >
                   {m.role === 'assistant' ? <MiniMarkdown text={m.text} /> : m.text}
@@ -178,7 +178,7 @@ export default function FloatingChat() {
                 <div className="w-5 h-5 rounded-full bg-violet-700 flex items-center justify-center mr-2 flex-shrink-0">
                   <HiSparkles className="w-2.5 h-2.5 text-white" />
                 </div>
-                <div className="bg-white/8 border border-white/6 rounded-2xl rounded-bl-sm px-3 py-2.5">
+                <div className="bg-white/10 border border-white/5 rounded-2xl rounded-bl-sm px-3 py-2.5">
                   <div className="flex gap-1 items-center">
                     <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -198,7 +198,7 @@ export default function FloatingChat() {
             <div className="px-3 pb-2 flex flex-wrap gap-1.5">
               {followUps.slice(0, 3).map((s, i) => (
                 <button key={i} onClick={() => { sendMessage(s); setInput('') }}
-                  className="text-[11px] px-2.5 py-1 rounded-full bg-white/6 border border-white/12 text-white/70 hover:bg-violet-600/30 hover:border-violet-500/50 hover:text-white transition-all truncate max-w-[180px]">
+                  className="text-[11px] px-2.5 py-1 rounded-full bg-white/5 border border-white/15 text-white/70 hover:bg-violet-600/30 hover:border-violet-500/50 hover:text-white transition-all truncate max-w-[180px]">
                   {s}
                 </button>
               ))}
@@ -207,7 +207,7 @@ export default function FloatingChat() {
 
           {/* Input */}
           <div className="px-3 pb-3 flex-shrink-0">
-            <div className="flex items-center gap-2 bg-white/6 border border-white/12 rounded-xl px-3 py-2 focus-within:border-violet-500/50 transition-colors">
+            <div className="flex items-center gap-2 bg-white/5 border border-white/15 rounded-xl px-3 py-2 focus-within:border-violet-500/50 transition-colors">
               <input
                 ref={inputRef}
                 value={input}

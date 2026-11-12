@@ -24,10 +24,22 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   const toRad = (deg) => (deg * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  const a = Math.min(
+    1,
+    Math.max(
+      0,
+      Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+    )
+  );
   return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function parseFiniteCoord(val, min, max) {
+  if (typeof val !== 'number' && (typeof val !== 'string' || val.trim() === '')) return null;
+  const num = Number(val);
+  if (!Number.isFinite(num) || num < min || num > max) return null;
+  return num;
 }
 
 /**
@@ -40,25 +52,27 @@ async function findNearbyDuplicateComplaint({
   latitude,
   longitude,
   radiusMeters = DUPLICATE_RADIUS_M,
-}) {
-  if (!category || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+} = {}) {
+  const lat = parseFiniteCoord(latitude, -90, 90);
+  const lon = parseFiniteCoord(longitude, -180, 180);
+  if (!supabase || !category || lat === null || lon === null) return null;
 
   // Cheap bounding-box pre-filter in SQL (lat/lng deltas for the radius),
   // then exact Haversine distance in JS for the (small) candidate set -
   // this table has no PostGIS geometry column to do it server-side.
   const latDelta = radiusMeters / METERS_PER_DEGREE_LAT;
-  const metersPerDegreeLon = METERS_PER_DEGREE_LAT * Math.cos((latitude * Math.PI) / 180);
-  const lonDelta = radiusMeters / (metersPerDegreeLon || METERS_PER_DEGREE_LAT);
+  const metersPerDegreeLon = METERS_PER_DEGREE_LAT * Math.cos((lat * Math.PI) / 180);
+  const lonDelta = Math.abs(metersPerDegreeLon) < 1e-6 ? 180 : Math.min(180, radiusMeters / metersPerDegreeLon);
 
   const { data: candidates, error } = await supabase
     .from('complaints')
     .select('*')
     .eq('category', category)
-    .not('status', 'in', '(resolved,rejected)')
-    .gte('location_latitude', latitude - latDelta)
-    .lte('location_latitude', latitude + latDelta)
-    .gte('location_longitude', longitude - lonDelta)
-    .lte('location_longitude', longitude + lonDelta);
+    .not('status', 'in', '(resolved,completed,rejected,cancelled)')
+    .gte('location_latitude', lat - latDelta)
+    .lte('location_latitude', lat + latDelta)
+    .gte('location_longitude', lon - lonDelta)
+    .lte('location_longitude', lon + lonDelta);
 
   if (error) {
     console.error('❌ Duplicate-complaint lookup failed (continuing as no-duplicate):', error.message);
@@ -73,7 +87,7 @@ async function findNearbyDuplicateComplaint({
     const lon2 = parseFloat(candidate.location_longitude);
     if (Number.isNaN(lat2) || Number.isNaN(lon2)) continue;
 
-    const distance = haversineMeters(latitude, longitude, lat2, lon2);
+    const distance = haversineMeters(lat, lon, lat2, lon2);
     if (distance <= radiusMeters && distance < closestDistance) {
       closest = candidate;
       closestDistance = distance;

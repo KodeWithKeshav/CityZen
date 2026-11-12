@@ -25,7 +25,10 @@ const SUPPORTED_LANGUAGES = Object.keys(sarvamProvider.SARVAM_LANGUAGE_MAP);
  * @param {string} [params.provider] - 'groq', 'sarvam', or 'qwen'
  * @returns {Promise<{ transcript: string, languageUsed: string, provider: string }>}
  */
-async function transcribe({ audioPath, language, provider }) {
+async function transcribe({ audioPath, language, provider } = {}) {
+  if (!audioPath || typeof audioPath !== 'string') {
+    throw new Error('Audio file path is required');
+  }
   const safeLanguage = SUPPORTED_LANGUAGES.includes(language) ? language : 'en';
 
   // Sarvam is the default primary provider, followed by Groq as fallback

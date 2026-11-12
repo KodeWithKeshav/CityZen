@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
@@ -17,7 +17,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'AIzaSyBqn-8BPXpdcIAnjaEN9iwNC47epZP6Q6w'
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
 
 const MAP_LAYERS = {
   google: {
@@ -30,6 +30,8 @@ const MAP_LAYERS = {
   }
 }
 
+const ACTIVE_TILE_LAYER = GOOGLE_MAPS_API_KEY ? MAP_LAYERS.google : MAP_LAYERS.osm
+
 const STATUS_COLORS = {
   pending: '#B45309', // amber-700
   resolved: '#047857', // emerald-700
@@ -38,43 +40,82 @@ const STATUS_COLORS = {
   rejected: '#BE123C', // rose-700
 }
 
+function getCoordinates(c) {
+  const rawLat = c?.location_latitude ?? c?.latitude ?? c?.location?.latitude ?? c?.location?.lat
+  const rawLng = c?.location_longitude ?? c?.longitude ?? c?.location?.longitude ?? c?.location?.lng
+  if (rawLat === null || rawLat === undefined || rawLat === '' || rawLng === null || rawLng === undefined || rawLng === '') {
+    return null
+  }
+  const lat = Number(rawLat)
+  const lng = Number(rawLng)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+    return null
+  }
+  return [lat, lng]
+}
+
+function MapAutoCenter({ coordsList }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!coordsList || coordsList.length === 0) return
+    if (coordsList.length === 1) {
+      map.setView(coordsList[0], 13, { animate: true })
+    } else {
+      const bounds = L.latLngBounds(coordsList)
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14, animate: true })
+      }
+    }
+  }, [map, coordsList])
+  return null
+}
+
 export default function AdminComplaintMap() {
   const { t } = useTranslation('admin')
   const [complaints, setComplaints] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
-  const [explainModalState, setExplainModalState] = useState({ isOpen: false, imageUrl: null, title: '' })
+  const [explainModalState, setExplainModalState] = useState({ isOpen: false, imageUrl: null, title: '', category: undefined })
   const navigate = useNavigate()
 
   useEffect(() => {
-    const fetch = async () => {
+    let cancelled = false
+    const fetchComplaints = async () => {
       try {
         const res = await makeApiCall(apiClient.complaints.all)
-        const dataArray = res.complaints || res.data || []
-        if (res.success || Array.isArray(dataArray)) setComplaints(dataArray)
+        if (cancelled) return
+        const dataArray = res?.complaints || res?.data
+        if (res?.success && Array.isArray(dataArray)) {
+          setComplaints(dataArray)
+        } else {
+          toast.error(res?.message || res?.error || t('complaintMap.loadFailed'))
+        }
       } catch {
-        toast.error(t('complaintMap.loadFailed'))
+        if (!cancelled) toast.error(t('complaintMap.loadFailed'))
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
-    fetch()
+    fetchComplaints()
+    return () => { cancelled = true }
   }, [])
 
-  const mapped = complaints.filter(c => {
-    const lat = c.location_latitude || c.location?.latitude || c.location?.lat
-    const lng = c.location_longitude || c.location?.longitude || c.location?.lng
-    if (!lat || !lng) return false
-    if (filter === 'all') return true
-    return c.status === filter || c.status === filter.replace(/_/g, '-')
-  })
+  const mapped = useMemo(() => {
+    const normalizedFilter = filter.toLowerCase()
+    const hyphenFilter = normalizedFilter.replace(/_/g, '-')
+    return complaints
+      .map(c => ({ complaint: c, coords: getCoordinates(c) }))
+      .filter(({ complaint: c, coords }) => {
+        if (!coords) return false
+        if (normalizedFilter === 'all') return true
+        const st = (c.status || '').toLowerCase()
+        return st === normalizedFilter || st === hyphenFilter
+      })
+  }, [complaints, filter])
 
-  const center = mapped.length > 0
-    ? [
-        mapped[0].location_latitude || mapped[0].location?.latitude || mapped[0].location?.lat,
-        mapped[0].location_longitude || mapped[0].location?.longitude || mapped[0].location?.lng
-      ]
-    : [20.5937, 78.9629]
+  const coordsList = useMemo(() => mapped.map(m => m.coords), [mapped])
+
+  const center = coordsList.length > 0 ? coordsList[0] : [20.5937, 78.9629]
 
   return (
     <div className="flex flex-col h-[calc(100vh-140px)] border border-neutral-300 bg-white">
@@ -136,17 +177,17 @@ export default function AdminComplaintMap() {
             style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
-              attribution={MAP_LAYERS.google.attribution}
-              url={MAP_LAYERS.google.url}
+              attribution={ACTIVE_TILE_LAYER.attribution}
+              url={ACTIVE_TILE_LAYER.url}
             />
-            {mapped.map(c => {
-              const lat = c.location_latitude || c.location?.latitude || c.location?.lat
-              const lng = c.location_longitude || c.location?.longitude || c.location?.lng
-              const color = STATUS_COLORS[c.status] || STATUS_COLORS.pending
+            <MapAutoCenter coordsList={coordsList} />
+            {mapped.map(({ complaint: c, coords }) => {
+              const statusKey = (c.status || 'pending').toLowerCase()
+              const color = STATUS_COLORS[statusKey] || STATUS_COLORS.pending
               return (
                 <CircleMarker
                   key={c._id || c.id}
-                  center={[lat, lng]}
+                  center={coords}
                   radius={8}
                   fillColor={color}
                   color="#000000"
@@ -157,7 +198,7 @@ export default function AdminComplaintMap() {
                   <Popup>
                     <div className="font-mono text-xs p-1 max-w-[240px]">
                       <span className="text-neutral-400 text-[10px] block mb-1">
-                        {t('complaintMap.dossierLabel', { id: (c._id || c.id || '').slice(-6).toUpperCase() })}
+                        {t('complaintMap.dossierLabel', { id: String(c._id || c.id || '').slice(-6).toUpperCase() })}
                       </span>
                       {(() => {
                         const pTier = getPriorityTier(c)
@@ -185,7 +226,8 @@ export default function AdminComplaintMap() {
                               setExplainModalState({
                                 isOpen: true,
                                 imageUrl: img,
-                                title: c.title || c.complaintTitle || t('complaintMap.civicIncident')
+                                title: c.title || c.complaintTitle || t('complaintMap.civicIncident'),
+                                category: c.category || c.issueType
                               })
                             }}
                             className="mb-2 w-full py-1 bg-neutral-900 text-white hover:bg-neutral-800 border border-black font-mono text-[10px] uppercase font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
@@ -197,9 +239,10 @@ export default function AdminComplaintMap() {
                       })()}
                       <div className="flex items-center justify-between border-t border-neutral-200 pt-2">
                         <span className="uppercase text-[10px] font-bold text-neutral-700">
-                          {c.status?.replace(/_/g, ' ')}
+                          {(c.status || 'pending').replace(/_/g, ' ')}
                         </span>
                         <button
+                          type="button"
                           onClick={() => navigate(`/admin/complaints/${c._id || c.id}`)}
                           className="text-neutral-900 font-bold hover:underline text-[11px] flex items-center gap-1"
                         >
@@ -221,6 +264,7 @@ export default function AdminComplaintMap() {
         onClose={() => setExplainModalState(prev => ({ ...prev, isOpen: false }))}
         imageUrl={explainModalState.imageUrl}
         title={explainModalState.title}
+        category={explainModalState.category}
       />
     </div>
   )

@@ -36,23 +36,25 @@ export default function Welcome() {
     <div className="min-h-screen bg-surface-bright grid-bg">
       {/* ─── Navbar ─── */}
       <nav className="border-b border-black/10 bg-white">
-        <div className="max-w-container mx-auto px-margin-lg py-4 flex items-center justify-between">
+        <div className="max-w-container mx-auto px-4 sm:px-8 lg:px-margin-lg py-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <img src="/logo.png" alt="CityZen" className="w-7 h-7 object-contain" />
-            <span className="font-epilogue text-xl font-bold tracking-tight text-on-surface">{t('welcome.brand')}</span>
-            <span className="text-label-sm text-primary-400 border border-black/10 px-2 py-1">{t('welcome.version')}</span>
+            <span className="font-epilogue text-lg sm:text-xl font-bold tracking-tight text-on-surface">{t('welcome.brand')}</span>
+            <span className="text-label-sm text-primary-400 border border-black/10 px-2 py-1 whitespace-nowrap">{t('welcome.version')}</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <LanguageSwitcher />
             <button
+              type="button"
               onClick={() => navigate('/login')}
-              className="text-sm text-on-surface-variant hover:text-on-surface transition-colors px-4 py-2 border border-transparent hover:border-black/10"
+              className="text-sm text-on-surface-variant hover:text-on-surface transition-colors px-3 sm:px-4 py-2 border border-transparent hover:border-black/10 whitespace-nowrap"
             >
               {t('welcome.signIn')}
             </button>
             <button
+              type="button"
               onClick={() => navigate('/citizen/signup')}
-              className="btn-primary text-xs py-2"
+              className="btn-primary text-xs py-2 px-3 sm:px-6 whitespace-nowrap"
             >
               {t('welcome.getStarted')}
             </button>
@@ -61,14 +63,14 @@ export default function Welcome() {
       </nav>
 
       {/* ─── Hero ─── */}
-      <section className="py-stack-lg px-margin-lg">
+      <section className="py-stack-lg px-4 sm:px-8 lg:px-margin-lg">
         <div className="max-w-4xl mx-auto text-center">
           {/* Logo mark */}
-          <div className="w-40 h-40 border border-black/10 bg-white mx-auto mb-12 flex items-center justify-center p-3">
+          <div className="w-32 h-32 sm:w-40 sm:h-40 border border-black/10 bg-white mx-auto mb-12 flex items-center justify-center p-3">
             <img src="/logo.png" alt="CityZen" className="w-full h-full object-contain" />
           </div>
 
-          <h1 className="text-display-xl font-epilogue text-on-surface mb-6">
+          <h1 className="text-4xl sm:text-6xl lg:text-display-xl font-epilogue font-bold text-on-surface mb-6">
             {t('welcome.brand')}
           </h1>
 
@@ -81,6 +83,7 @@ export default function Welcome() {
           {/* Portal Entry Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-gutter max-w-2xl mx-auto mb-16">
             <button
+              type="button"
               onClick={() => navigate('/citizen/signup')}
               className="card text-left hover:bg-surface-container-low transition-colors group p-8"
             >
@@ -95,6 +98,7 @@ export default function Welcome() {
             </button>
 
             <button
+              type="button"
               onClick={() => navigate('/login')}
               className="card text-left hover:bg-surface-container-low transition-colors group p-8"
             >
@@ -116,7 +120,7 @@ export default function Welcome() {
       </section>
 
       {/* ─── Stats ─── */}
-      <section className="border-t border-black/10 py-stack-md px-margin-lg bg-white">
+      <section className="border-t border-black/10 py-stack-md px-4 sm:px-8 lg:px-margin-lg bg-white">
         <div className="max-w-4xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-gutter">
           {stats.map(s => (
             <div key={s.label} className="text-center">
@@ -128,7 +132,7 @@ export default function Welcome() {
       </section>
 
       {/* ─── Features ─── */}
-      <section className="py-stack-lg px-margin-lg">
+      <section className="py-stack-lg px-4 sm:px-8 lg:px-margin-lg">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-stack-md">
             <h2 className="text-headline-lg font-epilogue text-on-surface mb-4">
@@ -152,7 +156,7 @@ export default function Welcome() {
       </section>
 
       {/* ─── How It Works ─── */}
-      <section className="py-stack-lg px-margin-lg border-y border-black/10 bg-white">
+      <section className="py-stack-lg px-4 sm:px-8 lg:px-margin-lg border-y border-black/10 bg-white">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-stack-md">
             <h2 className="text-headline-lg font-epilogue text-on-surface mb-3">{t('welcome.howItWorks.title')}</h2>
@@ -173,19 +177,21 @@ export default function Welcome() {
       </section>
 
       {/* ─── CTA ─── */}
-      <section className="py-stack-lg px-margin-lg text-center">
+      <section className="py-stack-lg px-4 sm:px-8 lg:px-margin-lg text-center">
         <h2 className="text-headline-lg font-epilogue text-on-surface mb-4">{t('welcome.cta.title')}</h2>
         <p className="text-on-surface-variant text-body-md mb-10 max-w-xl mx-auto">
           {t('welcome.cta.desc')}
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
+            type="button"
             onClick={() => navigate('/citizen/signup')}
             className="btn-primary px-8 py-4 text-sm"
           >
             {t('welcome.cta.getStarted')}
           </button>
           <button
+            type="button"
             onClick={() => navigate('/login')}
             className="btn-secondary px-8 py-4 text-sm"
           >
@@ -195,7 +201,7 @@ export default function Welcome() {
       </section>
 
       {/* ─── Footer ─── */}
-      <footer className="border-t border-black/10 py-8 px-margin-lg text-center bg-white">
+      <footer className="border-t border-black/10 py-8 px-4 sm:px-8 lg:px-margin-lg text-center bg-white">
         <p className="text-label-sm text-primary-300 tracking-wider">
           {t('welcome.footer')}
         </p>

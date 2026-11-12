@@ -20,6 +20,8 @@ export default function AdminDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [data, setData] = useState(null)
+  const [recentList, setRecentList] = useState([])
+  const [rejectedFallback, setRejectedFallback] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -33,8 +35,50 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const res = await makeApiCall(apiClient.admin.dashboard)
-      if (res.success) setData(res.data)
+      const [dashResult, queueResult] = await Promise.allSettled([
+        makeApiCall(apiClient.admin.dashboard),
+        makeApiCall(apiClient.admin.priorityQueue),
+      ])
+
+      if (dashResult.status === 'fulfilled' && dashResult.value?.success) {
+        setData(dashResult.value.data)
+      } else {
+        const msg =
+          dashResult.status === 'fulfilled'
+            ? dashResult.value?.message || dashResult.value?.error
+            : null
+        toast.error(msg || t('dashboard.loadFailed'))
+      }
+
+      let complaintsArr = null
+      if (queueResult.status === 'fulfilled' && queueResult.value?.success) {
+        const payload = queueResult.value.data?.complaints || queueResult.value.complaints || queueResult.value.data
+        if (Array.isArray(payload)) complaintsArr = payload
+      }
+
+      if (!complaintsArr) {
+        try {
+          const fallbackRes = await makeApiCall(apiClient.complaints.all)
+          const payload = fallbackRes?.complaints || fallbackRes?.data
+          if (fallbackRes?.success && Array.isArray(payload)) {
+            complaintsArr = payload
+          }
+        } catch {
+          // Keep dashboard usable even if recent submissions stream fails
+        }
+      }
+
+      if (Array.isArray(complaintsArr)) {
+        const sortedByRecent = [...complaintsArr].sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.created_at || 0).getTime()
+          const dateB = new Date(b.createdAt || b.created_at || 0).getTime()
+          return (Number.isNaN(dateB) ? 0 : dateB) - (Number.isNaN(dateA) ? 0 : dateA)
+        })
+        setRecentList(sortedByRecent)
+        setRejectedFallback(
+          complaintsArr.filter(c => (c.status || '').toLowerCase() === 'rejected').length
+        )
+      }
     } catch (err) {
       toast.error(t('dashboard.loadFailed'))
     } finally {
@@ -53,13 +97,17 @@ export default function AdminDashboard() {
   }
 
   const statsRaw = data?.overview || data?.stats || data?.complaints || {}
+  const totalComplaints = statsRaw.total ?? statsRaw.totalComplaints ?? 0
+  const resolvedComplaints = statsRaw.resolved ?? statsRaw.resolvedComplaints ?? 0
   const complaints = {
-    total: statsRaw.total || statsRaw.totalComplaints || 0,
-    resolved: statsRaw.resolved || statsRaw.resolvedComplaints || 0,
-    pending: statsRaw.pending || statsRaw.pendingComplaints || 0,
-    inProgress: statsRaw.inProgress || statsRaw.inProgressComplaints || statsRaw.in_progress || 0,
-    rejected: statsRaw.rejected || 0,
-    resolutionRate: statsRaw.resolutionRate || (statsRaw.total ? Math.round((statsRaw.resolved / statsRaw.total) * 100) : 0),
+    total: totalComplaints,
+    resolved: resolvedComplaints,
+    pending: statsRaw.pending ?? statsRaw.pendingComplaints ?? 0,
+    inProgress: statsRaw.inProgress ?? statsRaw.inProgressComplaints ?? statsRaw.in_progress ?? 0,
+    rejected: statsRaw.rejected ?? rejectedFallback ?? 0,
+    resolutionRate:
+      statsRaw.resolutionRate ??
+      (totalComplaints > 0 ? Math.round((resolvedComplaints / totalComplaints) * 100) : 0),
   }
   const users = data?.users || {}
 
@@ -87,7 +135,11 @@ export default function AdminDashboard() {
     }]
   }
 
-  const recentComplaints = data?.topComplaints || data?.recentComplaints || []
+  const dashboardRecent = data?.topComplaints || data?.recentComplaints
+  const recentComplaints =
+    Array.isArray(dashboardRecent) && dashboardRecent.length > 0
+      ? dashboardRecent
+      : recentList
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -105,7 +157,7 @@ export default function AdminDashboard() {
             {t('dashboard.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans">
-            {t('dashboard.authenticatedAdmin')} <strong className="text-black uppercase">{user?.fullName || t('dashboard.chiefDispatcher')}</strong> ({user?.department || t('dashboard.civicInfraDept')})
+            {t('dashboard.authenticatedAdmin')} <strong className="text-black uppercase">{user?.fullName || user?.full_name || user?.name || t('dashboard.chiefDispatcher')}</strong> ({user?.department || t('dashboard.civicInfraDept')})
           </p>
         </div>
 
@@ -215,7 +267,11 @@ export default function AdminDashboard() {
                       label: (c.status || t('status.pending')).toUpperCase(),
                       bg: 'bg-neutral-100 text-neutral-800 border-neutral-300'
                     }
-                    const timeStr = c.createdAt ? format(new Date(c.createdAt), 'yyyy-MM-dd HH:mm') : '—'
+                    const rawDate = c.createdAt || c.created_at
+                    const parsedDate = rawDate ? new Date(rawDate) : null
+                    const timeStr = parsedDate && !Number.isNaN(parsedDate.getTime())
+                      ? format(parsedDate, 'yyyy-MM-dd HH:mm')
+                      : '—'
 
                     return (
                       <div
@@ -226,7 +282,7 @@ export default function AdminDashboard() {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-0.5">
                             <span className="font-mono text-xs text-neutral-400">
-                              #{(c._id || c.id || '').slice(-6).toUpperCase()}
+                              #{String(c._id || c.id || '').slice(-6).toUpperCase()}
                             </span>
                             <span className={`px-2 py-0.5 border font-mono text-[9px] uppercase tracking-wider ${statusInfo.bg}`}>
                               {statusInfo.label}
@@ -247,7 +303,7 @@ export default function AdminDashboard() {
                         </div>
 
                         <div className="font-mono text-xs text-neutral-500 text-right flex-shrink-0">
-                          <div>{c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || t('verifiedCitizen')}</div>
+                          <div>{c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || c.full_name || t('verifiedCitizen')}</div>
                           <div className="text-[10px] text-neutral-400">{timeStr}</div>
                         </div>
                       </div>

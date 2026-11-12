@@ -4,11 +4,15 @@
 const RENDER_BACKEND_URL = 'https://urbanpulse-backend-cb7e.onrender.com';
 
 const inferApiBaseUrl = () => {
-  const fromEnv = import.meta.env.VITE_API_BASE_URL;
+  const fromEnv = import.meta.env?.VITE_API_BASE_URL;
   if (fromEnv && fromEnv.trim()) return fromEnv.trim().replace(/\/$/, ''); // strip trailing slash
 
   // In production (deployed on Vercel), always use the Render backend
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+  ) {
     return RENDER_BACKEND_URL;
   }
 
@@ -80,27 +84,35 @@ export const apiClient = {
   },
 };
 
-const getToken = () => localStorage.getItem('authToken');
-
-const buildDefaultHeaders = (token) => ({
-  'Content-Type': 'application/json',
+const buildDefaultHeaders = (token, isFormData = false) => ({
+  ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
   ...(token ? { Authorization: `Bearer ${token}` } : {}),
 });
 
 export const makeApiCall = async (url, options = {}) => {
   try {
-    const token = getToken();
+    const token = authStorage.getToken();
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const response = await fetch(url, {
       ...options,
       headers: {
-        ...buildDefaultHeaders(token),
+        ...buildDefaultHeaders(token, isFormData),
         ...(options.headers || {}),
       },
     });
 
-    const contentType = response.headers.get('content-type') || '';
-    const isJson = contentType.includes('application/json');
-    const payload = isJson ? await response.json() : { message: await response.text() };
+    const contentType = response.headers?.get?.('content-type') || '';
+    let payload = {};
+    if (contentType.includes('application/json') || (!contentType && typeof response.json === 'function')) {
+      try {
+        payload = await response.json();
+      } catch {
+        payload = {};
+      }
+    } else if (typeof response.text === 'function') {
+      const text = await response.text();
+      payload = text ? { message: text } : {};
+    }
 
     if (!response.ok) {
       const message = payload?.message || payload?.error || `HTTP ${response.status}`;
@@ -118,8 +130,16 @@ export const makeApiCall = async (url, options = {}) => {
 
 export const authStorage = {
   save: (token, user) => {
-    localStorage.setItem('authToken', token);
-    localStorage.setItem('userData', JSON.stringify(user));
+    if (token) {
+      localStorage.setItem('authToken', token);
+    } else {
+      localStorage.removeItem('authToken');
+    }
+    if (user !== undefined && user !== null) {
+      localStorage.setItem('userData', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('userData');
+    }
   },
   clear: () => {
     localStorage.removeItem('authToken');
@@ -127,8 +147,19 @@ export const authStorage = {
   },
   getUser: () => {
     const u = localStorage.getItem('userData');
-    return u ? JSON.parse(u) : null;
+    if (!u || u === 'undefined' || u === 'null') return null;
+    try {
+      return JSON.parse(u);
+    } catch {
+      localStorage.removeItem('userData');
+      localStorage.removeItem('authToken');
+      return null;
+    }
   },
-  getToken: () => localStorage.getItem('authToken'),
-  isLoggedIn: () => !!localStorage.getItem('authToken'),
+  getToken: () => {
+    const token = localStorage.getItem('authToken');
+    if (!token || token === 'undefined' || token === 'null') return null;
+    return token;
+  },
+  isLoggedIn: () => !!authStorage.getToken(),
 };

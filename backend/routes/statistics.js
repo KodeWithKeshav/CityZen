@@ -2,6 +2,21 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../config/supabase');
 
+function summarizeStatuses(rows) {
+  let pending = 0;
+  let inProgress = 0;
+  let resolved = 0;
+
+  for (const c of rows) {
+    const status = c.status?.toLowerCase().trim();
+    if (status === 'pending') pending += 1;
+    else if (status === 'in_progress') inProgress += 1;
+    else if (status === 'completed' || status === 'resolved') resolved += 1;
+  }
+
+  return { pending, inProgress, resolved };
+}
+
 /**
  * Get detailed statistics breakdown for debugging
  * GET /api/statistics/debug
@@ -18,36 +33,37 @@ router.get('/debug', async (req, res) => {
     if (error) {
       throw new Error(error.message);
     }
+
+    const rows = data || [];
+    const includeDetails = process.env.NODE_ENV !== 'production' || req.user?.userType === 'admin';
     
     // Count status occurrences
     const statusCounts = {};
     const statusDetails = {};
     
-    data.forEach(complaint => {
+    rows.forEach(complaint => {
       const status = complaint.status || 'null';
       statusCounts[status] = (statusCounts[status] || 0) + 1;
       
-      if (!statusDetails[status]) {
-        statusDetails[status] = [];
+      if (includeDetails) {
+        if (!statusDetails[status]) {
+          statusDetails[status] = [];
+        }
+        statusDetails[status].push({
+          id: complaint.id?.substring(0, 8),
+          title: complaint.title?.substring(0, 30)
+        });
       }
-      statusDetails[status].push({
-        id: complaint.id?.substring(0, 8),
-        title: complaint.title?.substring(0, 30)
-      });
     });
     
     console.log('📊 Status breakdown:', statusCounts);
     
     res.json({
       success: true,
-      total: data.length,
+      total: rows.length,
       statusCounts,
-      statusDetails,
-      frontendFiltering: {
-        pending: data.filter(c => c.status?.toLowerCase() === 'pending').length,
-        inProgress: data.filter(c => c.status?.toLowerCase() === 'in_progress').length,
-        resolved: data.filter(c => c.status?.toLowerCase() === 'completed' || c.status?.toLowerCase() === 'resolved').length
-      }
+      ...(includeDetails ? { statusDetails } : {}),
+      frontendFiltering: summarizeStatuses(rows)
     });
   } catch (error) {
     console.error('Debug statistics error:', error);
@@ -74,14 +90,13 @@ router.get('/summary', async (req, res) => {
     if (error) {
       throw new Error(error.message);
     }
-    
-    const pending = data.filter(c => c.status?.toLowerCase() === 'pending').length;
-    const inProgress = data.filter(c => c.status?.toLowerCase() === 'in_progress').length;
-    const resolved = data.filter(c => c.status?.toLowerCase() === 'completed' || c.status?.toLowerCase() === 'resolved').length;
+
+    const rows = data || [];
+    const { pending, inProgress, resolved } = summarizeStatuses(rows);
     
     res.json({
       success: true,
-      total: data.length,
+      total: rows.length,
       pending,
       inProgress,
       resolved

@@ -257,6 +257,7 @@ function computeConfidence({ ringSampleCount, rimPointCount, regressionR2, tiltS
  */
 function estimateGeometry(instance, camera, cfg) {
   const qualityFlags = [];
+  const safeInstance = instance && typeof instance === 'object' ? instance : {};
   const {
     rim_points_px: rimPointsPx = [],
     rim_depth_samples: rimDepthSamples = [],
@@ -266,7 +267,29 @@ function estimateGeometry(instance, camera, cfg) {
     centroid_px: centroidPx,
     image_width: imageWidth,
     image_height: imageHeight,
-  } = instance;
+  } = safeInstance;
+
+  if (!Number.isFinite(imageWidth) || imageWidth <= 0 || !Number.isFinite(imageHeight) || imageHeight <= 0) {
+    return {
+      widthCm: 0,
+      lengthCm: 0,
+      areaCm2: 0,
+      depthCm: 0,
+      confidence: 0,
+      qualityFlags: ['invalid_image_dimensions'],
+      assumptions: {
+        cameraHeightM: camera.CAMERA_HEIGHT_M,
+        cameraTiltDeg: camera.CAMERA_TILT_DEG,
+        tiltSource: camera.tiltSource,
+        horizontalFovDeg: camera.HORIZONTAL_FOV_DEG,
+        verticalFovDeg: camera.VERTICAL_FOV_DEG,
+        rimPointCount: 0,
+        droppedRimPoints: 0,
+        ringSampleCount,
+        regressionR2: 0,
+      },
+    };
+  }
 
   const intrinsics = buildIntrinsics(imageWidth, imageHeight, camera.HORIZONTAL_FOV_DEG, camera.VERTICAL_FOV_DEG);
 
@@ -274,15 +297,18 @@ function estimateGeometry(instance, camera, cfg) {
   // never reaches the ground under the assumed tilt.
   const groundPoints = [];
   let droppedCount = 0;
-  for (const [u, v] of rimPointsPx) {
-    const rayWorld = pixelToWorldRay(u, v, intrinsics, camera.CAMERA_TILT_DEG);
+  let validRimInputCount = 0;
+  for (const pt of (Array.isArray(rimPointsPx) ? rimPointsPx : [])) {
+    if (!Array.isArray(pt) || pt.length < 2 || !Number.isFinite(pt[0]) || !Number.isFinite(pt[1])) continue;
+    validRimInputCount++;
+    const rayWorld = pixelToWorldRay(pt[0], pt[1], intrinsics, camera.CAMERA_TILT_DEG);
     const hit = intersectGround(rayWorld, camera.CAMERA_HEIGHT_M);
     if (!hit) { droppedCount++; continue; }
     groundPoints.push(hit);
   }
 
   const rimPointCount = groundPoints.length;
-  const droppedPointRatio = rimPointsPx.length > 0 ? droppedCount / rimPointsPx.length : 1;
+  const droppedPointRatio = validRimInputCount > 0 ? droppedCount / validRimInputCount : 1;
 
   let areaCm2 = 0, widthCm = 0, lengthCm = 0;
   if (rimPointCount >= 3) {
@@ -299,7 +325,17 @@ function estimateGeometry(instance, camera, cfg) {
   // projection used for the footprint) and fit the local calibration.
   const regressionXs = [];
   const regressionYs = [];
-  for (const sample of rimDepthSamples) {
+  for (const sample of (Array.isArray(rimDepthSamples) ? rimDepthSamples : [])) {
+    if (
+      !sample ||
+      !Array.isArray(sample.px) ||
+      sample.px.length < 2 ||
+      !Number.isFinite(sample.px[0]) ||
+      !Number.isFinite(sample.px[1]) ||
+      !Number.isFinite(sample.nd)
+    ) {
+      continue;
+    }
     const [u, v] = sample.px;
     const rayWorld = pixelToWorldRay(u, v, intrinsics, camera.CAMERA_TILT_DEG);
     const hit = intersectGround(rayWorld, camera.CAMERA_HEIGHT_M);
@@ -310,7 +346,11 @@ function estimateGeometry(instance, camera, cfg) {
 
   let depthCm = 0;
   let regressionR2 = 0;
-  if (regressionXs.length >= 2 && typeof depthMedianInside === 'number' && typeof depthMedianRing === 'number') {
+  if (
+    regressionXs.length >= 2 &&
+    typeof depthMedianInside === 'number' && Number.isFinite(depthMedianInside) &&
+    typeof depthMedianRing === 'number' && Number.isFinite(depthMedianRing)
+  ) {
     const { slope, r2 } = fitLinearRegression(regressionXs, regressionYs);
     regressionR2 = r2;
     const ratePerMeter = -slope; // expected positive: depth-units lost per meter of distance
@@ -331,7 +371,7 @@ function estimateGeometry(instance, camera, cfg) {
       // slant-distance S along a ray whose unit direction has vertical
       // component sin(phi) produces a vertical drop of S*sin(phi).
       let verticalFactor = Math.sin(degToRad(camera.CAMERA_TILT_DEG)); // fallback
-      if (centroidPx) {
+      if (Array.isArray(centroidPx) && centroidPx.length >= 2 && Number.isFinite(centroidPx[0]) && Number.isFinite(centroidPx[1])) {
         const centroidRay = pixelToWorldRay(centroidPx[0], centroidPx[1], intrinsics, camera.CAMERA_TILT_DEG);
         if (centroidRay.y < 0) verticalFactor = Math.abs(centroidRay.y);
       }

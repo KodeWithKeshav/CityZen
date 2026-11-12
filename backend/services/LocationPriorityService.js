@@ -97,9 +97,10 @@ class LocationPriorityService {
    */
   async calculateLocationPriority(latitude, longitude, complaintType = 'general', locationMeta = {}) {
     try {
+      const safeMeta = locationMeta && typeof locationMeta === 'object' ? locationMeta : {};
       console.log(`🔍 Analyzing location priority for: ${latitude}, ${longitude}`);
-      console.log(`📊 Privacy Level: ${locationMeta.privacyLevel || 'not specified'}`);
-      console.log(`📏 Location Accuracy: ±${locationMeta.radiusM || 'unknown'}m`);
+      console.log(`📊 Privacy Level: ${safeMeta.privacyLevel || 'not specified'}`);
+      console.log(`📏 Location Accuracy: ±${safeMeta.radiusM || 'unknown'}m`);
       
       // Validate coordinates
       if (!this.isValidCoordinates(latitude, longitude)) {
@@ -107,16 +108,17 @@ class LocationPriorityService {
       }
 
       // Dynamic search radius based on area type detection
-      const radiusInfo = await this.calculateSearchRadius(latitude, longitude, locationMeta);
+      const radiusInfo = await this.calculateSearchRadius(latitude, longitude, safeMeta);
       
       console.log(`🔍 Dynamic search radius calculated: ${radiusInfo.radius}m for area type: ${radiusInfo.areaType}`);
       console.log(`📊 Facility density probe found: ${radiusInfo.facilityDensity} facilities in 1km`);
       
       const facilityAnalysis = await this.analyzeFacilities(latitude, longitude, radiusInfo.radius);
+      const totalFacilities = Object.values(facilityAnalysis).reduce((sum, f) => sum + (f?.count || 0), 0);
       const densityBonus = this.calculateDensityBonus(facilityAnalysis);
       const proximityScore = this.calculateProximityScore(facilityAnalysis);
       const complaintMultiplier = this.getComplaintTypeMultiplier(complaintType, facilityAnalysis);
-      const privacyAdjustment = this.getPrivacyLevelAdjustment(locationMeta.privacyLevel);
+      const privacyAdjustment = this.getPrivacyLevelAdjustment(safeMeta.privacyLevel);
       
       const finalScore = Math.min(1.0, (proximityScore + densityBonus) * complaintMultiplier * privacyAdjustment);
       
@@ -124,6 +126,7 @@ class LocationPriorityService {
         priorityScore: Math.round(finalScore * 100) / 100,
         priorityLevel: this.getPriorityLevel(finalScore),
         facilityAnalysis,
+        totalFacilities,
         densityBonus,
         proximityScore,
         complaintMultiplier,
@@ -132,12 +135,12 @@ class LocationPriorityService {
         areaType: radiusInfo.areaType,
         facilityDensity: radiusInfo.facilityDensity,
         locationMeta: {
-          privacyLevel: locationMeta.privacyLevel || 'unknown',
-          accuracy: locationMeta.radiusM || 'unknown',
-          precision: locationMeta.precision || 'unknown'
+          privacyLevel: safeMeta.privacyLevel || 'unknown',
+          accuracy: safeMeta.radiusM || 'unknown',
+          precision: safeMeta.precision || 'unknown'
         },
         criticalFacilities: this.extractCriticalFacilities(facilityAnalysis),
-        recommendationReason: this.generateReasoningText(facilityAnalysis, finalScore, complaintType, locationMeta),
+        recommendationReason: this.generateReasoningText(facilityAnalysis, finalScore, complaintType, safeMeta),
         coordinates: { latitude, longitude },
         complaintType
       };
@@ -217,8 +220,7 @@ class LocationPriorityService {
     }
     
     // Step 4: Adjust based on location accuracy
-    const privacyLevel = locationMeta.privacyLevel || 'unknown';
-    const accuracy = locationMeta.radiusM || 0;
+    const accuracy = locationMeta?.radiusM || 0;
     
     if (accuracy > 100) {
       radius += Math.min(accuracy * 0.5, 500); // Add up to 500m for poor accuracy
@@ -445,6 +447,8 @@ class LocationPriorityService {
           if (facilities.length > 0) {
             return facilities;
           }
+          // Successful API response with 0 results — no need to retry the same searchType
+          break;
         } catch (error) {
           lastError = error;
           // Permanent, project-level errors (bad/missing key, billing, quota) will
@@ -531,24 +535,23 @@ class LocationPriorityService {
           place_id: place.id,
           distance: this.calculateDistance(
             latitude, longitude,
-            place.location?.latitude || latitude, place.location?.longitude || longitude
+            place.location?.latitude ?? latitude, place.location?.longitude ?? longitude
           ),
           rating: place.rating || 0,
           types: place.types || [],
           vicinity: place.formattedAddress || '',
+          importance: this.assessFacilityImportance(place),
           geometry: {
             location: {
               lat: place.location?.latitude,
               lng: place.location?.longitude
             }
           }
-        }));
+        })).sort((a, b) => a.distance - b.distance);
       }
     } catch (newApiErr) {
-      // If error is not a fatal credential error, fall through to legacy nearbysearch
-      if (newApiErr.response?.data?.error?.status !== 'REQUEST_DENIED') {
-        // Continue to legacy fallback
-      }
+      // Fall through to legacy nearbysearch if Places API (New) fails or is disabled for this key
+      console.warn(`⚠️ Places API (New) fallback to legacy nearbysearch (${type}): ${newApiErr.message}`);
     }
 
     const response = await axios.get(`${this.baseUrl}/nearbysearch/json`, {
@@ -597,7 +600,7 @@ class LocationPriorityService {
     const config = this.facilityConfig[facilityType];
     
     const filteredResults = response.data.results.filter(place => {
-      const name = place.name.toLowerCase();
+      const name = (place.name || '').toLowerCase();
       const types = place.types || [];
       
       // Apply exclude keywords if configured
@@ -672,7 +675,11 @@ class LocationPriorityService {
       'bus_station': 'transit_station',
       'subway_station': 'transit_station',
       'local_government_office': 'government',
-      'city_hall': 'government'
+      'city_hall': 'government',
+      'bank': 'bank',
+      'atm': 'bank',
+      'pharmacy': 'pharmacy',
+      'drugstore': 'pharmacy'
     };
     
     return typeMapping[searchType] || 'unknown';
@@ -733,7 +740,8 @@ class LocationPriorityService {
       console.error(`🚨 NaN score detected for facility:`, {
         nearestName: nearest.name,
         distance: nearest.distance,
-        maxDistance,
+        halfDistance,
+        radius: config.radius,
         distanceScore,
         densityBonus,
         importance: nearest.importance,
@@ -924,25 +932,27 @@ class LocationPriorityService {
     const [facilityType, analysis] = topFacility;
     const nearest = analysis.facilities[0];
     
-    let reason = `Located ${nearest.distance}m from ${analysis.description.toLowerCase()} (${nearest.name})`;
+    let reason = `Located ${Math.round(nearest.distance)}m from ${analysis.description.toLowerCase()} (${nearest.name})`;
     
     if (nearbyFacilities.length > 1) {
       reason += ` and ${nearbyFacilities.length - 1} other facility type(s)`;
     }
 
     // Add complaint-specific reasoning
-    if (complaintType !== 'general') {
+    if (complaintType && complaintType !== 'general') {
       reason += `. ${complaintType} issue near critical infrastructure`;
     }
 
     // Add privacy level context
-    if (locationMeta.privacyLevel) {
+    if (locationMeta?.privacyLevel) {
       const privacyContext = {
         exact: 'Exact location provided for precise emergency response',
         street: 'Street-level accuracy sufficient for municipal routing',
         area: 'Area-level location used while protecting privacy'
       };
-      reason += `. ${privacyContext[locationMeta.privacyLevel] || ''}`;
+      if (privacyContext[locationMeta.privacyLevel]) {
+        reason += `. ${privacyContext[locationMeta.privacyLevel]}`;
+      }
     }
     
     if (finalScore >= 0.8) {
@@ -982,6 +992,8 @@ class LocationPriorityService {
    */
   async calculateComprehensivePriority(latitude, longitude, imageAnalysis = {}, complaintData = {}) {
     try {
+      const safeImage = imageAnalysis && typeof imageAnalysis === 'object' ? imageAnalysis : {};
+      const safeComplaint = complaintData && typeof complaintData === 'object' ? complaintData : {};
       console.log(`🧠 Calculating comprehensive priority score for: ${latitude}, ${longitude}`);
 
       // Get location-based priority (infrastructure analysis). This already
@@ -992,8 +1004,8 @@ class LocationPriorityService {
       const locationPriority = await this.calculateLocationPriority(
         latitude,
         longitude,
-        complaintData.complaintType || 'general',
-        complaintData.locationMeta || {}
+        safeComplaint.complaintType || 'general',
+        safeComplaint.locationMeta || {}
       );
 
       const facilityAnalysis = locationPriority.facilityAnalysis || {};
@@ -1015,8 +1027,9 @@ class LocationPriorityService {
       const infrastructureScore = (locationPriority.priorityScore || 0) * 100;
       console.log(`🏢 [1/4] Infrastructure Score: ${infrastructureScore.toFixed(2)}% (${totalFacilities} facilities, weighted proximity=${locationPriority.priorityScore})`);
 
-      // Extract image confidence score from image analysis
-      const imageConfidence = imageAnalysis.confidence || imageAnalysis.modelConfidence || 0;
+      // Extract image confidence score from image analysis (clamped to [0, 1])
+      const rawImageConf = Number(safeImage.confidence ?? safeImage.modelConfidence ?? 0);
+      const imageConfidence = Number.isFinite(rawImageConf) ? Math.max(0, Math.min(1, rawImageConf)) : 0;
       const imageValidationScore = imageConfidence * 100; // Convert to 0-100 scale
       console.log(`📷 [2/4] Image Validation Score: ${imageValidationScore.toFixed(2)}% (confidence: ${imageConfidence})`);
 
@@ -1029,17 +1042,17 @@ class LocationPriorityService {
       // EmotionAnalysisService directly, so both numbers come from one
       // computation.
       let emotionScore = 0;
-      if (complaintData.description) {
+      if (safeComplaint.description) {
         try {
           const emotionResult = await emotionService.analyzeEmotion(
-            complaintData.description,
-            complaintData.complaintType || 'general'
+            safeComplaint.description,
+            safeComplaint.complaintType || 'general'
           );
           emotionScore = (emotionResult.emotionScore || 0) * 100;
           console.log(`🧠 [3/4] Emotion Analysis Score: ${emotionScore.toFixed(2)}% (method: ${emotionResult.analysisMethod})`);
         } catch (emotionError) {
           console.warn('⚠️ Emotion analysis failed, using basic keyword fallback:', emotionError.message);
-          emotionScore = this.getBasicEmotionScore(complaintData.description);
+          emotionScore = this.getBasicEmotionScore(safeComplaint.description);
         }
       } else {
         console.log('🔍 Emotion analysis skipped - no description provided');
@@ -1048,17 +1061,18 @@ class LocationPriorityService {
       // Vote count (more votes = higher priority), same saturating-curve
       // shape as the infrastructure/density bonuses above.
       let voteScore = 0;
-      if (complaintData.votes !== undefined) {
-        voteScore = Math.min(100, 100 * (1 - Math.exp(-complaintData.votes / 5)));
+      const votes = Number(safeComplaint.votes);
+      if (Number.isFinite(votes) && votes > 0) {
+        voteScore = Math.min(100, 100 * (1 - Math.exp(-votes / 5)));
       }
-      console.log(`🗳️ [4/4] Community Voting Score: ${voteScore.toFixed(2)}% (${complaintData.votes || 0} votes)`);
+      console.log(`🗳️ [4/4] Community Voting Score: ${voteScore.toFixed(2)}% (${safeComplaint.votes || 0} votes)`);
 
       // Complaint status
       let statusMultiplier = 1.0;
-      if (complaintData.status === 'in_progress') {
+      if (safeComplaint.status === 'in_progress') {
         statusMultiplier = 1.2; // 20% boost for in-progress complaints
-      } else if (complaintData.status === 'completed') {
-        statusMultiplier = 0.5; // 50% reduction for completed complaints
+      } else if (safeComplaint.status === 'completed' || safeComplaint.status === 'resolved') {
+        statusMultiplier = 0.5; // 50% reduction for completed/resolved complaints
       }
 
       // Combine the 4 signals using the AHP-derived TOP_LEVEL_WEIGHTS
@@ -1081,7 +1095,7 @@ class LocationPriorityService {
       console.log(`   📷 Image Analysis: ${(imageValidationScore * W.imageValidationScore).toFixed(2)} (${imageValidationScore.toFixed(2)} × ${W.imageValidationScore.toFixed(3)})`);
       console.log(`   🧠 Emotion Analysis: ${(emotionScore * W.emotionScore).toFixed(2)} (${emotionScore.toFixed(2)} × ${W.emotionScore.toFixed(3)})`);
       console.log(`   🗳️ Community Votes: ${(voteScore * W.voteScore).toFixed(2)} (${voteScore.toFixed(2)} × ${W.voteScore.toFixed(3)})`);
-      console.log(`⚡ Status Multiplier: ${statusMultiplier}x (${complaintData.status})`);
+      console.log(`⚡ Status Multiplier: ${statusMultiplier}x (${safeComplaint.status})`);
       console.log(`🎯 FINAL PRIORITY SCORE: ${finalScore.toFixed(2)}% → ${this.getPriorityLevel(finalScore / 100)}`);
       console.log(`================================================`);
       

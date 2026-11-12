@@ -11,28 +11,41 @@ router.post('/submit', async (req, res) => {
   try {
     console.log('📝 Processing feedback submission:', req.body);
     
-    const { complaintId, rating, feedback, improvements, submittedAt } = req.body;
+    const { complaintId, rating, feedback, improvements, submittedAt } = req.body || {};
     
     // Validation
-    if (!complaintId || !rating) {
+    if (typeof complaintId !== 'string' || !complaintId.trim() || rating === undefined || rating === null || rating === '') {
       return res.status(400).json({
         success: false,
         message: 'Missing required fields: complaintId and rating are required'
       });
     }
-    
-    if (rating < 1 || rating > 5) {
+
+    const parsedRating = Number(rating);
+    if (!Number.isInteger(parsedRating) || parsedRating < 1 || parsedRating > 5) {
       return res.status(400).json({
         success: false,
-        message: 'Rating must be between 1 and 5'
+        message: 'Rating must be an integer between 1 and 5'
       });
+    }
+
+    let normalizedSubmittedAt = new Date().toISOString();
+    if (submittedAt !== undefined && submittedAt !== null && submittedAt !== '') {
+      const parsedDate = new Date(submittedAt);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'submittedAt must be a valid date'
+        });
+      }
+      normalizedSubmittedAt = parsedDate.toISOString();
     }
     
     // Check if complaint exists
     const { data: complaint, error: complaintError } = await supabase
       .from('complaints')
       .select('id, title')
-      .eq('id', complaintId)
+      .eq('id', complaintId.trim())
       .single();
       
     if (complaintError || !complaint) {
@@ -45,17 +58,17 @@ router.post('/submit', async (req, res) => {
     
     // Prepare feedback data
     const feedbackData = {
-      complaint_id: complaintId,
+      complaint_id: complaintId.trim(),
       user_id: req.user?.id || null, // Authenticated user or null for guest
-      rating: parseInt(rating),
-      feedback_text: feedback || null,
-      improvement_suggestions: improvements || null,
-      submitted_at: submittedAt || new Date().toISOString(),
+      rating: parsedRating,
+      feedback_text: typeof feedback === 'string' && feedback.trim() ? feedback.trim() : null,
+      improvement_suggestions: typeof improvements === 'string' && improvements.trim() ? improvements.trim() : null,
+      submitted_at: normalizedSubmittedAt,
       created_at: new Date().toISOString()
     };
     
     // Insert feedback into database
-    const { data: newFeedback, error: insertError } = await supabase
+    let { data: newFeedback, error: insertError } = await supabase
       .from('complaint_feedback')
       .insert([feedbackData])
       .select();
@@ -109,8 +122,8 @@ router.post('/submit', async (req, res) => {
       message: 'Feedback submitted successfully',
       data: {
         feedbackId: newFeedback?.[0]?.id,
-        complaintId: complaintId,
-        rating: rating,
+        complaintId: complaintId.trim(),
+        rating: parsedRating,
         submittedAt: feedbackData.submitted_at
       }
     });
@@ -146,18 +159,24 @@ router.get('/stats', async (req, res) => {
     }
     
     // Calculate statistics
-    const totalFeedback = stats.length;
-    const averageRating = totalFeedback > 0 
-      ? (stats.reduce((sum, item) => sum + item.rating, 0) / totalFeedback).toFixed(2)
+    const safeStats = stats || [];
+    const totalFeedback = safeStats.length;
+    const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let ratingSum = 0;
+
+    for (const item of safeStats) {
+      const r = Number(item.rating);
+      if (Number.isFinite(r)) {
+        ratingSum += r;
+        if (ratingDistribution[r] !== undefined) {
+          ratingDistribution[r] += 1;
+        }
+      }
+    }
+
+    const averageRating = totalFeedback > 0
+      ? Number((ratingSum / totalFeedback).toFixed(2))
       : 0;
-      
-    const ratingDistribution = {
-      1: stats.filter(s => s.rating === 1).length,
-      2: stats.filter(s => s.rating === 2).length,
-      3: stats.filter(s => s.rating === 3).length,
-      4: stats.filter(s => s.rating === 4).length,
-      5: stats.filter(s => s.rating === 5).length,
-    };
     
     // Get recent feedback with text
     const { data: recentFeedback, error: recentError } = await supabase
@@ -169,9 +188,9 @@ router.get('/stats', async (req, res) => {
     
     const responseData = {
       totalFeedback,
-      averageRating: parseFloat(averageRating),
+      averageRating,
       ratingDistribution,
-      recentFeedback: recentError ? [] : recentFeedback
+      recentFeedback: recentError ? [] : (recentFeedback || [])
     };
     
     console.log('✅ Feedback statistics retrieved');

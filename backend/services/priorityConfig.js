@@ -315,7 +315,8 @@ const CATEGORY_TIER_MAP = {
 };
 
 function getCategoryTier(category) {
-  return CATEGORY_TIER_MAP[category] || 'civicAdministrative';
+  const key = typeof category === 'string' ? category.trim().toLowerCase() : '';
+  return (Object.prototype.hasOwnProperty.call(CATEGORY_TIER_MAP, key) && CATEGORY_TIER_MAP[key]) || 'civicAdministrative';
 }
 
 function getCategoryMultiplier(category) {
@@ -373,8 +374,10 @@ const PRIORITY_LEVELS = [
 ];
 
 function getPriorityLevel(score) {
+  const num = Number(score);
+  if (!Number.isFinite(num)) return 'MINIMAL';
   for (const { level, min } of PRIORITY_LEVELS) {
-    if (score >= min) return level;
+    if (num >= min) return level;
   }
   return 'MINIMAL';
 }

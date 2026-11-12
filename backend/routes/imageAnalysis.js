@@ -66,9 +66,9 @@ router.get('/test-connection', async (req, res) => {
  */
 router.post('/validate-image', async (req, res) => {
     try {
-        const { image, imageUrl, category } = req.body;
+        const { image, imageUrl, category } = req.body || {};
 
-        if (!imageUrl) {
+        if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) {
             if (image) {
                 return res.status(400).json({
                     success: false,
@@ -85,7 +85,18 @@ router.post('/validate-image', async (req, res) => {
             });
         }
 
-        const result = await validateImageWithRoboflow(imageUrl, category);
+        const trimmedUrl = imageUrl.trim();
+        if (!/^https:\/\//i.test(trimmedUrl)) {
+            return res.status(400).json({
+                success: false,
+                message: 'imageUrl must be a valid https URL',
+                allowUpload: false,
+                stage: 'invalid_url'
+            });
+        }
+
+        const safeCategory = typeof category === 'string' && category.trim() ? category.trim() : undefined;
+        const result = await validateImageWithRoboflow(trimmedUrl, safeCategory);
         return res.json({
             success: result.success,
             confidence: result.confidence,
@@ -116,26 +127,31 @@ router.post('/validate-image', async (req, res) => {
  */
 router.post('/explain', async (req, res) => {
     try {
-        const { imageUrl, category, complaintId } = req.body;
-        if (!imageUrl) {
+        const { imageUrl, category, complaintId } = req.body || {};
+        if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) {
             return res.status(400).json({ success: false, error: 'imageUrl is required' });
         }
 
-        let effectiveCategory = category;
-        if (!effectiveCategory && complaintId) {
+        const trimmedUrl = imageUrl.trim();
+        if (!/^https:\/\//i.test(trimmedUrl)) {
+            return res.status(400).json({ success: false, error: 'imageUrl must be a valid https URL' });
+        }
+
+        let effectiveCategory = typeof category === 'string' && category.trim() ? category.trim() : undefined;
+        if (!effectiveCategory && typeof complaintId === 'string' && complaintId.trim()) {
             try {
                 const { data } = await supabase
                     .from('complaints')
                     .select('category')
-                    .eq('id', complaintId)
-                    .single();
+                    .eq('id', complaintId.trim())
+                    .maybeSingle();
                 if (data?.category) effectiveCategory = data.category;
             } catch (err) {
                 console.warn('Category lookup failed:', err.message);
             }
         }
 
-        const result = await explainImageUrl(imageUrl, effectiveCategory);
+        const result = await explainImageUrl(trimmedUrl, effectiveCategory);
         res.json({
             success: true,
             annotatedImage: { type: 'base64', value: result.annotatedImageBase64 },
@@ -161,9 +177,29 @@ router.post('/explain', async (req, res) => {
  */
 router.post('/estimate-geometry', async (req, res) => {
     try {
-        const { complaintId, imageUrl, category, primaryClass, deviceTilt } = req.body;
-        if (!complaintId || !imageUrl) {
+        const { complaintId, imageUrl, category, primaryClass, deviceTilt } = req.body || {};
+        if (typeof complaintId !== 'string' || !complaintId.trim() || typeof imageUrl !== 'string' || !imageUrl.trim()) {
             return res.status(400).json({ success: false, error: 'complaintId and imageUrl are required' });
+        }
+
+        const normalizedComplaintId = complaintId.trim();
+        const trimmedUrl = imageUrl.trim();
+        if (!/^https:\/\//i.test(trimmedUrl)) {
+            return res.status(400).json({ success: false, error: 'imageUrl must be a valid https URL' });
+        }
+
+        // Verify the complaint exists before running (paid) Roboflow estimation
+        const { data: existingComplaint, error: lookupError } = await supabase
+            .from('complaints')
+            .select('id, category')
+            .eq('id', normalizedComplaintId)
+            .maybeSingle();
+
+        if (lookupError) {
+            return res.status(500).json({ success: false, error: lookupError.message });
+        }
+        if (!existingComplaint) {
+            return res.status(404).json({ success: false, error: 'Complaint not found' });
         }
 
         // The geometry columns (database/add_pothole_geometry_columns.sql)
@@ -174,17 +210,26 @@ router.post('/estimate-geometry', async (req, res) => {
         if (!(await geometryColumnsAvailable(supabase))) {
             return res.json({
                 success: true,
-                geometry: { id: complaintId, ...GEOMETRY_PLACEHOLDER },
+                geometry: { id: normalizedComplaintId, ...GEOMETRY_PLACEHOLDER },
                 message: 'Pothole geometry columns are not migrated on this database yet - see database/add_pothole_geometry_columns.sql. Estimation was skipped.',
             });
         }
 
-        await estimateAndPersistGeometry({ complaintId, imageUrl, category, primaryClass, deviceTilt });
+        const effectiveCategory = (typeof category === 'string' && category.trim()) ? category.trim() : existingComplaint.category;
+        const parsedTilt = typeof deviceTilt === 'number' ? deviceTilt : (deviceTilt !== undefined && deviceTilt !== null && deviceTilt !== '' ? Number(deviceTilt) : undefined);
+
+        await estimateAndPersistGeometry({
+            complaintId: normalizedComplaintId,
+            imageUrl: trimmedUrl,
+            category: effectiveCategory,
+            primaryClass: typeof primaryClass === 'string' ? primaryClass.trim() : undefined,
+            deviceTilt: Number.isFinite(parsedTilt) ? parsedTilt : undefined,
+        });
 
         const { data, error } = await supabase
             .from('complaints')
             .select('id, estimated_width_cm, estimated_length_cm, estimated_area_cm2, estimated_depth_cm, geometry_confidence, geometry_method, geometry_assumptions, geometry_status, geometry_error, geometry_computed_at')
-            .eq('id', complaintId)
+            .eq('id', normalizedComplaintId)
             .single();
 
         if (error) {

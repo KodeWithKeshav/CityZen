@@ -42,9 +42,10 @@ function PublicOnly() {
   if (loading) return <FullScreenLoader />
   if (!user) return <Outlet />
 
-  return getUserType(user) === 'admin'
-    ? <Navigate to="/admin/dashboard" replace />
-    : <Navigate to="/citizen/feed" replace />
+  const userType = getUserType(user)
+  if (userType === 'admin') return <Navigate to="/admin/dashboard" replace />
+  if (userType === 'citizen') return <Navigate to="/citizen/feed" replace />
+  return <Outlet />
 }
 
 function RequireAuth({ allowedType }) {
@@ -56,9 +57,9 @@ function RequireAuth({ allowedType }) {
 
   const userType = getUserType(user)
   if (allowedType && userType !== allowedType) {
-    return userType === 'admin'
-      ? <Navigate to="/admin/dashboard" replace />
-      : <Navigate to="/citizen/feed" replace />
+    if (userType === 'admin') return <Navigate to="/admin/dashboard" replace />
+    if (userType === 'citizen') return <Navigate to="/citizen/feed" replace />
+    return <Navigate to="/login" replace state={{ from: location }} />
   }
 
   return <Outlet />

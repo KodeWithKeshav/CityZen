@@ -13,23 +13,36 @@
 
 const CHECK_TTL_MS = 60_000;
 
-let cache = { available: null, checkedAt: 0 };
-let deviceIdCache = { available: null, checkedAt: 0 };
-let languageCache = { available: null, checkedAt: 0 };
+const caches = {
+  geometry: { available: null, checkedAt: 0 },
+  deviceId: { available: null, checkedAt: 0 },
+  language: { available: null, checkedAt: 0 },
+};
+
+async function probeColumnAvailable(supabase, table, column, cacheKey) {
+  const now = Date.now();
+  const entry = caches[cacheKey];
+  if (entry.available !== null && now - entry.checkedAt < CHECK_TTL_MS) {
+    return entry.available;
+  }
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase.from(table).select(column).limit(1);
+    // Any error here is treated as "not available" -- the caller falls back
+    // to placeholders either way, and a transient/unrelated error will just
+    // be re-checked on the next request after the TTL expires.
+    const available = !error;
+    caches[cacheKey] = { available, checkedAt: now };
+    return available;
+  } catch {
+    caches[cacheKey] = { available: false, checkedAt: now };
+    return false;
+  }
+}
 
 async function geometryColumnsAvailable(supabase) {
-  const now = Date.now();
-  if (cache.available !== null && now - cache.checkedAt < CHECK_TTL_MS) {
-    return cache.available;
-  }
-
-  const { error } = await supabase.from('complaints').select('geometry_status').limit(1);
-  // Any error here is treated as "not available" -- the caller falls back
-  // to placeholders either way, and a transient/unrelated error will just
-  // be re-checked on the next request rather than cached for the full TTL.
-  const available = !error;
-  cache = { available, checkedAt: now };
-  return available;
+  return probeColumnAvailable(supabase, 'complaints', 'geometry_status', 'geometry');
 }
 
 // Same probe-and-cache pattern as geometryColumnsAvailable, for
@@ -38,15 +51,7 @@ async function geometryColumnsAvailable(supabase) {
 // migration has run, while degrading gracefully (no dedup, today's
 // behavior) beforehand.
 async function deviceIdColumnAvailable(supabase) {
-  const now = Date.now();
-  if (deviceIdCache.available !== null && now - deviceIdCache.checkedAt < CHECK_TTL_MS) {
-    return deviceIdCache.available;
-  }
-
-  const { error } = await supabase.from('complaint_votes').select('device_id').limit(1);
-  const available = !error;
-  deviceIdCache = { available, checkedAt: now };
-  return available;
+  return probeColumnAvailable(supabase, 'complaint_votes', 'device_id', 'deviceId');
 }
 
 // Null placeholders for every geometry column, keyed the same as the real
@@ -76,15 +81,7 @@ const GEOMETRY_PLACEHOLDER = {
 // include it once the migration has run, while degrading gracefully
 // beforehand.
 async function languageColumnAvailable(supabase) {
-  const now = Date.now();
-  if (languageCache.available !== null && now - languageCache.checkedAt < CHECK_TTL_MS) {
-    return languageCache.available;
-  }
-
-  const { error } = await supabase.from('complaints').select('language').limit(1);
-  const available = !error;
-  languageCache = { available, checkedAt: now };
-  return available;
+  return probeColumnAvailable(supabase, 'complaints', 'language', 'language');
 }
 
 module.exports = { geometryColumnsAvailable, GEOMETRY_PLACEHOLDER, deviceIdColumnAvailable, languageColumnAvailable };

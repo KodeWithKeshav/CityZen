@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useCallback, useRef } from 'react'
-import { makeApiCall, apiClient } from '../services/api'
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
+import { makeApiCall, apiClient, authStorage } from '../services/api'
 
 const ChatContext = createContext(null)
 
@@ -22,8 +22,21 @@ export function ChatProvider({ children }) {
   const [loading, setLoading]           = useState(false)
   const [followUps, setFollowUps]       = useState([])
   const [hasUnread, setHasUnread]       = useState(false)
-  const pendingNav                      = useRef(null)      // action from last bot msg
   const navigatorRef                    = useRef(null)      // injected by component
+  const messagesRef                     = useRef(messages)
+  const isMinimisedRef                  = useRef(isMinimised)
+  const msgSeqRef                       = useRef(0)
+  const guestSessionRef                 = useRef(`guest_${Math.random().toString(36).slice(2, 10)}`)
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+
+  useEffect(() => {
+    isMinimisedRef.current = isMinimised
+  }, [isMinimised])
+
+  const nextMsgId = () => `msg_${Date.now()}_${++msgSeqRef.current}`
 
   // Components can register a navigate fn so the context can drive routing
   const registerNavigator = useCallback((fn) => {
@@ -37,6 +50,7 @@ export function ChatProvider({ children }) {
   }, [])
 
   const closeChat = useCallback(() => {
+    setIsOpen(false)
     setIsMinimised(true)
   }, [])
 
@@ -44,13 +58,18 @@ export function ChatProvider({ children }) {
     const trimmed = text?.trim()
     if (!trimmed) return
 
-    const userMsg = { id: Date.now(), role: 'user', text: trimmed }
-    setMessages(prev => [...prev, userMsg])
+    const userMsg = { id: nextMsgId(), role: 'user', text: trimmed }
+    const updatedMessages = [...messagesRef.current, userMsg]
+    messagesRef.current = updatedMessages
+    setMessages(updatedMessages)
     setLoading(true)
 
-    const historyForApi = [...messages, userMsg]
+    const historyForApi = updatedMessages
       .slice(-8)
       .map(m => ({ type: m.role === 'assistant' ? 'bot' : 'user', text: m.text }))
+
+    const token = authStorage.getToken()
+    const userId = 'session_' + (token ? token.slice(-8) : guestSessionRef.current)
 
     try {
       const res = await makeApiCall(apiClient.chatbot.message, {
@@ -58,44 +77,40 @@ export function ChatProvider({ children }) {
         body: JSON.stringify({
           message: trimmed,
           conversationHistory: historyForApi,
-          userId: 'session_' + (localStorage.getItem('authToken')?.slice(-8) || 'guest'),
+          userId,
         }),
       })
 
-      const reply  = res.reply || res.message || "I couldn't process that. Please try again."
-      const action = res.action || null   // { type: 'navigate', page, label }
+      const reply  = res?.reply || res?.message || "I couldn't process that. Please try again."
+      const action = res?.action || null   // { type: 'navigate', page, label }
 
       const botMsg = {
-        id: Date.now() + 1,
+        id: nextMsgId(),
         role: 'assistant',
         text: reply,
-        confidence: res.confidence,
-        category: res.category,
-        source: res.source,
+        confidence: res?.confidence,
+        category: res?.category,
+        source: res?.source,
         action,
       }
 
       setMessages(prev => [...prev, botMsg])
-      setFollowUps(Array.isArray(res.followUpSuggestions) ? res.followUpSuggestions : [])
+      setFollowUps(Array.isArray(res?.followUpSuggestions) ? res.followUpSuggestions : [])
 
-      // Mark unread if panel is minimised
-      if (isMinimised) setHasUnread(true)
-
-      // Auto-execute navigation if user is on the chatbot page (full view)
-      if (action?.type === 'navigate' && navigatorRef.current) {
-        pendingNav.current = action
-      }
+      // Mark unread if panel is currently minimised
+      if (isMinimisedRef.current) setHasUnread(true)
 
     } catch (err) {
       setMessages(prev => [...prev, {
-        id: Date.now() + 1,
+        id: nextMsgId(),
         role: 'assistant',
         text: '⚠️ Unable to reach the AI. Please check your connection and try again.',
       }])
+      if (isMinimisedRef.current) setHasUnread(true)
     } finally {
       setLoading(false)
     }
-  }, [messages, isMinimised])
+  }, [])
 
   const executeNav = useCallback((action) => {
     if (!action || !navigatorRef.current) return
@@ -109,7 +124,8 @@ export function ChatProvider({ children }) {
       feedback:     '/citizen/feedback',
       transparency: '/citizen/transparency',
     }
-    const route = routeMap[action.page]
+    const key = typeof action.page === 'string' ? action.page.trim().toLowerCase() : ''
+    const route = routeMap[key]
     if (route) {
       navigatorRef.current(route)
       closeChat()
@@ -117,8 +133,10 @@ export function ChatProvider({ children }) {
   }, [closeChat])
 
   const clearChat = useCallback(() => {
+    messagesRef.current = [WELCOME_MSG]
     setMessages([WELCOME_MSG])
     setFollowUps([])
+    setHasUnread(false)
   }, [])
 
   return (
