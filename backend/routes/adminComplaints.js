@@ -1,5 +1,17 @@
 const express = require('express');
 const router = express.Router();
+const { authenticateUser, authorizeUserType } = require('../middleware/auth');
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isValidUuid(value) {
+  return typeof value === 'string' && UUID_REGEX.test(value.trim());
+}
+
+// Require authenticated admin for all routes in this router
+router.use(
+  (req, res, next) => (req.user === undefined ? authenticateUser(req, res, next) : next()),
+  authorizeUserType(['admin'])
+);
 
 /**
  * Update complaint status
@@ -13,7 +25,7 @@ router.put('/:id/status', async (req, res) => {
     console.log(`🔄 Admin updating complaint ${id} status to: ${status}`);
     
     // Validate input
-    if (!id || !status) {
+    if (!id || typeof status !== 'string' || !status.trim()) {
       return res.status(400).json({
         success: false,
         error: 'Complaint ID and status are required'
@@ -35,13 +47,26 @@ router.put('/:id/status', async (req, res) => {
     const updateData = {
       status,
       updated_at: new Date().toISOString(),
-      resolution_notes: notes,
-      assigned_admin_id: adminId
+      resolved_at: status === 'resolved' ? new Date().toISOString() : null
     };
-    
-    // If status is resolved, add resolved_at timestamp
-    if (status === 'resolved') {
-      updateData.resolved_at = new Date().toISOString();
+
+    if (notes !== undefined) {
+      updateData.resolution_notes = notes;
+    }
+
+    if (adminId !== undefined) {
+      if (adminId === null || adminId === '') {
+        updateData.assigned_admin_id = null;
+      } else if (isValidUuid(adminId)) {
+        updateData.assigned_admin_id = adminId.trim();
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid adminId format'
+        });
+      }
+    } else if (isValidUuid(req.user?.id)) {
+      updateData.assigned_admin_id = req.user.id;
     }
     
     const { data, error } = await supabase
@@ -52,10 +77,11 @@ router.put('/:id/status', async (req, res) => {
     
     if (error) {
       console.error('❌ Error updating complaint status:', error);
-      return res.status(500).json({
+      const statusCode = error.code === '22P02' ? 400 : 500;
+      return res.status(statusCode).json({
         success: false,
-        error: 'Failed to update complaint status',
-        details: error.message
+        error: statusCode === 400 ? 'Invalid complaint ID format' : 'Failed to update complaint status',
+        ...(process.env.NODE_ENV === 'development' && { details: error.message })
       });
     }
     
@@ -80,7 +106,7 @@ router.put('/:id/status', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to update complaint status',
-      details: error.message
+      ...(process.env.NODE_ENV === 'development' && { details: error.message })
     });
   }
 });
@@ -100,8 +126,8 @@ router.get('/', async (req, res) => {
     let query = supabase.from('complaints').select('*');
 
     // Apply filters if provided
-    if (status) {
-      query = query.eq('status', status);
+    if (typeof status === 'string' && status.trim()) {
+      query = query.eq('status', status.trim());
     }
 
     // Complaints the model-based authenticity check flagged for human
@@ -112,29 +138,35 @@ router.get('/', async (req, res) => {
       query = query.eq('content_flagged', true);
     }
     
-    if (priority) {
-      // Convert priority level (LOW, MEDIUM, HIGH, CRITICAL) to score ranges
-      // This assumes priority_score is a number between 0-100
-      const priorityRanges = {
-        LOW: [0, 40],
-        MEDIUM: [41, 60],
-        HIGH: [61, 80],
-        CRITICAL: [81, 100]
+    if (typeof priority === 'string' && priority.trim()) {
+      // Support 0-1 (priorityConfig.js), 0-10, and legacy 0-100 scales
+      const priorityFilters = {
+        LOW: 'and(priority_score.gte.0,priority_score.lt.0.4),and(priority_score.gt.1,priority_score.lt.4),and(priority_score.gt.10,priority_score.lt.40)',
+        MEDIUM: 'and(priority_score.gte.0.4,priority_score.lt.0.6),and(priority_score.gte.4,priority_score.lt.6),and(priority_score.gte.40,priority_score.lt.60)',
+        HIGH: 'and(priority_score.gte.0.6,priority_score.lt.0.8),and(priority_score.gte.6,priority_score.lt.8),and(priority_score.gte.60,priority_score.lt.80)',
+        CRITICAL: 'and(priority_score.gte.0.8,priority_score.lte.1),and(priority_score.gte.8,priority_score.lte.10),priority_score.gte.80'
       };
       
-      const range = priorityRanges[priority.toUpperCase()];
-      if (range) {
-        query = query.gte('priority_score', range[0]).lte('priority_score', range[1]);
+      const orFilter = priorityFilters[priority.trim().toUpperCase()];
+      if (orFilter) {
+        query = query.or(orFilter);
       }
     }
     
-    if (category) {
-      query = query.eq('category', category);
+    if (typeof category === 'string' && category.trim()) {
+      query = query.eq('category', category.trim());
     }
     
-    if (days) {
+    if (days !== undefined && days !== '') {
+      const daysNum = parseInt(days, 10);
+      if (!Number.isFinite(daysNum) || daysNum <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid days parameter; must be a positive integer'
+        });
+      }
       const daysAgo = new Date();
-      daysAgo.setDate(daysAgo.getDate() - parseInt(days));
+      daysAgo.setDate(daysAgo.getDate() - daysNum);
       query = query.gte('created_at', daysAgo.toISOString());
     }
     
@@ -148,7 +180,7 @@ router.get('/', async (req, res) => {
       return res.status(500).json({
         success: false,
         error: 'Failed to fetch complaints',
-        details: error.message
+        ...(process.env.NODE_ENV === 'development' && { details: error.message })
       });
     }
     
@@ -169,7 +201,7 @@ router.get('/', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch complaints',
-      details: error.message
+      ...(process.env.NODE_ENV === 'development' && { details: error.message })
     });
   }
 });
@@ -196,14 +228,18 @@ function calculateComplaintStatistics(complaints) {
   let avgResolutionDays = 0;
   
   if (resolvedComplaints.length > 0) {
-    const totalDays = resolvedComplaints.reduce((total, complaint) => {
+    let validCount = 0;
+    const totalDays = resolvedComplaints.reduce((sum, complaint) => {
       const created = new Date(complaint.created_at);
-      const resolved = new Date(complaint.resolved_at);
-      const days = Math.round((resolved - created) / (1000 * 60 * 60 * 24));
-      return total + days;
+      const resolvedAt = new Date(complaint.resolved_at);
+      if (Number.isNaN(created.getTime()) || Number.isNaN(resolvedAt.getTime())) {
+        return sum;
+      }
+      validCount++;
+      return sum + Math.max(0, (resolvedAt - created) / (1000 * 60 * 60 * 24));
     }, 0);
     
-    avgResolutionDays = Math.round(totalDays / resolvedComplaints.length);
+    avgResolutionDays = validCount > 0 ? Math.round(totalDays / validCount) : 0;
   }
   
   // Count by category
@@ -260,11 +296,24 @@ router.get('/:id', async (req, res) => {
         .eq('id', id)
         .single();
       if (basicErr || !cBasic) {
-        console.error('❌ Error fetching complaint details:', cErr || basicErr);
+        const finalErr = basicErr || cErr;
+        if (finalErr?.code === 'PGRST116' || !finalErr) {
+          return res.status(404).json({
+            success: false,
+            error: 'Complaint not found'
+          });
+        }
+        if (finalErr?.code === '22P02') {
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid complaint ID format'
+          });
+        }
+        console.error('❌ Error fetching complaint details:', finalErr);
         return res.status(500).json({
           success: false,
           error: 'Failed to fetch complaint details',
-          details: (cErr || basicErr)?.message
+          ...(process.env.NODE_ENV === 'development' && { details: finalErr.message })
         });
       }
       data = cBasic;
@@ -282,7 +331,9 @@ router.get('/:id', async (req, res) => {
     }
 
     const regName = data.users?.full_name || data.user_name || 'Verified Citizen';
-    data.users = data.users || { full_name: regName, email: data.users?.email };
+    data.users = data.users
+      ? { ...data.users, full_name: data.users.full_name || regName }
+      : { full_name: regName, email: null };
     data.user = data.users;
     data.user_name = regName;
     data.citizenName = regName;
@@ -299,7 +350,7 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch complaint details',
-      details: error.message
+      ...(process.env.NODE_ENV === 'development' && { details: error.message })
     });
   }
 });
