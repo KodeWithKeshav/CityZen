@@ -83,7 +83,7 @@ function HeatmapLayer({ points, maxZoom = 17, radius = 25, blur = 15, max = 5 })
       return () => {
         try {
           map.removeLayer(heat)
-        } catch (e) {
+        } catch {
           // ignore cleanup error
         }
       }
@@ -101,7 +101,7 @@ function MapAutoCenter({ points }) {
     const validCoords = points
       .map(p => [Number(p.lat || p.latitude), Number(p.lng || p.longitude)])
       .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0)
-    
+
     if (validCoords.length === 0) return
 
     if (validCoords.length === 1) {
@@ -149,7 +149,7 @@ export default function ComplaintMap() {
         } else {
           toast.error(res.message || t('citizen:complaintMap.loadFailed'))
         }
-      } catch (err) {
+      } catch {
         toast.error(t('citizen:complaintMap.loadFailed'))
       } finally {
         setLoading(false)
@@ -210,21 +210,19 @@ export default function ComplaintMap() {
             <div className="flex w-full sm:w-auto border border-neutral-300">
               <button
                 onClick={() => { setViewMode('heatmap'); setSelectedZonePoints(null); }}
-                className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition-colors ${
-                  viewMode === 'heatmap'
-                    ? 'bg-neutral-900 text-white font-bold'
-                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
-                }`}
+                className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition-colors ${viewMode === 'heatmap'
+                  ? 'bg-neutral-900 text-white font-bold'
+                  : 'bg-white text-neutral-700 hover:bg-neutral-100'
+                  }`}
               >
                 {t('citizen:complaintMap.heatmapMode')}
               </button>
               <button
                 onClick={() => { setViewMode('pins'); setSelectedZonePoints(null); }}
-                className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition-colors border-l border-neutral-300 ${
-                  viewMode === 'pins'
-                    ? 'bg-neutral-900 text-white font-bold'
-                    : 'bg-white text-neutral-700 hover:bg-neutral-100'
-                }`}
+                className={`flex-1 sm:flex-initial px-3 sm:px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition-colors border-l border-neutral-300 ${viewMode === 'pins'
+                  ? 'bg-neutral-900 text-white font-bold'
+                  : 'bg-white text-neutral-700 hover:bg-neutral-100'
+                  }`}
               >
                 {t('citizen:complaintMap.pinsMode')}
               </button>
@@ -269,11 +267,10 @@ export default function ComplaintMap() {
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`px-2.5 sm:px-3 py-1 border uppercase tracking-wider transition-colors ${
-                    filter === f
-                      ? 'bg-neutral-900 text-white border-black font-bold'
-                      : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
-                  }`}
+                  className={`px-2.5 sm:px-3 py-1 border uppercase tracking-wider transition-colors ${filter === f
+                    ? 'bg-neutral-900 text-white border-black font-bold'
+                    : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
+                    }`}
                 >
                   {t(`common:statusFilters.${f}`, f.replace(/_/g, ' '))}
                 </button>
@@ -289,11 +286,10 @@ export default function ComplaintMap() {
                 <button
                   key={tr.id}
                   onClick={() => setTimeRange(tr.id)}
-                  className={`px-2.5 py-1 border uppercase tracking-wider text-[11px] transition-colors ${
-                    timeRange === tr.id
-                      ? 'bg-neutral-900 text-white border-black font-bold'
-                      : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
-                  }`}
+                  className={`px-2.5 py-1 border uppercase tracking-wider text-[11px] transition-colors ${timeRange === tr.id
+                    ? 'bg-neutral-900 text-white border-black font-bold'
+                    : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
+                    }`}
                 >
                   {tr.label}
                 </button>
@@ -315,27 +311,27 @@ export default function ComplaintMap() {
 
         {/* Map Body & Zone Drawer */}
         <div className="flex-1 relative z-0 flex overflow-hidden min-h-[360px]">
-        {loading ? (
-          <div className="flex items-center justify-center w-full h-full font-mono text-xs text-neutral-500">
-            {t('citizen:complaintMap.initializing')}
-          </div>
-        ) : (
-          <>
-            <div className="flex-1 relative h-full">
-              <MapContainer
-                center={center}
-                zoom={mapped.length > 0 ? 13 : DEFAULT_MAP_ZOOM}
-                style={{ height: '100%', width: '100%' }}
-              >
-                <TileLayer
-                  attribution={ACTIVE_MAP_LAYER.attribution}
-                  url={ACTIVE_MAP_LAYER.url}
-                />
+          {loading ? (
+            <div className="flex items-center justify-center w-full h-full font-mono text-xs text-neutral-500">
+              {t('citizen:complaintMap.initializing')}
+            </div>
+          ) : (
+            <>
+              <div className="flex-1 relative h-full">
+                <MapContainer
+                  center={center}
+                  zoom={mapped.length > 0 ? 13 : DEFAULT_MAP_ZOOM}
+                  style={{ height: '100%', width: '100%' }}
+                >
+                  <TileLayer
+                    attribution={ACTIVE_MAP_LAYER.attribution}
+                    url={ACTIVE_MAP_LAYER.url}
+                  />
 
-                <MapClickHandler onMapClick={handleMapClick} />
-                <MapAutoCenter points={mapped} />
+                  <MapClickHandler onMapClick={handleMapClick} />
+                  <MapAutoCenter points={mapped} />
 
-                {viewMode === 'heatmap' && <HeatmapLayer points={mapped} />}
+                  {viewMode === 'heatmap' && <HeatmapLayer points={mapped} />}
 
                 {viewMode === 'pins' &&
                   translatedMapped.map(c => {
@@ -405,82 +401,82 @@ export default function ComplaintMap() {
                       </CircleMarker>
                     )
                   })}
-              </MapContainer>
-            </div>
-
-            {/* Side Panel for Clicked Coordinate Zone */}
-            {selectedZonePoints && (
-              <div className="absolute inset-0 md:static w-full md:w-80 lg:w-96 md:border-l border-neutral-300 bg-white flex flex-col h-full z-[1000] shadow-xl">
-                <div className="p-4 border-b border-neutral-200 flex justify-between items-center bg-neutral-50 font-mono text-xs">
-                  <div>
-                    <h3 className="font-bold uppercase tracking-wider text-neutral-900">
-                      {t('citizen:complaintMap.auditPerimeter')}
-                    </h3>
-                    <p className="text-[11px] text-neutral-500">
-                      {t('citizen:complaintMap.zoneCount', { count: selectedZonePoints.length })}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedZonePoints(null)}
-                    className="p-1.5 border border-neutral-300 hover:border-black transition-colors"
-                  >
-                    <HiX className="w-4 h-4 text-neutral-700" />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {translatedZonePoints.length === 0 ? (
-                    <div className="text-center py-12 font-mono text-xs text-neutral-500">
-                      {t('citizen:complaintMap.noZoneIncidents')}
-                    </div>
-                  ) : (
-                    translatedZonePoints.map(p => {
-                      const statusSlug = (p.status || 'pending').toLowerCase().replace(/-/g, '_')
-                      const color = STATUS_COLORS[statusSlug] || STATUS_COLORS[(p.status || '').toLowerCase()] || STATUS_COLORS.pending
-                      return (
-                        <div
-                          key={p.id}
-                          onClick={() => navigate(`/citizen/complaint/${p.id}`)}
-                          className="p-3 border border-neutral-200 hover:border-black cursor-pointer transition-colors bg-white font-mono text-xs"
-                        >
-                          <div className="flex justify-between items-start mb-1 gap-2">
-                            <h4 className="font-serif font-bold text-neutral-900 line-clamp-1 flex-1 text-sm">
-                              {p.title || p.tooltip?.split('\n')[0]}
-                            </h4>
-                            <span
-                              className="text-[10px] font-bold px-1.5 py-0.5 uppercase border"
-                              style={{ borderColor: color, color: color }}
-                            >
-                              {t(`common:statusFilters.${statusSlug}`, p.status?.replace(/_/g, ' '))}
-                            </span>
-                          </div>
-                          <p className="text-neutral-500 font-sans text-xs line-clamp-2 mt-1">
-                            {(typeof p.location === 'string' ? p.location : p.location?.address) || t('citizen:complaintMap.coordinateRegistered')}
-                          </p>
-                          <div className="mt-2 pt-1 border-t border-neutral-100 flex justify-end">
-                            <span className="text-neutral-900 text-[11px] font-bold flex items-center gap-1 hover:underline">
-                              {t('citizen:complaintMap.viewDetails')} <HiArrowRight className="w-3 h-3" />
-                            </span>
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
+                </MapContainer>
               </div>
-            )}
-          </>
-        )}
-      </div>
 
-      {/* Explain AI Modal (SAM-3 Vision Diagnostics) */}
-      <ExplainAiModal
-        isOpen={explainModalState.isOpen}
-        onClose={() => setExplainModalState(prev => ({ ...prev, isOpen: false }))}
-        imageUrl={explainModalState.imageUrl}
-        title={explainModalState.title}
-        category={explainModalState.category}
-      />
+              {/* Side Panel for Clicked Coordinate Zone */}
+              {selectedZonePoints && (
+                <div className="absolute inset-0 md:static w-full md:w-80 lg:w-96 md:border-l border-neutral-300 bg-white flex flex-col h-full z-[1000] shadow-xl">
+                  <div className="p-4 border-b border-neutral-200 flex justify-between items-center bg-neutral-50 font-mono text-xs">
+                    <div>
+                      <h3 className="font-bold uppercase tracking-wider text-neutral-900">
+                        {t('citizen:complaintMap.auditPerimeter')}
+                      </h3>
+                      <p className="text-[11px] text-neutral-500">
+                        {t('citizen:complaintMap.zoneCount', { count: selectedZonePoints.length })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedZonePoints(null)}
+                      className="p-1.5 border border-neutral-300 hover:border-black transition-colors"
+                    >
+                      <HiX className="w-4 h-4 text-neutral-700" />
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {translatedZonePoints.length === 0 ? (
+                      <div className="text-center py-12 font-mono text-xs text-neutral-500">
+                        {t('citizen:complaintMap.noZoneIncidents')}
+                      </div>
+                    ) : (
+                      translatedZonePoints.map(p => {
+                        const statusSlug = (p.status || 'pending').toLowerCase().replace(/-/g, '_')
+                        const color = STATUS_COLORS[statusSlug] || STATUS_COLORS[(p.status || '').toLowerCase()] || STATUS_COLORS.pending
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => navigate(`/citizen/complaint/${p.id}`)}
+                            className="p-3 border border-neutral-200 hover:border-black cursor-pointer transition-colors bg-white font-mono text-xs"
+                          >
+                            <div className="flex justify-between items-start mb-1 gap-2">
+                              <h4 className="font-serif font-bold text-neutral-900 line-clamp-1 flex-1 text-sm">
+                                {p.title || p.tooltip?.split('\n')[0]}
+                              </h4>
+                              <span
+                                className="text-[10px] font-bold px-1.5 py-0.5 uppercase border"
+                                style={{ borderColor: color, color: color }}
+                              >
+                                {t(`common:statusFilters.${statusSlug}`, p.status?.replace(/_/g, ' '))}
+                              </span>
+                            </div>
+                            <p className="text-neutral-500 font-sans text-xs line-clamp-2 mt-1">
+                              {(typeof p.location === 'string' ? p.location : p.location?.address) || t('citizen:complaintMap.coordinateRegistered')}
+                            </p>
+                            <div className="mt-2 pt-1 border-t border-neutral-100 flex justify-end">
+                              <span className="text-neutral-900 text-[11px] font-bold flex items-center gap-1 hover:underline">
+                                {t('citizen:complaintMap.viewDetails')} <HiArrowRight className="w-3 h-3" />
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Explain AI Modal (SAM-3 Vision Diagnostics) */}
+        <ExplainAiModal
+          isOpen={explainModalState.isOpen}
+          onClose={() => setExplainModalState(prev => ({ ...prev, isOpen: false }))}
+          imageUrl={explainModalState.imageUrl}
+          title={explainModalState.title}
+          category={explainModalState.category}
+        />
       </div>
     </div>
   )

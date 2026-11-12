@@ -7,20 +7,16 @@ import {
   TouchableOpacity,
   RefreshControl,
   Image,
-  Dimensions,
   Modal,
   Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
 import { useTranslatedList, useTranslatedObject } from '../../context/TranslationContext';
 import { formatLocalizedDate, formatLocalizedTime } from '../../utils/dateLocale';
 import { getCategoryLabel, getPriorityTier, getStatusLabel } from '../../utils/priorityUtils';
-
-const { width } = Dimensions.get('window');
 
 const PersonalReports = ({ navigation }) => {
   const { t, i18n } = useTranslation(['citizen', 'common', 'complaint']);
@@ -48,7 +44,7 @@ const PersonalReports = ({ navigation }) => {
     try {
       setLoading(true);
       const response = await makeApiCall(apiClient.complaints.personalReports);
-      
+
       if (response.success) {
         setReports(response.data?.complaints || []);
         setStats(response.data?.stats || {});
@@ -114,11 +110,11 @@ const PersonalReports = ({ navigation }) => {
     const circleStyle = isCompleted
       ? { bg: '#1A1A1A', border: '#1A1A1A', iconColor: '#fff' }
       : isActive
-      ? { bg: '#374151', border: '#374151', iconColor: '#fff' }
-      : { bg: '#F9FAFB', border: '#E5E7EB', iconColor: '#9CA3AF' };
+        ? { bg: '#374151', border: '#374151', iconColor: '#fff' }
+        : { bg: '#F9FAFB', border: '#E5E7EB', iconColor: '#9CA3AF' };
 
     const nameColor = isCompleted ? '#111827' : isActive ? '#1A1A1A' : '#9CA3AF';
-    const cardBg    = isActive ? '#F8FAFC' : '#FAFAFA';
+    const cardBg = isActive ? '#F8FAFC' : '#FAFAFA';
     const cardBorder = isActive ? '#D1D5DB' : '#F3F4F6';
 
     return (
@@ -222,7 +218,7 @@ const PersonalReports = ({ navigation }) => {
             {report.title || t('citizen:personalReports.untitledIncident')}
           </Text>
           <View style={[
-            styles.statusBadge, 
+            styles.statusBadge,
             { backgroundColor: getStatusColor(report.status) }
           ]}>
             <Text style={styles.statusText}>
@@ -230,18 +226,18 @@ const PersonalReports = ({ navigation }) => {
             </Text>
           </View>
         </View>
-        
+
         <Text style={styles.reportDescription} numberOfLines={3}>
           {report.description}
         </Text>
-        
+
         {report.image_url && (
-          <Image 
-            source={{ uri: report.image_url }} 
+          <Image
+            source={{ uri: report.image_url }}
             style={styles.reportImage}
           />
         )}
-        
+
         <View style={styles.reportMeta}>
           <Text style={styles.reportDate}>
             {t('citizen:mobileReports.submittedOn', { date: formatLocalizedDate(report.created_at, {}, i18n.language) })}
@@ -254,7 +250,7 @@ const PersonalReports = ({ navigation }) => {
           </Text>
 
         </View>
-        
+
         <View style={styles.progressIndicator}>
           <View style={styles.progressLabelRow}>
             <Ionicons name="layers-outline" size={12} color="#6B7280" />
@@ -272,7 +268,7 @@ const PersonalReports = ({ navigation }) => {
             ]} />
           </View>
         </View>
-        
+
         <View style={styles.trackingButton}>
           <Ionicons name="eye-outline" size={16} color="#374151" />
           <Text style={styles.trackingButtonText}>{t('citizen:mobileReports.viewTracking')}</Text>
@@ -290,7 +286,7 @@ const PersonalReports = ({ navigation }) => {
   }
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -305,9 +301,9 @@ const PersonalReports = ({ navigation }) => {
           >
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
-          
+
           <Text style={styles.headerTitle}>{t('citizen:mobileReports.myReports')}</Text>
-          
+
           <TouchableOpacity
             style={styles.logoutButton}
             onPress={handleLogout}
@@ -375,7 +371,7 @@ const PersonalReports = ({ navigation }) => {
               <Ionicons name="close" size={24} color="#333" />
             </TouchableOpacity>
           </View>
-          
+
           {translatedSelected && (
             <ScrollView style={styles.modalContent}>
               {/* Report Info */}
@@ -386,14 +382,14 @@ const PersonalReports = ({ navigation }) => {
                 <Text style={styles.reportModalDescription}>
                   {translatedSelected.description}
                 </Text>
-                
+
                 {translatedSelected.image_url && (
-                  <Image 
-                    source={{ uri: translatedSelected.image_url }} 
+                  <Image
+                    source={{ uri: translatedSelected.image_url }}
                     style={styles.reportModalImage}
                   />
                 )}
-                
+
                 <View style={styles.reportModalMeta}>
                   <Text style={styles.modalMetaText}>
                     {t('citizen:mobileReports.submittedAt', {
@@ -420,13 +416,13 @@ const PersonalReports = ({ navigation }) => {
                   </Text>
                 </View>
               </View>
-              
+
               {/* Amazon-style Tracking */}
               <View style={styles.trackingContainer}>
                 <Text style={styles.trackingTitle}>{t('citizen:mobileReports.progressTracking')}</Text>
-                {translatedStages.map((stage, index) => 
+                {translatedStages.map((stage, index) =>
                   renderTrackingStage(
-                    stage, 
+                    stage,
                     index + 1 === translatedSelected.currentStage,
                     stage.status === 'completed',
                     index === translatedStages.length - 1

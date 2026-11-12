@@ -13,14 +13,11 @@ import {
   Platform,
   Alert,
   StatusBar,
-  ScrollView,
   Linking,
   Easing
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons, FontAwesome5, Feather } from '@expo/vector-icons';
-import * as Location from 'expo-location';
+import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { makeApiCall, apiClient } from '../../../config/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
@@ -31,7 +28,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import ComplaintProgressModal from '../../components/ComplaintProgressModal';
 
 import NewsCarousel from '../../components/NewsCarousel';
-import NewsCard from '../../components/NewsCard';
 import NewsService from '../../services/NewsService';
 import WeatherWidget from '../../components/WeatherWidget';
 import { useTranslatedList } from '../../context/TranslationContext';
@@ -66,20 +62,20 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(true);
-  const [userData, setUserData] = useState(null);
-  
+  const [, setUserData] = useState(null);
+
   // News state
   const [topNews, setTopNews] = useState([]);
   const [allNews, setAllNews] = useState([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const [feedData, setFeedData] = useState([]);
-  
+
   const insets = useSafeAreaInsets();
 
   // Progress modal state
   const [progressModalVisible, setProgressModalVisible] = useState(false);
-  const [selectedComplaintId, setSelectedComplaintId] = useState(null);
-  const [selectedComplaintTitle, setSelectedComplaintTitle] = useState('');
+  const [selectedComplaintId] = useState(null);
+  const [selectedComplaintTitle] = useState('');
 
   // Animation values
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -94,28 +90,28 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
 
   const [imageLoadErrors, setImageLoadErrors] = useState({});
   const [cardAnimations] = useState(() => new Map());
-  
+
   // Remove the problematic navigation reset code that was causing infinite loops
-  
+
   // Check if this is the initial route to prevent back navigation
   const isInitialRoute = useRef(true);
-  
+
   useEffect(() => {
     const unsubscribe = navigation.addListener('blur', () => {
       isInitialRoute.current = false;
     });
     return unsubscribe;
   }, [navigation]);
-  
+
   // Get user data and current location on component mount
   useEffect(() => {
     loadUserData();
     fetchUserLocation();
-    
+
     // ALWAYS fetch news on component mount
     console.log(' Component mounted - fetching news immediately');
     fetchNews();
-    
+
     // Entrance animation
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -183,8 +179,8 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
         t('citizen:mobileFeed.locationPermissionNeeded'),
         [
           { text: t('common:mobileNav.cancel') },
-          { 
-            text: t('common:mobileNav.settings'), 
+          {
+            text: t('common:mobileNav.settings'),
             onPress: async () => {
               if (Platform.OS === 'ios') {
                 Linking.openURL('app-settings:');
@@ -207,13 +203,13 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
       complaints.forEach(complaint => {
         if (complaint.image_urls && complaint.image_urls.length > 0) {
           const imageUrl = complaint.image_urls[0];
-          
+
           // Skip prefetching for file:// URLs since they can't be prefetched
           if (imageUrl.startsWith('file:///')) {
             console.log(`Skipping prefetch for local file URL for complaint ${complaint.id}`);
             return;
           }
-          
+
           Image.prefetch(imageUrl).then(() => {
             console.log(`Successfully prefetched image for complaint ${complaint.id}`);
           }).catch(error => {
@@ -227,7 +223,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
   const fetchNearbyComplaints = async (locationOverride = null) => {
     const targetLocation = locationOverride || userLocation;
     if (!targetLocation) return;
-    
+
     setLoading(true);
     try {
       // Call the backend API to get complaints within 3km (changed from 5km)
@@ -235,7 +231,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
         `${apiClient.baseUrl}/api/complaints?latitude=${targetLocation.latitude}&longitude=${targetLocation.longitude}&radius=3000`,
         { method: 'GET' }
       );
-      
+
       if (response.success && response.complaints) {
         // Log the complete response to understand the image URL structure
         console.log('COMPLAINTS WITH IMAGE URLS:', response.complaints.map(c => ({
@@ -244,151 +240,151 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           image_urls: c.image_urls,
           image_url: c.image_url
         })));
-        
+
         // Create animation refs for each complaint and check guest vote status
         const complaintsWithDetails = await Promise.all(
           response.complaints.map(async (complaint) => {
             // Check guest vote status for this complaint
             const guestVoteStatus = await getGuestVoteStatus(complaint.id);
-            
+
             // Determine the final userVoted status:
             // Use server userVoted if authenticated, otherwise use guest vote status
             const finalUserVoted = complaint.userVoted || guestVoteStatus;
-            
+
             // Initialize like animation if it doesn't exist
             if (!likeAnimations.current[complaint.id]) {
               likeAnimations.current[complaint.id] = new Animated.Value(finalUserVoted ? 1 : 0);
             }
-          
-          // Calculate time ago
-          const timeAgo = getTimeAgo(new Date(complaint.created_at));
-          
-          // Extract image URLs from various possible fields in the API response
-          let imageUrls = [];
-          
-          // Log raw image data for debugging
-          console.log(`Raw image data for complaint ${complaint.id}:`, {
-            image_urls: complaint.image_urls,
-            image_url: complaint.image_url,
-            imageUrl: complaint.imageUrl,
-            secure_url: complaint.secure_url
-          });
-          
-          // Case 1: image_urls array field
-          if (complaint.image_urls && Array.isArray(complaint.image_urls) && complaint.image_urls.length > 0) {
-            imageUrls = [...complaint.image_urls];
-          } 
-          // Case 2: image_urls string field that might be JSON
-          else if (complaint.image_urls && typeof complaint.image_urls === 'string') {
-            try {
-              // Check if it's a JSON string
-              if (complaint.image_urls.startsWith('[') || complaint.image_urls.startsWith('{')) {
-                const parsedUrls = JSON.parse(complaint.image_urls);
-                if (Array.isArray(parsedUrls)) {
-                  imageUrls = [...parsedUrls];
-                } else if (typeof parsedUrls === 'string') {
-                  imageUrls = [parsedUrls];
-                } else if (parsedUrls && typeof parsedUrls === 'object') {
-                  // If it's an object with URLs as values
-                  imageUrls = Object.values(parsedUrls).filter(url => url && typeof url === 'string');
-                }
-              } else {
-                // If it's just a single URL string
-                imageUrls = [complaint.image_urls];
-              }
-            } catch (error) {
-              // If it's not valid JSON but is a simple string URL
-              console.log(`Error parsing image_urls as JSON for complaint ${complaint.id}:`, error);
-              
-              // Just use it as a regular URL if it looks like one
-              if (complaint.image_urls.includes('http') || 
-                  complaint.image_urls.includes('cloudinary') || 
-                  complaint.image_urls.includes('://')) {
-                imageUrls = [complaint.image_urls];
-              }
-            }
-          }
-          // Case 3: image_url string field (single URL)
-          else if (complaint.image_url && typeof complaint.image_url === 'string') {
-            imageUrls = [complaint.image_url];
-          }
-          // Case 4: imageUrl string field (single URL, camelCase)
-          else if (complaint.imageUrl && typeof complaint.imageUrl === 'string') {
-            imageUrls = [complaint.imageUrl];
-          }
-          // Case 5: images array field (alternate name)
-          else if (complaint.images && Array.isArray(complaint.images) && complaint.images.length > 0) {
-            imageUrls = [...complaint.images];
-          }
-          // Case 6: secure_url directly from Cloudinary
-          else if (complaint.secure_url && typeof complaint.secure_url === 'string') {
-            imageUrls = [complaint.secure_url];
-          }
-          
-          // If no images found, leave imageUrls empty - the UI will handle showing "No Image Available"
-          if (imageUrls.length === 0) {
-            console.log(`No image URLs found for complaint ${complaint.id} - will show placeholder`);
-          }
-          
-          // Process image URLs to ensure they're valid and prioritize cloud URLs
-          const processedImageUrls = imageUrls
-            .filter(url => url && typeof url === 'string' && url.trim() !== '') // Remove empty/null entries
-            .map(url => {
-              // Clean up the URL
-              let trimmedUrl = url.trim();
-              
-              // Special handling for file:// URLs - these are local files
-              if (trimmedUrl.startsWith('file:///')) {
-                console.log(`Found local file URL for complaint ${complaint.id}, will use fallback`);
-                return trimmedUrl; // Keep as is, will be handled by renderComplaintImage
-              }
-              
-              // Handle URLs that might be missing the protocol
-              if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://') && !trimmedUrl.startsWith('file://')) {
-                if (trimmedUrl.includes('cloudinary.com') || trimmedUrl.includes('res.cloudinary.com')) {
-                  trimmedUrl = 'https://' + trimmedUrl;
-                }
-              }
-              
-              return trimmedUrl;
-            })
-            // Sort to prioritize cloud URLs over local file URLs
-            .sort((a, b) => {
-              const aIsCloud = a.startsWith('http://') || a.startsWith('https://');
-              const bIsCloud = b.startsWith('http://') || b.startsWith('https://');
-              
-              if (aIsCloud && !bIsCloud) return -1; // a comes first (cloud URL)
-              if (!aIsCloud && bIsCloud) return 1;  // b comes first (cloud URL)
-              
-              // Both are cloud URLs or both are file URLs, prioritize Cloudinary
-              if (a.includes('cloudinary.com') && !b.includes('cloudinary.com')) return -1;
-              if (!a.includes('cloudinary.com') && b.includes('cloudinary.com')) return 1;
-              
-              return 0; // Keep original order
+
+            // Calculate time ago
+            const timeAgo = getTimeAgo(new Date(complaint.created_at));
+
+            // Extract image URLs from various possible fields in the API response
+            let imageUrls = [];
+
+            // Log raw image data for debugging
+            console.log(`Raw image data for complaint ${complaint.id}:`, {
+              image_urls: complaint.image_urls,
+              image_url: complaint.image_url,
+              imageUrl: complaint.imageUrl,
+              secure_url: complaint.secure_url
             });
 
-          console.log(`Processed image URLs for complaint ${complaint.id}:`, processedImageUrls);
-          console.log(`Final vote status for complaint ${complaint.id}: server=${complaint.userVoted}, guest=${guestVoteStatus}, final=${finalUserVoted}`);
-          
-          // Only use sample if there are NO image URLs at all
-          if (processedImageUrls.length === 0) {
-            console.log(`No image URLs found for complaint ${complaint.id}, will show placeholder`);
-            // Don't add sample image, let the component handle the "no image" case
-          } else {
-            console.log(`Using ${processedImageUrls.length} image URLs for complaint ${complaint.id}:`, processedImageUrls);
-          }
-          
-          return {
-            ...complaint,
-            reporterName: complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || '',
-            timeAgo,
-            voteCount: complaint.vote_count || 0,
-            userVoted: finalUserVoted,
-            image_urls: processedImageUrls // Use actual URLs from database, empty array if none
-          };
-        })
+            // Case 1: image_urls array field
+            if (complaint.image_urls && Array.isArray(complaint.image_urls) && complaint.image_urls.length > 0) {
+              imageUrls = [...complaint.image_urls];
+            }
+            // Case 2: image_urls string field that might be JSON
+            else if (complaint.image_urls && typeof complaint.image_urls === 'string') {
+              try {
+                // Check if it's a JSON string
+                if (complaint.image_urls.startsWith('[') || complaint.image_urls.startsWith('{')) {
+                  const parsedUrls = JSON.parse(complaint.image_urls);
+                  if (Array.isArray(parsedUrls)) {
+                    imageUrls = [...parsedUrls];
+                  } else if (typeof parsedUrls === 'string') {
+                    imageUrls = [parsedUrls];
+                  } else if (parsedUrls && typeof parsedUrls === 'object') {
+                    // If it's an object with URLs as values
+                    imageUrls = Object.values(parsedUrls).filter(url => url && typeof url === 'string');
+                  }
+                } else {
+                  // If it's just a single URL string
+                  imageUrls = [complaint.image_urls];
+                }
+              } catch (error) {
+                // If it's not valid JSON but is a simple string URL
+                console.log(`Error parsing image_urls as JSON for complaint ${complaint.id}:`, error);
+
+                // Just use it as a regular URL if it looks like one
+                if (complaint.image_urls.includes('http') ||
+                  complaint.image_urls.includes('cloudinary') ||
+                  complaint.image_urls.includes('://')) {
+                  imageUrls = [complaint.image_urls];
+                }
+              }
+            }
+            // Case 3: image_url string field (single URL)
+            else if (complaint.image_url && typeof complaint.image_url === 'string') {
+              imageUrls = [complaint.image_url];
+            }
+            // Case 4: imageUrl string field (single URL, camelCase)
+            else if (complaint.imageUrl && typeof complaint.imageUrl === 'string') {
+              imageUrls = [complaint.imageUrl];
+            }
+            // Case 5: images array field (alternate name)
+            else if (complaint.images && Array.isArray(complaint.images) && complaint.images.length > 0) {
+              imageUrls = [...complaint.images];
+            }
+            // Case 6: secure_url directly from Cloudinary
+            else if (complaint.secure_url && typeof complaint.secure_url === 'string') {
+              imageUrls = [complaint.secure_url];
+            }
+
+            // If no images found, leave imageUrls empty - the UI will handle showing "No Image Available"
+            if (imageUrls.length === 0) {
+              console.log(`No image URLs found for complaint ${complaint.id} - will show placeholder`);
+            }
+
+            // Process image URLs to ensure they're valid and prioritize cloud URLs
+            const processedImageUrls = imageUrls
+              .filter(url => url && typeof url === 'string' && url.trim() !== '') // Remove empty/null entries
+              .map(url => {
+                // Clean up the URL
+                let trimmedUrl = url.trim();
+
+                // Special handling for file:// URLs - these are local files
+                if (trimmedUrl.startsWith('file:///')) {
+                  console.log(`Found local file URL for complaint ${complaint.id}, will use fallback`);
+                  return trimmedUrl; // Keep as is, will be handled by renderComplaintImage
+                }
+
+                // Handle URLs that might be missing the protocol
+                if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://') && !trimmedUrl.startsWith('file://')) {
+                  if (trimmedUrl.includes('cloudinary.com') || trimmedUrl.includes('res.cloudinary.com')) {
+                    trimmedUrl = 'https://' + trimmedUrl;
+                  }
+                }
+
+                return trimmedUrl;
+              })
+              // Sort to prioritize cloud URLs over local file URLs
+              .sort((a, b) => {
+                const aIsCloud = a.startsWith('http://') || a.startsWith('https://');
+                const bIsCloud = b.startsWith('http://') || b.startsWith('https://');
+
+                if (aIsCloud && !bIsCloud) return -1; // a comes first (cloud URL)
+                if (!aIsCloud && bIsCloud) return 1;  // b comes first (cloud URL)
+
+                // Both are cloud URLs or both are file URLs, prioritize Cloudinary
+                if (a.includes('cloudinary.com') && !b.includes('cloudinary.com')) return -1;
+                if (!a.includes('cloudinary.com') && b.includes('cloudinary.com')) return 1;
+
+                return 0; // Keep original order
+              });
+
+            console.log(`Processed image URLs for complaint ${complaint.id}:`, processedImageUrls);
+            console.log(`Final vote status for complaint ${complaint.id}: server=${complaint.userVoted}, guest=${guestVoteStatus}, final=${finalUserVoted}`);
+
+            // Only use sample if there are NO image URLs at all
+            if (processedImageUrls.length === 0) {
+              console.log(`No image URLs found for complaint ${complaint.id}, will show placeholder`);
+              // Don't add sample image, let the component handle the "no image" case
+            } else {
+              console.log(`Using ${processedImageUrls.length} image URLs for complaint ${complaint.id}:`, processedImageUrls);
+            }
+
+            return {
+              ...complaint,
+              reporterName: complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || '',
+              timeAgo,
+              voteCount: complaint.vote_count || 0,
+              userVoted: finalUserVoted,
+              image_urls: processedImageUrls // Use actual URLs from database, empty array if none
+            };
+          })
         );
-        
+
         setComplaints(complaintsWithDetails);
       } else {
         console.error(' Error fetching complaints:', response);
@@ -425,18 +421,18 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     try {
       setNewsLoading(true);
       console.log(' Starting to fetch location-based news...');
-      
+
       // Clear cache to force fresh API call
       NewsService.clearCache();
       console.log(' Cache cleared, forcing fresh news fetch');
-      
+
       // Fetch top 10 news for carousel (increased from 3)
       console.log(' Calling NewsService.getTopNews(10)...');
       const topNewsResult = await NewsService.getTopNews(10);
       console.log(' Top news result received:', topNewsResult);
       console.log(' Top news success:', topNewsResult.success);
       console.log(' Top news count:', topNewsResult.news?.length || 0);
-      
+
       if (topNewsResult.success && topNewsResult.news && topNewsResult.news.length > 0) {
         console.log(' Setting topNews state with', topNewsResult.news.length, 'articles');
         console.log(' First headline:', topNewsResult.news[0]?.headline);
@@ -447,7 +443,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
         console.log(' Top news result failed or empty, not setting topNews state');
         console.log(' Received:', topNewsResult);
       }
-      
+
       // Fetch all news for interspersing
       const allNewsResult = await NewsService.getLocationNews();
       console.log(' All news result:', allNewsResult);
@@ -456,7 +452,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
         console.log(' Set all news:', allNewsResult.news.length, 'articles');
         console.log(' Location:', allNewsResult.location); // Log user location
         console.log(' News source:', allNewsResult.source); // Log if real API or placeholder
-        
+
         // Log first few headlines to verify they're real/location-based
         if (allNewsResult.news.length > 0) {
           console.log(' First few headlines:');
@@ -465,7 +461,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           });
         }
       }
-      
+
       console.log(` Fetched ${topNewsResult.news?.length || 0} top news and ${allNewsResult.news?.length || 0} total news`);
     } catch (error) {
       console.error(' Error fetching news:', error);
@@ -490,22 +486,22 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     console.log(' Creating feed data...');
     console.log(' Complaints:', sourceList.length);
     console.log(' All news:', allNews.length);
-    
+
     if (!sourceList.length) {
       console.log('️ No complaints available for feed');
       return [];
     }
-    
+
     // Only return complaints - news will be shown in header carousel
     const feedData = sourceList.map(complaint => ({
       id: complaint.id,
       type: 'complaint',
       data: complaint
     }));
-    
+
     console.log(' Feed data created:', feedData.length, 'complaint items');
     console.log('� News items will be shown in header carousel:', allNews.length);
-    
+
     return feedData;
   };
 
@@ -514,7 +510,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     console.log(' Feed data update triggered');
     console.log(' Current complaints:', complaints.length);
     console.log(' Current all news:', allNews.length);
-    
+
     const combined = createCombinedFeedData();
     setFeedData(combined);
     console.log(' Feed data updated with', combined.length, 'items');
@@ -524,7 +520,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     // Find the complaint in the state
     const complaint = complaints.find(c => c.id === complaintId);
     if (!complaint) return;
-    
+
     // Animate the like button immediately for better UX
     Animated.sequence([
       Animated.timing(likeAnimations.current[complaintId], {
@@ -543,11 +539,11 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
 
     // Make API call to update vote and refetch current vote count
     const complaintIndex = complaints.findIndex(c => c.id === complaintId);
-    
+
     try {
       // Use enhanced voting that handles both authenticated and guest voting
       const voteResponse = await handleVoting(complaintId, apiClient, makeApiCall);
-      
+
       if (!voteResponse.success) {
         console.error(' Vote failed:', voteResponse);
         Alert.alert(
@@ -560,7 +556,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
 
       // Always refetch the current vote count from server for accuracy
       const refetchResponse = await refetchComplaintVotes(complaintId, apiClient);
-      
+
       if (refetchResponse.success && complaintIndex > -1) {
         const updatedComplaints = [...complaints];
         updatedComplaints[complaintIndex] = {
@@ -569,7 +565,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           userVoted: refetchResponse.userVoted
         };
         setComplaints(updatedComplaints);
-        
+
         // Update animation to match server state
         if (likeAnimations.current[complaintId]) {
           Animated.spring(likeAnimations.current[complaintId], {
@@ -579,7 +575,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             useNativeDriver: true,
           }).start();
         }
-        
+
         console.log(` Vote updated: ${refetchResponse.userVoted ? 'Voted' : 'Unvoted'}, Count: ${refetchResponse.voteCount}`);
       } else {
         console.error(' Failed to refetch vote count');
@@ -593,120 +589,34 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     }
   };
 
-  // New function to fetch a specific complaint's details if we have image loading issues
-  const fetchComplaintDetails = async (complaintId) => {
-    try {
-      const response = await makeApiCall(
-        `${apiClient.baseUrl}/api/complaints/${complaintId}`,
-        { method: 'GET' }
-      );
-      
-      if (response.success && response.complaint) {
-        console.log('Fetched detailed complaint data:', response.complaint);
-        
-        // Update the complaint in our state with more detailed info
-        const updatedComplaints = [...complaints];
-        const complaintIndex = updatedComplaints.findIndex(c => c.id === complaintId);
-        
-        if (complaintIndex > -1) {
-          // Process image URLs from the detailed response
-          let imageUrls = [];
-          const complaint = response.complaint;
-          
-          // Extract image URLs with the same logic as in fetchNearbyComplaints
-          if (complaint.image_urls && Array.isArray(complaint.image_urls) && complaint.image_urls.length > 0) {
-            imageUrls = [...complaint.image_urls];
-          } else if (complaint.image_urls && typeof complaint.image_urls === 'string') {
-            try {
-              const parsedUrls = JSON.parse(complaint.image_urls);
-              if (Array.isArray(parsedUrls)) {
-                imageUrls = [...parsedUrls];
-              } else if (typeof parsedUrls === 'string') {
-                imageUrls = [parsedUrls];
-              } else if (parsedUrls && typeof parsedUrls === 'object') {
-                imageUrls = Object.values(parsedUrls).filter(url => url && typeof url === 'string');
-              }
-            } catch (error) {
-              if (complaint.image_urls.includes('http')) {
-                imageUrls = [complaint.image_urls];
-              }
-            }
-          } else if (complaint.image_url && typeof complaint.image_url === 'string') {
-            imageUrls = [complaint.image_url];
-          } else if (complaint.imageUrl && typeof complaint.imageUrl === 'string') {
-            imageUrls = [complaint.imageUrl];
-          } else if (complaint.images && Array.isArray(complaint.images) && complaint.images.length > 0) {
-            imageUrls = [...complaint.images];
-          }
-          
-          // Process the URLs to ensure they're valid
-          const processedImageUrls = imageUrls
-            .filter(url => url && typeof url === 'string' && url.trim() !== '')
-            .map(url => {
-              const trimmedUrl = url.trim();
-              if (trimmedUrl.startsWith('http:')) {
-                return trimmedUrl.replace('http:', 'https:');
-              }
-              if (!trimmedUrl.startsWith('http')) {
-                if (trimmedUrl.startsWith('//')) {
-                  return `https:${trimmedUrl}`;
-                }
-                return `https://${trimmedUrl}`;
-              }
-              return trimmedUrl;
-            });
-          
-          // Update the complaint with new data
-          updatedComplaints[complaintIndex] = {
-            ...updatedComplaints[complaintIndex],
-            ...response.complaint,
-            image_urls: processedImageUrls
-          };
-          
-          // Reset error state if we have new images
-          if (processedImageUrls.length > 0) {
-            setImageLoadErrors(prev => ({...prev, [complaintId]: false}));
-          }
-          
-          setComplaints(updatedComplaints);
-          return true;
-        }
-      }
-      return false;
-    } catch (error) {
-      console.error(` Error fetching complaint details for ID ${complaintId}:`, error);
-      return false;
-    }
-  };
-
   const getTimeAgo = (date) => {
     const now = new Date();
     const diffInSeconds = Math.floor((now - date) / 1000);
-    
+
     if (diffInSeconds < 60) {
       return `${diffInSeconds}s ago`;
     }
-    
+
     const diffInMinutes = Math.floor(diffInSeconds / 60);
     if (diffInMinutes < 60) {
       return `${diffInMinutes}m ago`;
     }
-    
+
     const diffInHours = Math.floor(diffInMinutes / 60);
     if (diffInHours < 24) {
       return `${diffInHours}h ago`;
     }
-    
+
     const diffInDays = Math.floor(diffInHours / 24);
     if (diffInDays < 7) {
       return `${diffInDays}d ago`;
     }
-    
+
     const diffInWeeks = Math.floor(diffInDays / 7);
     if (diffInWeeks < 4) {
       return `${diffInWeeks}w ago`;
     }
-    
+
     const diffInMonths = Math.floor(diffInDays / 30);
     return `${diffInMonths}mo ago`;
   };
@@ -750,21 +660,6 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending':
-        return '#1A1A1A';
-      case 'in_progress':
-        return '#1A1A1A';
-      case 'resolved':
-        return '#1A1A1A';
-      case 'rejected':
-        return '#1A1A1A';
-      default:
-        return '#9CA3AF';
-    }
-  };
-
   const getStatusGradient = (status) => {
     switch (status) {
       case 'pending':
@@ -799,91 +694,10 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     );
   };
 
-  const renderHeader = () => {
-    return (
-      <View>
-        <WeatherWidget />
-        <View style={styles.storiesContainer}>
-          <ScrollView 
-            horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.storiesScrollView}
-        >
-          {/* New Report Button (Like Instagram's "+" story) */}
-          <TouchableOpacity 
-            style={styles.storyButton}
-            onPress={() => navigation.navigate('SubmitComplaint')}
-          >
-            <View style={styles.storyAdd}>
-              <Ionicons name="add" size={28} color="#fff" />
-            </View>
-            <Text style={styles.storyText}>{t('citizen:mobileInsta.newReport')}</Text>
-          </TouchableOpacity>
-          
-          {/* Quick actions */}
-          <TouchableOpacity 
-            style={styles.storyItem}
-            onPress={() => navigation.navigate('ComplaintMap')}
-          >
-            <LinearGradient
-              colors={['#374151', '#1A1A1A']}
-              style={styles.storyRing}
-            >
-              <View style={styles.storyIcon}>
-                <Ionicons name="map" size={22} color="#fff" />
-              </View>
-            </LinearGradient>
-            <Text style={styles.storyText}>{t('common:mobileNav.map')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.storyItem}
-            onPress={() => navigation.navigate('CitizenTransparency')}
-          >
-            <LinearGradient
-              colors={['#6B7280', '#374151']}
-              style={styles.storyRing}
-            >
-              <View style={styles.storyIcon}>
-                <Ionicons name="bar-chart" size={22} color="#fff" />
-              </View>
-            </LinearGradient>
-            <Text style={styles.storyText}>{t('citizen:mobileInsta.stats')}</Text>
-          </TouchableOpacity>
-
-          {/* Dynamic stories from categories */}
-          {['water_issue', 'road_damage', 'garbage', 'tree_issue'].map((category, index) => (
-            <TouchableOpacity 
-              key={category}
-              style={styles.storyItem}
-              onPress={() => {
-                // Future feature: Filter by category
-                Alert.alert(t('citizen:mobileInsta.comingSoonTitle'), t('citizen:mobileInsta.comingSoonDesc'));
-              }}
-            >
-              <LinearGradient
-                colors={index % 2 === 0 ? ['#374151', '#111827'] : ['#6B7280', '#374151']}
-                style={styles.storyRing}
-              >
-                <View style={styles.storyIcon}>
-                  {getCategoryIcon(category)}
-                </View>
-              </LinearGradient>
-              <Text style={styles.storyText}>
-                {getCategoryLabel(category, t)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        </View>
-      </View>
-    );
-  };
-
   // Function to render complaint image with proper fallback handling
   const renderComplaintImage = (item) => {
     const imageUrl = item.image_urls && item.image_urls.length > 0 ? item.image_urls[0] : null;
-    
+
     if (!imageUrl) {
       // No image URL available, show placeholder
       return (
@@ -908,17 +722,17 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     // For valid HTTP/HTTPS URLs (especially Cloudinary)
     if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
       let finalImageUrl = imageUrl;
-      
+
       // If it's a Cloudinary URL, optimize it for mobile display
       if (imageUrl.includes('cloudinary.com')) {
         // Add Cloudinary transformations for better performance
         finalImageUrl = imageUrl.replace('/upload/', '/upload/c_fill,w_400,h_400,q_auto,f_auto/');
         console.log(`Optimized Cloudinary URL for complaint ${item.id}:`, finalImageUrl);
       }
-      
+
       return (
-        <Image 
-          source={{ 
+        <Image
+          source={{
             uri: finalImageUrl,
             cache: 'force-cache'
           }}
@@ -928,17 +742,17 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           onLoad={() => console.log(`Successfully loaded image for complaint ${item.id}`)}
           onError={(e) => {
             console.log(`Image loading error for complaint ${item.id}:`, e.nativeEvent.error);
-            
+
             // Try a different Cloudinary optimization or fallback
             if (imageUrl.includes('cloudinary.com') && !imageLoadErrors[item.id]) {
               console.log(`Retrying with basic Cloudinary URL for complaint ${item.id}`);
               setImageLoadErrors(prev => ({ ...prev, [item.id]: 'retrying' }));
-              
+
               // Try the original URL without transformations
               setTimeout(() => {
                 const updatedComplaints = [...complaints];
                 const complaintIndex = updatedComplaints.findIndex(c => c.id === item.id);
-                
+
                 if (complaintIndex > -1) {
                   updatedComplaints[complaintIndex] = {
                     ...updatedComplaints[complaintIndex],
@@ -948,10 +762,10 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
                   setImageLoadErrors(prev => ({ ...prev, [item.id]: false }));
                 }
               }, 1000);
-              
+
               return;
             }
-            
+
             // Mark as failed - will show placeholder
             console.log(`Image failed to load for complaint ${item.id}`);
             setImageLoadErrors(prev => ({ ...prev, [item.id]: true }));
@@ -972,7 +786,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
   // Render function for feed items (only complaints)
   const renderFeedItem = ({ item, index }) => {
     console.log(` Rendering complaint item ${index}:`, item.data.title);
-    
+
     // Only render complaint cards - news is shown in header
     return renderComplaintCard({ item: item.data, index });
   };
@@ -981,7 +795,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     // Initialize animation for this card if it doesn't exist
     if (!cardAnimations.has(item.id)) {
       cardAnimations.set(item.id, new Animated.Value(0));
-      
+
       // Staggered entrance animation
       setTimeout(() => {
         Animated.spring(cardAnimations.get(item.id), {
@@ -1005,9 +819,9 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     const cardAnimation = cardAnimations.get(item.id);
 
     return (
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.modernPostContainer, 
+          styles.modernPostContainer,
           {
             opacity: cardAnimation,
             transform: [
@@ -1050,7 +864,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
               </View>
             </View>
           </View>
-          
+
           <View style={styles.postHeaderRight}>
             <LinearGradient
               colors={getStatusGradient(item.status)}
@@ -1060,8 +874,8 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
                 {getStatusLabel(item.status, t)}
               </Text>
             </LinearGradient>
-            <TouchableOpacity 
-              style={styles.modernMoreButton} 
+            <TouchableOpacity
+              style={styles.modernMoreButton}
               activeOpacity={0.7}
               onPress={() => handleMoreButtonPress(item)}
             >
@@ -1069,11 +883,11 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
-        
+
         {/* Post Image */}
         <View style={styles.postImageContainer}>
           {renderComplaintImage(item)}
-          
+
           <View style={styles.categoryBadge}>
             {getCategoryIcon(item.category)}
             <Text style={styles.categoryText}>
@@ -1081,40 +895,40 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             </Text>
           </View>
         </View>
-        
+
         {/* Post Actions */}
         <View style={styles.actionsContainer}>
           <View style={styles.leftActions}>
-            <TouchableOpacity 
-              style={styles.actionButton} 
+            <TouchableOpacity
+              style={styles.actionButton}
               onPress={() => handleUpvote(item.id, index)}
             >
               <Animated.View style={{ transform: [{ scale: likeScale }] }}>
-                <Ionicons 
-                  name={item.userVoted ? "arrow-up-circle" : "arrow-up-circle-outline"} 
-                  size={28} 
-                  color={item.userVoted ? "#1A1A1A" : "#9CA3AF"} 
+                <Ionicons
+                  name={item.userVoted ? "arrow-up-circle" : "arrow-up-circle-outline"}
+                  size={28}
+                  color={item.userVoted ? "#1A1A1A" : "#9CA3AF"}
                 />
               </Animated.View>
             </TouchableOpacity>
           </View>
         </View>
-        
+
         {/* Vote count */}
         <View style={styles.likesContainer}>
           <Text style={styles.likesText}>
             {t('citizen:mobileInsta.voteCount', { count: item.voteCount || 0 })}
           </Text>
         </View>
-        
+
         {/* Caption */}
         <View style={styles.captionContainer}>
           <Text style={styles.captionName}>{item.reporterName || t('citizen:feed.verifiedCitizen')}</Text>
           <Text style={styles.captionText}>{item.title || t('citizen:feed.untitledIncident')}</Text>
         </View>
-        
+
         {/* Description */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.descriptionContainer}
           onPress={() => navigation.navigate('ComplaintDetail', { complaintId: item.id })}
         >
@@ -1125,7 +939,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             <Text style={styles.readMore}>{t('citizen:mobileInsta.more')}</Text>
           )}
         </TouchableOpacity>
-        
+
         {/* Time ago */}
         <Text style={styles.timeAgoText}>
           {formatLocalizedRelativeTime(item.created_at, item.timeAgo, i18n.language)}
@@ -1146,7 +960,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
   return (
     <Animated.View style={[styles.container, { paddingTop: insets.top, opacity: fadeAnim }]}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-      
+
       {/* Modern Header with Gradient */}
       <Animated.View style={[styles.modernHeader, { opacity: headerOpacity }]}>
         <LinearGradient
@@ -1160,7 +974,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             </View>
             <View style={styles.headerRight}>
               {userLocation && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.modernLocationButton}
                   onPress={fetchUserLocation}
                   activeOpacity={0.8}
@@ -1174,7 +988,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
                   </LinearGradient>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.modernIconButton}
                 onPress={() => navigation.navigate('SubmitComplaint')}
                 activeOpacity={0.8}
@@ -1186,7 +1000,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
                   <Ionicons name="add" size={20} color="#fff" />
                 </LinearGradient>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.modernIconButton}
                 onPress={() => navigation.navigate('PersonalReports')}
                 activeOpacity={0.8}
@@ -1199,7 +1013,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           </View>
         </LinearGradient>
       </Animated.View>
-      
+
       {loading && !refreshing ? (
         <Animated.View style={[styles.modernLoadingContainer, { transform: [{ translateY: slideAnim }] }]}>
           <LinearGradient
@@ -1222,7 +1036,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           <Text style={styles.modernEmptyText}>
             {t('citizen:mobileInsta.noReportsNearbyDesc')}
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.modernReportButton}
             onPress={() => navigation.navigate('SubmitComplaint')}
             activeOpacity={0.8}
@@ -1260,43 +1074,43 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             ItemSeparatorComponent={() => <View style={styles.cardSeparator} />}
             ListHeaderComponent={() => {
               return (
-              <View>
-                {/* Weather Widget */}
-                <WeatherWidget />
-                
-                {/* News Carousel */}
-                {topNews.length > 0 ? (
-                  <>
-                    <NewsCarousel
-                      news={topNews}
-                      onNewsPress={handleNewsPress}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <View style={{ padding: 10, backgroundColor: '#f0f0f0', margin: 10, borderRadius: 8 }}>
-                      <Text style={{ textAlign: 'center', color: '#666' }}>
-                        {t('citizen:mobileInsta.loadingLocationNews')}
-                      </Text>
-                    </View>
-                  </>
-                )}
-              </View>
+                <View>
+                  {/* Weather Widget */}
+                  <WeatherWidget />
+
+                  {/* News Carousel */}
+                  {topNews.length > 0 ? (
+                    <>
+                      <NewsCarousel
+                        news={topNews}
+                        onNewsPress={handleNewsPress}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <View style={{ padding: 10, backgroundColor: '#f0f0f0', margin: 10, borderRadius: 8 }}>
+                        <Text style={{ textAlign: 'center', color: '#666' }}>
+                          {t('citizen:mobileInsta.loadingLocationNews')}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                </View>
               );
             }}
           />
         </Animated.View>
       )}
-      
+
       {/* Modern bottom tab bar with gradients */}
       <View style={styles.modernBottomTabBar}>
         <LinearGradient
           colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,1)']}
           style={styles.tabBarGradient}
         >
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.modernTabButton}
-            onPress={() => {/* Already on feed */}}
+            onPress={() => {/* Already on feed */ }}
             activeOpacity={0.8}
           >
             <View style={styles.activeTabContainer}>
@@ -1304,8 +1118,8 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
               <Text style={styles.activeTabText}>{t('common:mobileNav.feed')}</Text>
             </View>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.modernTabButton}
             onPress={() => navigation.navigate('ComplaintMap')}
             activeOpacity={0.8}
@@ -1313,8 +1127,8 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             <Ionicons name="map-outline" size={22} color="#9CA3AF" />
             <Text style={styles.tabText}>{t('common:mobileNav.map')}</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.modernTabButton}
             onPress={() => navigation.navigate('SubmitComplaint')}
             activeOpacity={0.8}
@@ -1326,8 +1140,8 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
               <Ionicons name="add" size={24} color="#fff" />
             </LinearGradient>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.modernTabButton}
             onPress={() => navigation.navigate('CitizenTransparency')}
             activeOpacity={0.8}
@@ -1335,8 +1149,8 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             <Ionicons name="stats-chart-outline" size={22} color="#9CA3AF" />
             <Text style={styles.tabText}>{t('citizen:mobileInsta.stats')}</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.modernTabButton}
             onPress={() => navigation.navigate('PersonalReports')}
             activeOpacity={0.8}
@@ -1380,10 +1194,10 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
         }}
         activeOpacity={0.8}
       >
-        <Ionicons 
-          name="chatbubble-ellipses" 
-          size={24} 
-          color="#FFFFFF" 
+        <Ionicons
+          name="chatbubble-ellipses"
+          size={24}
+          color="#FFFFFF"
         />
       </TouchableOpacity>
     </Animated.View>
@@ -1395,7 +1209,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FAFAFA',
   },
-  
+
   // Modern Header Styles
   modernHeader: {
     backgroundColor: 'transparent',
@@ -1740,7 +1554,7 @@ const styles = StyleSheet.create({
     color: '#333',
   },
 
-  
+
   // Legacy styles for compatibility
   locationButton: {
     flexDirection: 'row',
@@ -1760,7 +1574,7 @@ const styles = StyleSheet.create({
   iconButton: {
     marginLeft: 16,
   },
-  
+
   // Post styles (keeping minimal for compatibility)
   postContainer: {
     backgroundColor: '#fff',
@@ -2024,4 +1838,3 @@ const styles = StyleSheet.create({
 });
 
 export default InstagramStyleFeedScreen;
-  

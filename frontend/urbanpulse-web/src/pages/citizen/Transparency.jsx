@@ -218,8 +218,8 @@ export default function Transparency() {
             {data?.slaCompliance !== undefined
               ? `${data.slaCompliance}%`
               : total > 0
-              ? `${resolutionRate}%`
-              : '—'}
+                ? `${resolutionRate}%`
+                : '—'}
           </span>
         </div>
       </div>

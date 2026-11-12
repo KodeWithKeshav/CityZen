@@ -23,7 +23,7 @@ import i18n from '../../i18n';
 import { useTranslatedList } from '../../context/TranslationContext';
 import { formatLocalizedTime } from '../../utils/dateLocale';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 // Maps the app's 6 i18n language codes to the UI-style codes
 // SarvamSpeechService expects (see MultiStepSubmitComplaintScreen.js).
@@ -55,7 +55,7 @@ const CivicChatbotScreen = ({ navigation }) => {
       type: 'welcome'
     };
     setMessages([welcomeMessage]);
-    
+
     // Fade in animation
     Animated.timing(fadeAnim, {
       toValue: 1,
@@ -122,7 +122,7 @@ const CivicChatbotScreen = ({ navigation }) => {
       setTranscribing(true);
       const sarvamUiCode = LANGUAGE_TO_SARVAM_UI_CODE[i18n.language] || 'en-US';
       await speechService.processAndStopSpeech(sarvamUiCode);
-    } catch (err) {
+    } catch {
       setIsRecording(false);
       setTranscribing(false);
     }
@@ -178,7 +178,7 @@ const CivicChatbotScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Chatbot error:', error);
-      
+
       // Fallback response with helpful information
       const fallbackMessage = {
         id: (Date.now() + 1).toString(),
@@ -251,14 +251,14 @@ const CivicChatbotScreen = ({ navigation }) => {
       >
         {isBot && (
           <View style={styles.botAvatar}>
-            <MaterialCommunityIcons 
-              name="robot" 
-              size={20} 
-              color="#fff" 
+            <MaterialCommunityIcons
+              name="robot"
+              size={20}
+              color="#fff"
             />
           </View>
         )}
-        
+
         <View style={[
           styles.messageBubble,
           isBot ? styles.botMessageBubble : styles.userMessageBubble,
@@ -272,13 +272,13 @@ const CivicChatbotScreen = ({ navigation }) => {
           ]}>
             {item.text}
           </Text>
-          
+
           {Number(item.confidence) > 0 && (
             <Text style={styles.confidenceText}>
               {t('mobile.confidence', { pct: Math.round(item.confidence * 100) })}
             </Text>
           )}
-          
+
           <Text style={[
             styles.timestampText,
             isBot ? styles.botTimestamp : styles.userTimestamp
@@ -286,13 +286,13 @@ const CivicChatbotScreen = ({ navigation }) => {
             {formatLocalizedTime(item.timestamp, i18n.language)}
           </Text>
         </View>
-        
+
         {!isBot && (
           <View style={styles.userAvatar}>
             <Ionicons name="person" size={16} color="#fff" />
           </View>
         )}
-        
+
         {renderQuickActions(item.suggestedActions)}
       </Animated.View>
     );
@@ -331,13 +331,13 @@ const CivicChatbotScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
@@ -433,10 +433,10 @@ const CivicChatbotScreen = ({ navigation }) => {
             {isLoading ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Ionicons 
-                name="send" 
-                size={20} 
-                color={inputText.trim() ? "#fff" : "#ccc"} 
+              <Ionicons
+                name="send"
+                size={20}
+                color={inputText.trim() ? "#fff" : "#ccc"}
               />
             )}
           </TouchableOpacity>
