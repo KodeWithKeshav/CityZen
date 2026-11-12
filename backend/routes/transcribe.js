@@ -3,9 +3,14 @@ const router = express.Router();
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config({ override: true });
 
 const SttProviderService = require('../services/stt/SttProviderService');
+
+const ALLOWED_AUDIO_MIMETYPES = new Set([
+  'video/webm',
+  'video/mp4',
+  'application/ogg'
+]);
 
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 const storage = multer.diskStorage({
@@ -16,14 +21,17 @@ const storage = multer.diskStorage({
     cb(null, uploadsDir);
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
+    const baseName = path.basename(file.originalname || 'audio').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const suffix = Math.random().toString(36).slice(2, 8);
+    cb(null, `${Date.now()}-${suffix}-${baseName}`);
   }
 });
 
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('audio/')) {
+    const mime = (file.mimetype || '').toLowerCase();
+    if (mime.startsWith('audio/') || ALLOWED_AUDIO_MIMETYPES.has(mime)) {
       cb(null, true);
     } else {
       cb(new Error('Only audio files are allowed!'), false);
@@ -34,18 +42,31 @@ const upload = multer({
   }
 });
 
+const handleAudioUpload = (req, res, next) => {
+  upload.single('audio')(req, res, (err) => {
+    if (!err) return next();
+    const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    return res.status(status).json({
+      success: false,
+      message: err.message || 'Invalid audio upload'
+    });
+  });
+};
+
 /**
  * POST /api/transcribe/audio
  * Transcribes an uploaded audio clip in the requested language and returns
  * the transcript as spoken (no translation step — the rest of the app
  * renders/stores content in the citizen's chosen language directly).
  */
-router.post('/audio', upload.single('audio'), async (req, res) => {
+router.post('/audio', handleAudioUpload, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, message: 'No audio file uploaded' });
   }
 
-  const language = req.body.language || 'en';
+  const language = typeof req.body?.language === 'string' && req.body.language.trim()
+    ? req.body.language.trim()
+    : 'en';
   const audioFilePath = req.file.path;
 
   try {

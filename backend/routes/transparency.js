@@ -20,16 +20,18 @@ router.get('/dashboard', async (req, res) => {
       throw new Error(complaintsError.message);
     }
     
+    const safeComplaints = complaints || [];
+
     // Calculate basic statistics
-    const totalComplaints = complaints.length;
-    const resolvedComplaints = complaints.filter(c => 
+    const totalComplaints = safeComplaints.length;
+    const resolvedComplaints = safeComplaints.filter(c => 
       c.status?.toLowerCase() === 'resolved' || 
       c.status?.toLowerCase() === 'completed'
     ).length;
-    const pendingComplaints = complaints.filter(c => 
+    const pendingComplaints = safeComplaints.filter(c => 
       c.status?.toLowerCase() === 'pending'
     ).length;
-    const inProgressComplaints = complaints.filter(c => 
+    const inProgressComplaints = safeComplaints.filter(c => 
       c.status?.toLowerCase() === 'in_progress'
     ).length;
     
@@ -37,28 +39,34 @@ router.get('/dashboard', async (req, res) => {
       Math.round((resolvedComplaints / totalComplaints) * 100) : 0;
     
     // Calculate category statistics
-    const categoryStats = calculateCategoryStats(complaints);
+    const categoryStats = calculateCategoryStats(safeComplaints);
     
     // Calculate monthly data for the last 9 months
-    const monthlyData = calculateMonthlyData(complaints);
+    const monthlyData = calculateMonthlyData(safeComplaints);
     
     // Calculate impact statistics
-    const impactStats = calculateImpactStats(complaints);
+    const impactStats = calculateImpactStats(safeComplaints);
     
     // Calculate average resolution time
-    const avgResolutionTime = calculateAvgResolutionTime(complaints);
+    const avgResolutionTime = calculateAvgResolutionTime(safeComplaints);
     
     // Calculate voting statistics
-    const votingStats = calculateVotingStats(complaints);
+    const votingStats = calculateVotingStats(safeComplaints);
     
     // Calculate category map for frontend compatibility
     const byCategory = {};
-    complaints.forEach(c => {
+    safeComplaints.forEach(c => {
       const cat = c.category || 'others';
       byCategory[cat] = (byCategory[cat] || 0) + 1;
     });
 
-    const avgResolutionDays = avgResolutionTime > 0 ? avgResolutionTime : 2.5;
+    const avgResolutionDays = avgResolutionTime;
+
+    const earliestCreatedAt = safeComplaints.reduce((minTs, c) => {
+      const ts = new Date(c.created_at).getTime();
+      if (!Number.isFinite(ts)) return minTs;
+      return minTs === null || ts < minTs ? ts : minTs;
+    }, null);
 
     const dashboardData = {
       success: true,
@@ -99,7 +107,7 @@ router.get('/dashboard', async (req, res) => {
         // Metadata
         lastUpdated: new Date().toISOString(),
         dataRange: {
-          from: complaints.length > 0 ? new Date(Math.min(...complaints.map(c => new Date(c.created_at)))).toISOString() : null,
+          from: earliestCreatedAt !== null ? new Date(earliestCreatedAt).toISOString() : null,
           to: new Date().toISOString()
         }
       }
@@ -197,6 +205,7 @@ function calculateMonthlyData(complaints) {
   // Count complaints by month
   complaints.forEach(complaint => {
     const date = new Date(complaint.created_at);
+    if (Number.isNaN(date.getTime())) return;
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     
     if (monthlyMap[monthKey]) {
@@ -237,6 +246,8 @@ function calculateImpactStats(complaints) {
       impactMultiplier = 20; // Garbage affects local areas
     } else if (category?.includes('streetlight')) {
       impactMultiplier = 15; // Streetlights affect smaller areas
+    } else if (category?.includes('electric') || category?.includes('pole') || category?.includes('structure')) {
+      impactMultiplier = 25; // Electrical / structural hazards affect surrounding streets
     } else {
       impactMultiplier = 10; // Other issues
     }
@@ -245,8 +256,9 @@ function calculateImpactStats(complaints) {
     const estimatedImpact = Math.max(impactMultiplier, (voteCount + 1) * impactMultiplier);
     totalPeopleImpacted += estimatedImpact;
     
-    // Count high priority issues
-    if (priorityScore >= 8 || voteCount >= 5) {
+    // Count high priority issues (normalize 0-100 legacy scores vs 0-1 canonical scores)
+    const normalizedPriority = priorityScore > 1 ? priorityScore / 100 : priorityScore;
+    if (normalizedPriority >= 0.6 || voteCount >= 5) {
       highPriorityIssues++;
     }
     
@@ -276,14 +288,18 @@ function calculateAvgResolutionTime(complaints) {
     return 0;
   }
   
-  const totalDays = resolvedComplaints.reduce((sum, complaint) => {
-    const created = new Date(complaint.created_at);
-    const resolved = new Date(complaint.resolved_at);
-    const days = Math.round((resolved - created) / (1000 * 60 * 60 * 24));
-    return sum + Math.max(0, days); // Ensure non-negative
-  }, 0);
+  let totalDays = 0;
+  let validCount = 0;
+  resolvedComplaints.forEach((complaint) => {
+    const createdMs = new Date(complaint.created_at).getTime();
+    const resolvedMs = new Date(complaint.resolved_at).getTime();
+    if (!Number.isFinite(createdMs) || !Number.isFinite(resolvedMs)) return;
+    const days = Math.round((resolvedMs - createdMs) / (1000 * 60 * 60 * 24));
+    totalDays += Math.max(0, days); // Ensure non-negative
+    validCount++;
+  });
   
-  return Math.round(totalDays / resolvedComplaints.length);
+  return validCount > 0 ? Math.round(totalDays / validCount) : 0;
 }
 
 /**

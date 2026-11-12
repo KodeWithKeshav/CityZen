@@ -6,6 +6,52 @@ const priorityConfig = require('../services/priorityConfig');
 // Initialize the location priority service
 const locationPriorityService = new LocationPriorityService();
 
+// In-memory service metrics (since process start)
+const serviceMetrics = {
+  totalRequests: 0,
+  successfulRequests: 0,
+  failedRequests: 0,
+  totalDurationMs: 0,
+  recentDurationsMs: [],
+  priorityCounts: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, MINIMAL: 0 },
+  complaintTypeCounts: {},
+  privacyLevelCounts: { exact: 0, street: 0, area: 0 },
+};
+
+function recordMetric({ success, durationMs, priorityLevel, complaintType, privacyLevel }) {
+  serviceMetrics.totalRequests += 1;
+  if (success) serviceMetrics.successfulRequests += 1;
+  else serviceMetrics.failedRequests += 1;
+
+  if (Number.isFinite(durationMs)) {
+    serviceMetrics.totalDurationMs += durationMs;
+    serviceMetrics.recentDurationsMs.push(durationMs);
+    if (serviceMetrics.recentDurationsMs.length > 500) {
+      serviceMetrics.recentDurationsMs.shift();
+    }
+  }
+  if (priorityLevel && Object.prototype.hasOwnProperty.call(serviceMetrics.priorityCounts, priorityLevel)) {
+    serviceMetrics.priorityCounts[priorityLevel] += 1;
+  }
+  if (complaintType) {
+    serviceMetrics.complaintTypeCounts[complaintType] = (serviceMetrics.complaintTypeCounts[complaintType] || 0) + 1;
+  }
+  if (privacyLevel && Object.prototype.hasOwnProperty.call(serviceMetrics.privacyLevelCounts, privacyLevel)) {
+    serviceMetrics.privacyLevelCounts[privacyLevel] += 1;
+  }
+}
+
+function getPercentile(sortedValues, pct) {
+  if (!sortedValues.length) return 0;
+  const idx = Math.min(sortedValues.length - 1, Math.max(0, Math.ceil((pct / 100) * sortedValues.length) - 1));
+  return sortedValues[idx];
+}
+
+function countFacilities(facilityAnalysis) {
+  if (!facilityAnalysis || typeof facilityAnalysis !== 'object') return 0;
+  return Object.values(facilityAnalysis).reduce((sum, f) => sum + (f?.count || 0), 0);
+}
+
 /**
  * Calculate location-based priority score for a complaint
  * POST /api/location-priority/calculate
@@ -24,15 +70,18 @@ const locationPriorityService = new LocationPriorityService();
  * }
  */
 router.post('/calculate', async (req, res) => {
+  const startTime = Date.now();
   try {
     console.log('🔍 Location priority calculation request:', req.body);
     
-    const { latitude, longitude, complaintType, locationMeta } = req.body;
+    const body = req.body || {};
+    const { latitude, longitude, complaintType, locationMeta } = body;
     
     // Input validation
-    const validationResult = validateCalculationInput(req.body);
+    const validationResult = validateCalculationInput(body);
     if (!validationResult.isValid) {
       console.log('❌ Validation failed:', validationResult.error);
+      recordMetric({ success: false, durationMs: Date.now() - startTime });
       return res.status(400).json({
         success: false,
         error: validationResult.error,
@@ -43,7 +92,6 @@ router.post('/calculate', async (req, res) => {
     console.log('✅ Validation passed for complaint type:', complaintType);
     
     // Calculate location priority score
-    const startTime = Date.now();
     let priorityResult;
     let processingTime;
     try {
@@ -57,6 +105,7 @@ router.post('/calculate', async (req, res) => {
       console.log(`✅ Priority calculation completed in ${processingTime}ms`);
     } catch (calculationError) {
       console.error('❌ Priority calculation error:', calculationError);
+      recordMetric({ success: false, durationMs: Date.now() - startTime, complaintType });
       return res.status(400).json({
         success: false,
         error: 'Priority calculation failed: ' + calculationError.message,
@@ -67,16 +116,24 @@ router.post('/calculate', async (req, res) => {
     
     // Determine priority level based on score
     const priorityLevel = determinePriorityLevel(priorityResult.priorityScore);
+    const totalFacilities = countFacilities(priorityResult.facilityAnalysis);
+
+    recordMetric({
+      success: !priorityResult.error,
+      durationMs: processingTime,
+      priorityLevel,
+      complaintType,
+      privacyLevel: locationMeta?.privacyLevel,
+    });
     
     // Format comprehensive response with corrected facility mapping
     const response = {
       success: true,
       priorityScore: priorityResult.priorityScore,
       priorityLevel: priorityLevel,
-      reasoning: priorityResult.recommendationReason || 'Priority calculated based on facility analysis',
+      reasoning: priorityResult.recommendationReason || priorityResult.fallbackReason || 'Priority calculated based on facility analysis',
       facilitiesNearby: {
-        total: priorityResult.facilityAnalysis ? 
-          Object.values(priorityResult.facilityAnalysis).reduce((sum, f) => sum + (f.count || 0), 0) : 0,
+        total: totalFacilities,
         breakdown: priorityResult.facilityAnalysis || {},
         topFacilities: priorityResult.criticalFacilities?.slice(0, 5) || [],
         densityBonus: priorityResult.densityBonus || 0,
@@ -94,7 +151,7 @@ router.post('/calculate', async (req, res) => {
         description: locationMeta?.description || 'No description provided'
       },
       scoring: {
-        baseScore: 0, // Will be calculated from facility analysis
+        baseScore: Number(((priorityResult.proximityScore || 0) + (priorityResult.densityBonus || 0)).toFixed(4)),
         facilityMultiplier: priorityResult.facilityMultiplier || 1,
         complaintMultiplier: priorityResult.complaintMultiplier || 1,
         privacyAdjustment: priorityResult.privacyAdjustment || 1,
@@ -105,7 +162,7 @@ router.post('/calculate', async (req, res) => {
         timestamp: new Date().toISOString(),
         version: '2.1.0',
         apiVersion: 'v1',
-        serviceStatus: 'operational'
+        serviceStatus: priorityResult.error ? 'degraded' : 'operational'
       }
     };
     
@@ -113,6 +170,7 @@ router.post('/calculate', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Location priority calculation error:', error);
+    recordMetric({ success: false, durationMs: Date.now() - startTime });
     handleCalculationError(error, res);
   }
 });
@@ -123,7 +181,7 @@ router.post('/calculate', async (req, res) => {
  */
 router.post('/calculate-bulk', async (req, res) => {
   try {
-    const { locations } = req.body;
+    const { locations } = req.body || {};
     
     if (!Array.isArray(locations) || locations.length === 0) {
       return res.status(400).json({
@@ -146,6 +204,19 @@ router.post('/calculate-bulk', async (req, res) => {
     
     for (let i = 0; i < locations.length; i++) {
       const location = locations[i];
+      const locationId = location?.id || `location_${i}`;
+
+      const validation = validateCalculationInput(location);
+      if (!validation.isValid) {
+        results.push({
+          index: i,
+          success: false,
+          error: validation.error,
+          code: validation.code,
+          locationId
+        });
+        continue;
+      }
       
       try {
         const priorityResult = await locationPriorityService.calculateLocationPriority(
@@ -160,14 +231,14 @@ router.post('/calculate-bulk', async (req, res) => {
           success: true,
           priorityScore: priorityResult.priorityScore,
           priorityLevel: determinePriorityLevel(priorityResult.priorityScore),
-          locationId: location.id || `location_${i}`,
+          locationId,
           coordinates: {
             latitude: location.latitude,
             longitude: location.longitude
           }
         });
         
-        // Rate limiting - wait 1 second between requests
+        // Rate limiting - wait 1 second between external API calls
         if (i < locations.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
@@ -177,7 +248,7 @@ router.post('/calculate-bulk', async (req, res) => {
           index: i,
           success: false,
           error: error.message,
-          locationId: location.id || `location_${i}`
+          locationId
         });
       }
     }
@@ -342,6 +413,24 @@ router.get('/health', async (req, res) => {
     );
     
     const testDuration = Date.now() - testStartTime;
+    const facilitiesFound = countFacilities(testResult.facilityAnalysis);
+
+    if (testResult.error) {
+      healthData.status = 'unhealthy';
+      healthData.checks = {
+        googlePlacesApi: {
+          status: 'error',
+          responseTime: `${testDuration}ms`,
+          error: testResult.fallbackReason || testResult.error,
+          lastChecked: new Date().toISOString()
+        },
+        locationService: {
+          status: 'degraded',
+          version: '2.1.0'
+        }
+      };
+      return res.status(503).json(healthData);
+    }
     
     healthData.status = 'healthy';
     healthData.checks = {
@@ -349,7 +438,7 @@ router.get('/health', async (req, res) => {
         status: 'connected',
         responseTime: `${testDuration}ms`,
         lastTestScore: testResult.priorityScore,
-        facilitiesFound: testResult.totalFacilities || 0
+        facilitiesFound
       },
       locationService: {
         status: 'operational',
@@ -388,35 +477,45 @@ router.get('/health', async (req, res) => {
  * GET /api/location-priority/metrics
  */
 router.get('/metrics', (req, res) => {
-  // In production, this would pull from actual metrics storage
+  const { totalRequests, successfulRequests, failedRequests, totalDurationMs, recentDurationsMs, priorityCounts, complaintTypeCounts, privacyLevelCounts } = serviceMetrics;
+  const sorted = [...recentDurationsMs].sort((a, b) => a - b);
+  const avgMs = totalRequests > 0 ? Math.round(totalDurationMs / totalRequests) : 0;
+  const successRate = totalRequests > 0 ? ((successfulRequests / totalRequests) * 100).toFixed(1) : '100.0';
+  const errorRate = totalRequests > 0 ? ((failedRequests / totalRequests) * 100).toFixed(1) : '0.0';
+
+  const topComplaintTypes = Object.entries(complaintTypeCounts)
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  const totalPrivacy = privacyLevelCounts.exact + privacyLevelCounts.street + privacyLevelCounts.area;
+  const pct = (n) => totalPrivacy > 0 ? `${Math.round((n / totalPrivacy) * 100)}%` : '0%';
+
   res.json({
     service: 'Location Priority Metrics',
-    period: '24h',
+    period: 'since_startup',
     metrics: {
-      totalRequests: 0,
-      averageResponseTime: '2.5s',
-      successRate: '98.5%',
-      criticalPriorityCount: 0,
-      highPriorityCount: 0,
-      mediumPriorityCount: 0,
-      lowPriorityCount: 0
+      totalRequests,
+      averageResponseTime: `${avgMs}ms`,
+      successRate: `${successRate}%`,
+      criticalPriorityCount: priorityCounts.CRITICAL,
+      highPriorityCount: priorityCounts.HIGH,
+      mediumPriorityCount: priorityCounts.MEDIUM,
+      lowPriorityCount: priorityCounts.LOW,
+      minimalPriorityCount: priorityCounts.MINIMAL
     },
     performance: {
-      p50ResponseTime: '2.1s',
-      p95ResponseTime: '4.8s',
-      p99ResponseTime: '8.2s',
-      errorRate: '1.5%'
+      p50ResponseTime: `${getPercentile(sorted, 50)}ms`,
+      p95ResponseTime: `${getPercentile(sorted, 95)}ms`,
+      p99ResponseTime: `${getPercentile(sorted, 99)}ms`,
+      errorRate: `${errorRate}%`
     },
     usage: {
-      topComplaintTypes: [
-        { type: 'pothole', count: 0 },
-        { type: 'garbage_dumping', count: 0 },
-        { type: 'fallen_tree', count: 0 }
-      ],
+      topComplaintTypes,
       privacyLevelDistribution: {
-        exact: '15%',
-        street: '70%', 
-        area: '15%'
+        exact: pct(privacyLevelCounts.exact),
+        street: pct(privacyLevelCounts.street),
+        area: pct(privacyLevelCounts.area)
       }
     },
     timestamp: new Date().toISOString()
@@ -429,11 +528,19 @@ router.get('/metrics', (req, res) => {
  * Validate input for location priority calculation
  */
 function validateCalculationInput(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return {
+      isValid: false,
+      error: 'Request payload must be a JSON object',
+      code: 'INVALID_INPUT'
+    };
+  }
+
   console.log('🔍 Validating input:', JSON.stringify(input, null, 2));
   const { latitude, longitude, complaintType, locationMeta } = input;
   
-  // Required fields validation
-  if (!latitude || !longitude) {
+  // Required fields validation (use explicit null/undefined checks so 0 is not treated as missing)
+  if (latitude === undefined || latitude === null || longitude === undefined || longitude === null) {
     console.log('❌ Missing coordinates validation failed');
     return {
       isValid: false,
@@ -442,7 +549,7 @@ function validateCalculationInput(input) {
     };
   }
   
-  if (!complaintType) {
+  if (!complaintType || typeof complaintType !== 'string') {
     console.log('❌ Missing complaint type validation failed');
     return {
       isValid: false,
@@ -452,7 +559,7 @@ function validateCalculationInput(input) {
   }
   
   // Coordinate validation
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+  if (typeof latitude !== 'number' || !Number.isFinite(latitude) || typeof longitude !== 'number' || !Number.isFinite(longitude)) {
     return {
       isValid: false,
       error: 'Coordinates must be numeric values',
@@ -499,7 +606,15 @@ function validateCalculationInput(input) {
   }
   
   // Location metadata validation
-  if (locationMeta) {
+  if (locationMeta !== undefined && locationMeta !== null) {
+    if (typeof locationMeta !== 'object' || Array.isArray(locationMeta)) {
+      return {
+        isValid: false,
+        error: 'locationMeta must be an object',
+        code: 'INVALID_LOCATION_META'
+      };
+    }
+
     const validPrivacyLevels = ['exact', 'street', 'area'];
     if (locationMeta.privacyLevel && !validPrivacyLevels.includes(locationMeta.privacyLevel)) {
       return {
@@ -509,10 +624,11 @@ function validateCalculationInput(input) {
       };
     }
     
-    if (locationMeta.radiusM && (typeof locationMeta.radiusM !== 'number' || locationMeta.radiusM < 0)) {
+    if (locationMeta.radiusM !== undefined && locationMeta.radiusM !== null &&
+        (typeof locationMeta.radiusM !== 'number' || !Number.isFinite(locationMeta.radiusM) || locationMeta.radiusM < 0)) {
       return {
         isValid: false,
-        error: 'Radius must be a positive number',
+        error: 'Radius must be a non-negative number',
         code: 'INVALID_RADIUS'
       };
     }
@@ -604,6 +720,7 @@ function handleCalculationError(error, res) {
  * }
  */
 router.post('/comprehensive', async (req, res) => {
+  const startTime = Date.now();
   try {
     console.log('🧠 Comprehensive priority calculation request:', req.body);
     
@@ -618,10 +735,15 @@ router.post('/comprehensive', async (req, res) => {
       imageUrl,
       votes,
       status
-    } = req.body;
+    } = req.body || {};
     
+    const parsedLat = latitude === undefined || latitude === null || latitude === '' ? NaN : Number(latitude);
+    const parsedLon = longitude === undefined || longitude === null || longitude === '' ? NaN : Number(longitude);
+
     // Input validation for latitude and longitude
-    if (!latitude || !longitude || isNaN(parseFloat(latitude)) || isNaN(parseFloat(longitude))) {
+    if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLon) ||
+        parsedLat < -90 || parsedLat > 90 || parsedLon < -180 || parsedLon > 180) {
+      recordMetric({ success: false, durationMs: Date.now() - startTime });
       return res.status(400).json({
         success: false,
         error: 'Invalid coordinates',
@@ -629,26 +751,48 @@ router.post('/comprehensive', async (req, res) => {
         timestamp: new Date().toISOString()
       });
     }
-    
+
+    const safeComplaintData = (complaintData && typeof complaintData === 'object' && !Array.isArray(complaintData))
+      ? complaintData
+      : {};
+    const effectiveComplaintType = complaintType || safeComplaintData.complaintType;
+    const effectiveLocationMeta = locationMeta || safeComplaintData.locationMeta;
+    const effectiveDescription = description !== undefined ? description : safeComplaintData.description;
+    const effectiveImageUrl = imageUrl !== undefined ? imageUrl : safeComplaintData.imageUrl;
+    const effectiveVotes = votes !== undefined ? votes : (safeComplaintData.votes ?? 0);
+    const effectiveStatus = status || safeComplaintData.status || 'pending';
+
     // Calculate comprehensive priority score
-    const startTime = Date.now();
     const priorityResult = await locationPriorityService.calculateComprehensivePriority(
-      parseFloat(latitude),
-      parseFloat(longitude),
+      parsedLat,
+      parsedLon,
       imageAnalysis || {},
       {
-        ...complaintData,
-        complaintType,
-        locationMeta,
-        description,
-        imageUrl,
-        votes,
-        status
+        ...safeComplaintData,
+        complaintType: effectiveComplaintType,
+        locationMeta: effectiveLocationMeta,
+        description: effectiveDescription,
+        imageUrl: effectiveImageUrl,
+        votes: effectiveVotes,
+        status: effectiveStatus
       }
     );
     const processingTime = Date.now() - startTime;
     
     console.log(`✅ Comprehensive priority calculation completed in ${processingTime}ms`);
+
+    recordMetric({
+      success: !priorityResult.error,
+      durationMs: processingTime,
+      priorityLevel: priorityResult.priorityLevel,
+      complaintType: effectiveComplaintType,
+      privacyLevel: effectiveLocationMeta?.privacyLevel,
+    });
+
+    const createdAtMs = safeComplaintData.created_at ? new Date(safeComplaintData.created_at).getTime() : NaN;
+    const complaintAge = Number.isFinite(createdAtMs)
+      ? Math.max(0, Math.round((Date.now() - createdAtMs) / (1000 * 60 * 60 * 24)))
+      : null;
     
     // Format response
     const response = {
@@ -659,30 +803,29 @@ router.post('/comprehensive', async (req, res) => {
       
       // Breakdown of score components
       breakdown: {
-        infrastructureScore: priorityResult.breakdown.infrastructureScore,
-        imageValidationScore: priorityResult.breakdown.imageValidationScore,
-        emotionScore: priorityResult.breakdown.emotionScore,
-        voteScore: priorityResult.breakdown.voteScore,
-        statusMultiplier: priorityResult.breakdown.statusMultiplier
+        infrastructureScore: priorityResult.breakdown?.infrastructureScore ?? 0,
+        imageValidationScore: priorityResult.breakdown?.imageValidationScore ?? 0,
+        emotionScore: priorityResult.breakdown?.emotionScore ?? 0,
+        voteScore: priorityResult.breakdown?.voteScore ?? 0,
+        statusMultiplier: priorityResult.breakdown?.statusMultiplier ?? 1
       },
       
       // Infrastructure details
       infrastructure: {
-        totalFacilities: priorityResult.totalFacilities,
-        facilityAnalysis: priorityResult.facilityAnalysis
+        totalFacilities: priorityResult.totalFacilities || 0,
+        facilityAnalysis: priorityResult.facilityAnalysis || {}
       },
       
       // Location and image details
       details: {
         coordinates: { 
-          latitude: parseFloat(latitude), 
-          longitude: parseFloat(longitude) 
+          latitude: parsedLat, 
+          longitude: parsedLon 
         },
-        imageConfidence: priorityResult.imageConfidence,
-        complaintAge: complaintData.created_at ? 
-          Math.round((Date.now() - new Date(complaintData.created_at).getTime()) / (1000 * 60 * 60 * 24)) : null,
-        votes: complaintData.votes || 0,
-        status: complaintData.status || 'pending'
+        imageConfidence: priorityResult.imageConfidence ?? 0,
+        complaintAge,
+        votes: effectiveVotes,
+        status: effectiveStatus
       },
       
       metadata: {
@@ -697,6 +840,7 @@ router.post('/comprehensive', async (req, res) => {
     
   } catch (error) {
     console.error('Error in comprehensive priority calculation:', error);
+    recordMetric({ success: false, durationMs: Date.now() - startTime });
     
     // Generic server errors
     res.status(500).json({

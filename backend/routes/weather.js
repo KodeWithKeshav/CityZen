@@ -8,8 +8,28 @@ const weatherService = require('../services/weather_service');
 router.get('/', async (req, res) => {
   try {
     // Optional: allow passing lat/lon via query params
-    const lat = req.query.lat ? parseFloat(req.query.lat) : 13.0827; // Chennai Default
-    const lon = req.query.lon ? parseFloat(req.query.lon) : 80.2707; // Chennai Default
+    let lat = 13.0827; // Chennai Default
+    let lon = 80.2707; // Chennai Default
+
+    if (req.query.lat !== undefined && req.query.lat !== '') {
+      lat = Number(req.query.lat);
+      if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid latitude'
+        });
+      }
+    }
+
+    if (req.query.lon !== undefined && req.query.lon !== '') {
+      lon = Number(req.query.lon);
+      if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid longitude'
+        });
+      }
+    }
 
     const weatherData = await weatherService.getWeather(lat, lon);
     
