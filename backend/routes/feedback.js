@@ -44,7 +44,7 @@ router.post('/submit', async (req, res) => {
     // Check if complaint exists
     const { data: complaint, error: complaintError } = await supabase
       .from('complaints')
-      .select('id, title')
+      .select('id, title, status')
       .eq('id', complaintId.trim())
       .single();
       
@@ -83,10 +83,44 @@ router.post('/submit', async (req, res) => {
         const { error: createTableError } = await supabase.rpc('create_feedback_table', {});
         
         if (createTableError) {
-          console.error('❌ Error creating feedback table:', createTableError);
-          return res.status(500).json({
-            success: false,
-            message: 'Failed to create feedback table'
+          console.warn('⚠️ complaint_feedback table unavailable, falling back to complaint_updates:', createTableError.message);
+          const fallbackPayload = JSON.stringify({
+            type: 'citizen_feedback',
+            rating: parsedRating,
+            feedback_text: feedbackData.feedback_text,
+            improvement_suggestions: feedbackData.improvement_suggestions,
+            submitted_at: feedbackData.submitted_at
+          });
+          const { data: fallbackRow, error: fallbackError } = await supabase
+            .from('complaint_updates')
+            .insert([{
+              complaint_id: feedbackData.complaint_id,
+              updated_by_id: feedbackData.user_id,
+              old_status: complaint.status || null,
+              new_status: complaint.status || null,
+              update_notes: `[FEEDBACK] ${fallbackPayload}`,
+              created_at: feedbackData.created_at
+            }])
+            .select();
+
+          if (fallbackError) {
+            console.error('❌ Error storing fallback feedback in complaint_updates:', fallbackError);
+            return res.status(500).json({
+              success: false,
+              message: 'Failed to submit feedback'
+            });
+          }
+
+          return res.status(201).json({
+            success: true,
+            message: 'Feedback submitted successfully',
+            data: {
+              feedbackId: fallbackRow?.[0]?.id,
+              complaintId: complaintId.trim(),
+              rating: parsedRating,
+              submittedAt: feedbackData.submitted_at,
+              storage: 'complaint_updates_fallback'
+            }
           });
         }
         
@@ -152,13 +186,44 @@ router.get('/stats', async (req, res) => {
       
     if (statsError) {
       if (statsError.code === '42P01' || statsError.code === 'PGRST205') {
+        const { data: fallbackRows } = await supabase
+          .from('complaint_updates')
+          .select('update_notes, created_at')
+          .like('update_notes', '[FEEDBACK] %')
+          .order('created_at', { ascending: false });
+
+        const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        let ratingSum = 0;
+        let totalFeedback = 0;
+        const recentFeedback = [];
+
+        for (const row of fallbackRows || []) {
+          try {
+            const parsed = JSON.parse(row.update_notes.slice('[FEEDBACK] '.length));
+            const r = Number(parsed.rating);
+            if (Number.isFinite(r) && ratingDistribution[r] !== undefined) {
+              totalFeedback += 1;
+              ratingSum += r;
+              ratingDistribution[r] += 1;
+              if (parsed.feedback_text && recentFeedback.length < 10) {
+                recentFeedback.push({
+                  rating: r,
+                  feedback_text: parsed.feedback_text,
+                  improvement_suggestions: parsed.improvement_suggestions || null,
+                  created_at: row.created_at
+                });
+              }
+            }
+          } catch {}
+        }
+
         return res.status(200).json({
           success: true,
           data: {
-            totalFeedback: 0,
-            averageRating: 0,
-            ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
-            recentFeedback: [],
+            totalFeedback,
+            averageRating: totalFeedback > 0 ? Number((ratingSum / totalFeedback).toFixed(2)) : 0,
+            ratingDistribution,
+            recentFeedback,
             tableReady: false
           }
         });

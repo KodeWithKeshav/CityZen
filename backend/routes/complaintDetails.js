@@ -256,7 +256,6 @@ router.post('/vote', async (req, res) => {
           complaint_id: complaintId,
           user_id: userId,
           vote_type: 'upvote',
-          vote_count: 1,
           created_at: new Date().toISOString()
         });
 
@@ -279,7 +278,6 @@ router.post('/vote', async (req, res) => {
       const { error } = await supabase
         .from('complaint_votes')
         .update({
-          vote_count: 1,
           vote_type: 'upvote'
         })
         .eq('id', existingVote.id);
@@ -303,7 +301,6 @@ router.post('/vote', async (req, res) => {
       const { error } = await supabase
         .from('complaint_votes')
         .update({
-          vote_count: 0,
           vote_type: 'downvote'
         })
         .eq('id', existingVote.id);
