@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
-import { HiSearch, HiRefresh, HiFilter, HiDocumentText, HiChevronRight } from 'react-icons/hi'
+import { HiSearch, HiRefresh, HiDocumentText, HiChevronRight } from 'react-icons/hi'
 import { format } from 'date-fns'
 import { getPriorityTier } from '../../utils/priorityUtils'
 
@@ -27,10 +27,12 @@ export default function AdminComplaints() {
     setLoading(true)
     try {
       const res = await makeApiCall(apiClient.complaints.all)
-      const dataArray = res.complaints || res.data || []
-      if (res.success || Array.isArray(dataArray)) {
+      const dataArray = res?.complaints || res?.data
+      if (res?.success && Array.isArray(dataArray)) {
         setComplaints(dataArray)
         setFiltered(dataArray)
+      } else {
+        toast.error(res?.message || res?.error || 'Failed to load municipal complaint roster')
       }
     } catch (err) {
       toast.error('Failed to load municipal complaint roster')
@@ -46,19 +48,29 @@ export default function AdminComplaints() {
   useEffect(() => {
     let list = complaints
     if (statusFilter !== 'all') {
-      list = list.filter(c => c.status === statusFilter || c.status === statusFilter.replace(/_/g, '-'))
+      const normalizedFilter = statusFilter.toLowerCase()
+      const hyphenFilter = normalizedFilter.replace(/_/g, '-')
+      list = list.filter(c => {
+        const st = (c.status || '').toLowerCase()
+        return st === normalizedFilter || st === hyphenFilter
+      })
     }
     if (flaggedOnly) {
-      list = list.filter(c => c.content_flagged)
+      list = list.filter(c => Boolean(c.content_flagged))
     }
     if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter(c =>
-        (c.title || c.complaintTitle || '').toLowerCase().includes(q) ||
-        (c.citizenName || '').toLowerCase().includes(q) ||
-        (c.description || '').toLowerCase().includes(q) ||
-        (c._id || c.id || '').toLowerCase().includes(q)
-      )
+      const q = search.trim().toLowerCase()
+      list = list.filter(c => {
+        const citizen = c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || c.full_name || ''
+        const address = c.location_address || c.location?.address || ''
+        return (
+          (c.title || c.complaintTitle || '').toLowerCase().includes(q) ||
+          citizen.toLowerCase().includes(q) ||
+          (c.description || '').toLowerCase().includes(q) ||
+          address.toLowerCase().includes(q) ||
+          String(c._id || c.id || '').toLowerCase().includes(q)
+        )
+      })
     }
     setFiltered(list)
   }, [search, statusFilter, flaggedOnly, complaints])
@@ -86,10 +98,11 @@ export default function AdminComplaints() {
         <div className="flex items-center gap-3">
           <button
             onClick={fetchComplaints}
-            className="p-2 border border-neutral-300 hover:border-black transition-colors"
+            disabled={loading}
+            className="p-2 border border-neutral-300 hover:border-black transition-colors disabled:opacity-50"
             title="Refresh Roster"
           >
-            <HiRefresh className="w-4 h-4 text-neutral-800" />
+            <HiRefresh className={`w-4 h-4 text-neutral-800 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
@@ -177,7 +190,11 @@ export default function AdminComplaints() {
                   label: (c.status || 'PENDING').toUpperCase(),
                   bg: 'bg-neutral-100 text-neutral-800 border-neutral-300',
                 }
-                const dateStr = c.createdAt ? format(new Date(c.createdAt), 'yyyy-MM-dd') : '—'
+                const rawDate = c.createdAt || c.created_at
+                const parsedDate = rawDate ? new Date(rawDate) : null
+                const dateStr = parsedDate && !Number.isNaN(parsedDate.getTime())
+                  ? format(parsedDate, 'yyyy-MM-dd')
+                  : '—'
 
                 return (
                   <tr
@@ -186,7 +203,7 @@ export default function AdminComplaints() {
                     className="hover:bg-neutral-50 cursor-pointer transition-colors"
                   >
                     <td className="p-3 border-r border-neutral-200 font-bold text-neutral-500 whitespace-nowrap">
-                      #{(c._id || c.id || '').slice(-6).toUpperCase()}
+                      #{String(c._id || c.id || '').slice(-6).toUpperCase()}
                     </td>
                     <td className="p-3 border-r border-neutral-200 max-w-xs">
                       <div className="flex items-center gap-1.5">

@@ -17,16 +17,18 @@ export default function CitizenManagement() {
     setLoading(true)
     try {
       const res = await makeApiCall(apiClient.admin.citizens)
-      const rawArray = res.data?.citizens || res.data || []
-      const dataArray = (Array.isArray(rawArray) ? rawArray : []).map(c => ({
-        ...c,
-        fullName: c.fullName || c.full_name,
-        phoneNumber: c.phoneNumber || c.phone_number,
-        createdAt: c.createdAt || c.created_at,
-      }))
-      if (res.success || Array.isArray(dataArray)) {
+      const rawArray = res?.data?.citizens || res?.data
+      if (res?.success && Array.isArray(rawArray)) {
+        const dataArray = rawArray.map(c => ({
+          ...c,
+          fullName: c.fullName || c.full_name,
+          phoneNumber: c.phoneNumber || c.phone_number,
+          createdAt: c.createdAt || c.created_at,
+        }))
         setCitizens(dataArray)
         setFiltered(dataArray)
+      } else {
+        toast.error(res?.message || res?.error || t('citizenManagement.loadFailed'))
       }
     } catch (err) {
       toast.error(t('citizenManagement.loadFailed'))
@@ -44,14 +46,14 @@ export default function CitizenManagement() {
       setFiltered(citizens)
       return
     }
-    const q = search.toLowerCase()
+    const q = search.trim().toLowerCase()
     setFiltered(
       citizens.filter(
         c =>
           (c.fullName || '').toLowerCase().includes(q) ||
           (c.email || '').toLowerCase().includes(q) ||
-          (c.phoneNumber || '').includes(q) ||
-          (c._id || c.id || '').toLowerCase().includes(q)
+          String(c.phoneNumber || '').toLowerCase().includes(q) ||
+          String(c._id || c.id || '').toLowerCase().includes(q)
       )
     )
   }, [search, citizens])
@@ -78,10 +80,11 @@ export default function CitizenManagement() {
 
         <button
           onClick={fetchCitizens}
-          className="p-2 border border-neutral-300 hover:border-black transition-colors"
+          disabled={loading}
+          className="p-2 border border-neutral-300 hover:border-black transition-colors disabled:opacity-50"
           title={t('citizenManagement.refreshTooltip')}
         >
-          <HiRefresh className="w-4 h-4 text-neutral-800" />
+          <HiRefresh className={`w-4 h-4 text-neutral-800 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
@@ -134,8 +137,9 @@ export default function CitizenManagement() {
             <tbody className="divide-y divide-neutral-200 text-neutral-800">
               {filtered.map(c => {
                 const initial = (c.fullName || 'C').charAt(0).toUpperCase()
-                const dateStr = c.createdAt
-                  ? new Date(c.createdAt).toLocaleDateString('en-IN', {
+                const parsedDate = c.createdAt ? new Date(c.createdAt) : null
+                const dateStr = parsedDate && !Number.isNaN(parsedDate.getTime())
+                  ? parsedDate.toLocaleDateString('en-IN', {
                       day: 'numeric',
                       month: 'short',
                       year: 'numeric',

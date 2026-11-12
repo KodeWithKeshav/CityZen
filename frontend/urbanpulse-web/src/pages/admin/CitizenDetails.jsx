@@ -17,15 +17,21 @@ export default function CitizenDetails() {
   const STATUS_CONFIG = {
     pending: { label: t('status.pending'), bg: 'bg-amber-50 text-amber-900 border-amber-300' },
     in_progress: { label: t('status.inProgress'), bg: 'bg-blue-50 text-blue-900 border-blue-300' },
+    'in-progress': { label: t('status.inProgress'), bg: 'bg-blue-50 text-blue-900 border-blue-300' },
     resolved: { label: t('status.resolved'), bg: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
     rejected: { label: t('status.rejected'), bg: 'bg-rose-50 text-rose-900 border-rose-300' },
   }
 
   useEffect(() => {
-    const fetch = async () => {
+    let cancelled = false
+    const fetchCitizenDetails = async () => {
+      setLoading(true)
+      setCitizen(null)
+      setComplaints([])
       try {
         const res = await makeApiCall(apiClient.admin.citizenById(id))
-        if (res.success && res.data) {
+        if (cancelled) return
+        if (res?.success && res?.data) {
           const rawCitizen = res.data.citizen || res.data
           setCitizen({
             ...rawCitizen,
@@ -39,14 +45,17 @@ export default function CitizenDetails() {
               createdAt: c.createdAt || c.created_at,
             }))
           )
+        } else {
+          toast.error(res?.message || res?.error || t('citizenDetails.loadFailed'))
         }
       } catch (err) {
-        toast.error(t('citizenDetails.loadFailed'))
+        if (!cancelled) toast.error(t('citizenDetails.loadFailed'))
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
-    fetch()
+    fetchCitizenDetails()
+    return () => { cancelled = true }
   }, [id])
 
   if (loading) {
@@ -79,8 +88,9 @@ export default function CitizenDetails() {
   }
 
   const initial = (citizen.fullName || 'C').charAt(0).toUpperCase()
-  const dateStr = citizen.createdAt
-    ? format(new Date(citizen.createdAt), 'yyyy-MM-dd HH:mm')
+  const parsedEnrolled = citizen.createdAt ? new Date(citizen.createdAt) : null
+  const dateStr = parsedEnrolled && !Number.isNaN(parsedEnrolled.getTime())
+    ? format(parsedEnrolled, 'yyyy-MM-dd HH:mm')
     : t('citizenDetails.undated')
 
   return (
@@ -160,7 +170,10 @@ export default function CitizenDetails() {
                 label: (c.status || t('status.pending')).toUpperCase(),
                 bg: 'bg-neutral-100 text-neutral-800 border-neutral-300',
               }
-              const timeStr = c.createdAt ? format(new Date(c.createdAt), 'yyyy-MM-dd') : '—'
+              const parsedTime = c.createdAt ? new Date(c.createdAt) : null
+              const timeStr = parsedTime && !Number.isNaN(parsedTime.getTime())
+                ? format(parsedTime, 'yyyy-MM-dd')
+                : '—'
 
               return (
                 <div
@@ -171,7 +184,7 @@ export default function CitizenDetails() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-neutral-400 text-[10px]">
-                        #{(c._id || c.id || '').slice(-6).toUpperCase()}
+                        #{String(c._id || c.id || '').slice(-6).toUpperCase()}
                       </span>
                       <span className={`px-2 py-0.5 border text-[9px] uppercase tracking-wider ${statusInfo.bg}`}>
                         {statusInfo.label}

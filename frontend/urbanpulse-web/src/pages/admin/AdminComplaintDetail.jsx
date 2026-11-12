@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { makeApiCall, apiClient } from '../../services/api'
+import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
 import { HiArrowLeft, HiSave, HiExclamationCircle, HiShieldCheck, HiLocationMarker, HiSparkles } from 'react-icons/hi'
 import { format } from 'date-fns'
@@ -13,6 +14,7 @@ const STATUSES = ['pending', 'in_progress', 'resolved', 'rejected']
 const STATUS_CONFIG = {
   pending: { label: 'PENDING', bg: 'bg-amber-50 text-amber-900 border-amber-300' },
   in_progress: { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-900 border-blue-300' },
+  'in-progress': { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-900 border-blue-300' },
   resolved: { label: 'RESOLVED', bg: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
   rejected: { label: 'REJECTED', bg: 'bg-rose-50 text-rose-900 border-rose-300' },
 }
@@ -20,18 +22,24 @@ const STATUS_CONFIG = {
 export default function AdminComplaintDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [complaint, setComplaint] = useState(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
-  const [status, setStatus] = useState('')
+  const [status, setStatus] = useState('pending')
   const [adminNote, setAdminNote] = useState('')
   const [showAiExplainModal, setShowAiExplainModal] = useState(false)
 
   useEffect(() => {
-    const fetch = async () => {
+    let cancelled = false
+    const fetchComplaint = async () => {
+      setLoading(true)
+      setComplaint(null)
       try {
         const res = await makeApiCall(apiClient.admin.complaintById(id))
-        if (res.success && res.data) {
+        if (cancelled) return
+        if (res?.success && res?.data) {
+          const rawStatus = (res.data.status || 'pending').toLowerCase().replace(/-/g, '_')
           const mapped = {
             ...res.data,
             createdAt: res.data.createdAt || res.data.created_at,
@@ -43,32 +51,49 @@ export default function AdminComplaintDetail() {
               res.data.user_name ||
               res.data.full_name ||
               'Verified Citizen',
-            priorityScore: res.data.priorityScore || res.data.priority_score,
+            priorityScore: res.data.priorityScore ?? res.data.priority_score,
             imageUrl: res.data.imageUrl || (Array.isArray(res.data.image_urls) ? res.data.image_urls[0] : undefined),
           }
           setComplaint(mapped)
-          setStatus(mapped.status || 'pending')
+          setStatus(STATUSES.includes(rawStatus) ? rawStatus : 'pending')
           setAdminNote(mapped.adminNote || mapped.resolution_notes || '')
+        } else {
+          toast.error(res?.message || res?.error || 'Failed to load incident dispatch dossier')
         }
       } catch (err) {
-        toast.error('Failed to load incident dispatch dossier')
+        if (!cancelled) {
+          toast.error(err.message || 'Failed to load incident dispatch dossier')
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
-    fetch()
+    fetchComplaint()
+    return () => { cancelled = true }
   }, [id])
 
   const handleUpdate = async () => {
+    if (!status) {
+      toast.error('Please select a status')
+      return
+    }
     setUpdating(true)
     try {
       const res = await makeApiCall(apiClient.complaints.updateStatus(id), {
         method: 'PUT',
-        body: JSON.stringify({ status, notes: adminNote }),
+        body: JSON.stringify({ status, notes: adminNote, adminId: user?.id }),
       })
-      if (res.success) {
+      if (res?.success) {
         toast.success('Incident status and notes updated in municipal ledger')
-        setComplaint(prev => ({ ...prev, status, adminNote, resolution_notes: adminNote }))
+        setComplaint(prev => ({
+          ...prev,
+          ...(res.data || {}),
+          status,
+          adminNote,
+          resolution_notes: adminNote,
+        }))
+      } else {
+        toast.error(res?.error || res?.message || 'Ledger update failed')
       }
     } catch (err) {
       toast.error(err.message || 'Ledger update failed')
@@ -106,10 +131,24 @@ export default function AdminComplaintDetail() {
     )
   }
 
-  const currentStatusInfo = STATUS_CONFIG[complaint.status] || {
+  const statusKey = (complaint.status || 'pending').toLowerCase()
+  const currentStatusInfo = STATUS_CONFIG[statusKey] || {
     label: (complaint.status || 'PENDING').toUpperCase(),
     bg: 'bg-neutral-100 text-neutral-800 border-neutral-300'
   }
+  const pTier = getPriorityTier(complaint)
+  const parsedCreatedAt = complaint.createdAt ? new Date(complaint.createdAt) : null
+  const createdAtStr = parsedCreatedAt && !Number.isNaN(parsedCreatedAt.getTime())
+    ? format(parsedCreatedAt, 'yyyy-MM-dd HH:mm')
+    : '—'
+  const gpsLat = complaint.location_latitude ?? complaint.location?.latitude ?? complaint.location?.lat
+  const gpsLng = complaint.location_longitude ?? complaint.location?.longitude ?? complaint.location?.lng
+  const authScoreNum = Number(complaint.text_authenticity_score)
+  const hasAuthenticityScore =
+    complaint.text_authenticity_score !== null &&
+    complaint.text_authenticity_score !== undefined &&
+    complaint.text_authenticity_score !== '' &&
+    !Number.isNaN(authScoreNum)
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
@@ -152,35 +191,34 @@ export default function AdminComplaintDetail() {
           </div>
           <div className="p-4">
             <span className="text-neutral-500 uppercase text-[10px] block mb-1">PRIORITY SCORE</span>
-            {(() => {
-              const pTier = getPriorityTier(complaint)
-              return (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-neutral-900 text-sm">
-                    {pTier.displayScore !== '—' ? `${pTier.displayScore} / 100` : 'N/A'}
-                  </span>
-                  {pTier.score !== null && (
-                    <span className={`px-1.5 py-0.5 text-[9px] uppercase tracking-wider font-semibold ${pTier.badgeClass}`}>
-                      {pTier.label}
-                    </span>
-                  )}
-                </div>
-              )
-            })()}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-neutral-900 text-sm">
+                {pTier.displayScore !== '—' ? `${pTier.displayScore} / 100` : 'N/A'}
+              </span>
+              {pTier.score !== null && (
+                <span className={`px-1.5 py-0.5 text-[9px] uppercase tracking-wider font-semibold ${pTier.badgeClass}`}>
+                  {pTier.label}
+                </span>
+              )}
+            </div>
           </div>
           <div className="p-4 border-t border-neutral-200">
             <span className="text-neutral-500 uppercase text-[10px] block mb-1">RECORDED TIMESTAMP</span>
             <span className="font-bold text-neutral-900">
-              {complaint.createdAt ? format(new Date(complaint.createdAt), 'yyyy-MM-dd HH:mm') : '—'}
+              {createdAtStr}
             </span>
           </div>
           <div className="p-4 border-t border-neutral-200">
             <span className="text-neutral-500 uppercase text-[10px] block mb-1">SEVERITY TIER</span>
-            <span className="font-bold text-neutral-900 uppercase">{complaint.priority || 'MEDIUM'}</span>
+            <span className="font-bold text-neutral-900 uppercase">
+              {complaint.priority || (pTier.score !== null ? pTier.level : 'MEDIUM')}
+            </span>
           </div>
           <div className="p-4 border-t border-neutral-200">
             <span className="text-neutral-500 uppercase text-[10px] block mb-1">CITIZEN CONCURRENCES</span>
-            <span className="font-bold text-neutral-900">{complaint.upvotes || complaint.votes || 0} VOTES</span>
+            <span className="font-bold text-neutral-900">
+              {complaint.vote_count ?? complaint.upvotes ?? complaint.votes ?? 0} VOTES
+            </span>
           </div>
         </div>
 
@@ -195,7 +233,7 @@ export default function AdminComplaintDetail() {
             </div>
           </div>
 
-          {(complaint.location_address || complaint.location) && (
+          {(complaint.location_address || complaint.location || (gpsLat != null && gpsLng != null)) && (
             <div className="border border-neutral-200 p-4 bg-neutral-50 flex items-start gap-3">
               <HiLocationMarker className="w-5 h-5 text-neutral-700 flex-shrink-0 mt-0.5" />
               <div className="font-mono text-xs">
@@ -203,12 +241,11 @@ export default function AdminComplaintDetail() {
                   GEOGRAPHIC COORDINATE REFERENCE
                 </span>
                 <span className="font-bold text-neutral-900">
-                  {complaint.location_address || complaint.location?.address}
+                  {complaint.location_address || complaint.location?.address || 'Coordinates Logged'}
                 </span>
-                {(complaint.location_latitude || complaint.location?.latitude) && (
+                {gpsLat != null && gpsLng != null && (
                   <span className="text-neutral-500 block mt-1">
-                    GPS: {complaint.location_latitude || complaint.location?.latitude},{' '}
-                    {complaint.location_longitude || complaint.location?.longitude}
+                    GPS: {gpsLat}, {gpsLng}
                   </span>
                 )}
               </div>
@@ -278,7 +315,7 @@ export default function AdminComplaintDetail() {
       )}
 
       {/* Authenticity Check (rule-based + multilingual model blend) */}
-      {typeof complaint.text_authenticity_score === 'number' && (
+      {hasAuthenticityScore && (
         <div className={`border bg-white p-6 space-y-3 ${complaint.content_flagged ? 'border-rose-300' : 'border-neutral-200'}`}>
           <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
             <div className="flex items-center gap-2 font-serif font-bold text-sm uppercase text-neutral-900">
@@ -294,7 +331,9 @@ export default function AdminComplaintDetail() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 font-mono text-xs">
             <div className="border border-neutral-200 p-3 bg-neutral-50">
               <span className="text-[10px] text-neutral-500 uppercase block">Authenticity Score</span>
-              <span className="font-bold text-neutral-900">{(complaint.text_authenticity_score * 100).toFixed(0)} / 100</span>
+              <span className="font-bold text-neutral-900">
+                {(authScoreNum <= 1 ? authScoreNum * 100 : authScoreNum).toFixed(0)} / 100
+              </span>
             </div>
             <div className="border border-neutral-200 p-3 bg-neutral-50">
               <span className="text-[10px] text-neutral-500 uppercase block">Verification Status</span>
@@ -388,7 +427,7 @@ export default function AdminComplaintDetail() {
         onClose={() => setShowAiExplainModal(false)}
         imageUrl={complaint.imageUrl}
         title={complaint.title || complaint.complaintTitle}
-        category={complaint.category}
+        category={complaint.category || complaint.issueType}
       />
     </div>
   )
