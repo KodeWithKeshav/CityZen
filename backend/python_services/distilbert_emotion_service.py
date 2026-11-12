@@ -15,34 +15,55 @@ import sys
 # Load environment variables from ../.env
 env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.env')
 if os.path.exists(env_path):
-    with open(env_path, 'r') as f:
+    with open(env_path, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                key, val = line.split('=', 1)
-                if key not in os.environ:
-                    os.environ[key.strip()] = val.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            key, val = line.split('=', 1)
+            key = key.strip()
+            if key.startswith('export '):
+                key = key[7:].strip()
+            val = val.strip()
+            if len(val) >= 2 and val[0] == val[-1] and val[0] in ('"', "'"):
+                val = val[1:-1]
+            if key and key not in os.environ:
+                os.environ[key] = val
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from huggingface_hub import InferenceClient
 
 app = Flask(__name__)
-CORS(app)
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3001,http://127.0.0.1:3001",
+    ).split(",")
+    if origin.strip()
+]
+CORS(app, origins=cors_origins)
 
 # ---------------------------------------------------------------------------
 # HF Inference Client setup
 # ---------------------------------------------------------------------------
 MODEL_NAME = "distilbert/distilbert-base-uncased-finetuned-sst-2-english"
-HF_TOKEN = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_API_KEY", "")
+MAX_TEXT_LENGTH = 5000
+HF_TOKEN = (
+    os.environ.get("HF_TOKEN")
+    or os.environ.get("HUGGING_FACE_API_KEY")
+    or os.environ.get("HUGGINGFACE_API_TOKEN")
+    or ""
+).strip()
 
-if not HF_TOKEN:
-    print("[ERROR] No HF token found. Set HF_TOKEN or HUGGING_FACE_API_KEY env var.")
-    sys.exit(1)
-
-print(f"[INIT] Initializing InferenceClient for: {MODEL_NAME}")
-client = InferenceClient(provider="auto", api_key=HF_TOKEN)
-print("[OK] InferenceClient ready!")
+client = None
+if HF_TOKEN:
+    print(f"[INIT] Initializing InferenceClient for: {MODEL_NAME}")
+    client = InferenceClient(provider="auto", api_key=HF_TOKEN)
+    print("[OK] InferenceClient ready!")
+else:
+    print("[WARN] No HF token found. Set HF_TOKEN, HUGGING_FACE_API_KEY, or HUGGINGFACE_API_TOKEN.")
 
 # ---------------------------------------------------------------------------
 # Routes
@@ -50,6 +71,12 @@ print("[OK] InferenceClient ready!")
 
 @app.route("/health", methods=["GET"])
 def health():
+    if client is None:
+        return jsonify({
+            "status": "unconfigured",
+            "model": MODEL_NAME,
+            "error": "Hugging Face token is not configured",
+        }), 503
     return jsonify({
         "status": "ok",
         "model": MODEL_NAME,
@@ -63,11 +90,21 @@ def predict():
     Accepts: { "text": "some complaint text" }
     Returns: [[ { "label": "NEGATIVE", "score": 0.987 }, { "label": "POSITIVE", "score": 0.013 } ]]
     """
-    data = request.get_json(force=True)
-    text = data.get("text") or data.get("inputs", "")
+    if client is None:
+        return jsonify({"error": "Service is not configured"}), 503
 
-    if not text or not text.strip():
-        return jsonify({"error": "text is required"}), 400
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid JSON payload; expected an object"}), 400
+
+    raw_text = data.get("text")
+    if raw_text is None:
+        raw_text = data.get("inputs", "")
+
+    if not isinstance(raw_text, str) or not raw_text.strip():
+        return jsonify({"error": "text must be a non-empty string"}), 400
+
+    text = raw_text.strip()[:MAX_TEXT_LENGTH]
 
     try:
         result = client.text_classification(
@@ -75,32 +112,55 @@ def predict():
             model=MODEL_NAME,
         )
 
-        # result is a list of ClassificationOutput objects
+        # result is a list of ClassificationOutput objects (or dicts)
         # Convert to the nested-array format the Node.js code expects
         results = []
-        for item in result:
+        for item in result or []:
+            label = item.get("label") if isinstance(item, dict) else getattr(item, "label", None)
+            score = item.get("score") if isinstance(item, dict) else getattr(item, "score", None)
+            if label is None or score is None:
+                continue
             results.append({
-                "label": item.label,
-                "score": round(item.score, 6),
+                "label": str(label),
+                "score": round(float(score), 6),
             })
+
+        if not results:
+            print("[ERROR] Empty classification response from InferenceClient")
+            return jsonify({"error": "Upstream model returned no predictions"}), 502
 
         # Sort by score descending
         results.sort(key=lambda x: x["score"], reverse=True)
 
-        print(f"[PREDICT] Prediction for '{text[:60]}': {results[0]['label']} ({results[0]['score']:.4f})")
+        print(f"[PREDICT] Prediction for {len(text)}-char input: {results[0]['label']} ({results[0]['score']:.4f})")
 
         # Return in nested array format to match HF Inference API
         return jsonify([results])
 
     except Exception as e:
-        print(f"[ERROR] Prediction error: {e}")
-        return jsonify({"error": str(e)}), 500
+        print(f"[ERROR] Prediction error: {type(e).__name__}: {e}")
+        return jsonify({"error": "Emotion prediction failed"}), 500
+
+
+def _parse_port(raw_port, default=5001):
+    try:
+        port = int(raw_port)
+        if 1 <= port <= 65535:
+            return port
+    except (TypeError, ValueError):
+        pass
+    print(f"[WARN] Invalid DISTILBERT_PORT '{raw_port}', falling back to {default}")
+    return default
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("DISTILBERT_PORT", 5001))
-    print(f"🚀 DistilBERT service starting on port {port}")
-    app.run(host="0.0.0.0", port=port, debug=False)
+    if client is None:
+        print("[ERROR] Cannot start service without HF_TOKEN, HUGGING_FACE_API_KEY, or HUGGINGFACE_API_TOKEN.")
+        sys.exit(1)
+    host = os.environ.get("DISTILBERT_HOST", "127.0.0.1")
+    port = _parse_port(os.environ.get("DISTILBERT_PORT", 5001))
+    print(f"DistilBERT service starting on {host}:{port}")
+    app.run(host=host, port=port, debug=False)

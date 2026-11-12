@@ -28,12 +28,13 @@ describe('Welcome Component', () => {
 
   it('renders standard hero headings', () => {
     renderComponent();
-    expect(screen.getByText(/Your Voice./i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'CITYZEN' })).toBeInTheDocument();
+    expect(screen.getByText('Institutional Portal')).toBeInTheDocument();
   });
 
   it('navigates to login when Sign In buttons are clicked', () => {
     renderComponent();
-    const loginButtons = screen.getAllByRole('button', { name: /Sign In|Admin Portal/i });
+    const loginButtons = screen.getAllByRole('button', { name: /Sign In|Admin Access/i });
     
     expect(loginButtons.length).toBeGreaterThan(0);
     fireEvent.click(loginButtons[0]);
@@ -43,7 +44,7 @@ describe('Welcome Component', () => {
 
   it('navigates to citizen signup when Get Started buttons are clicked', () => {
     renderComponent();
-    const signupButtons = screen.getAllByRole('button', { name: /Get Started|Report an Issue/i });
+    const signupButtons = screen.getAllByRole('button', { name: /Get Started|Citizen Portal/i });
     
     expect(signupButtons.length).toBeGreaterThan(0);
     fireEvent.click(signupButtons[0]);
@@ -53,15 +54,15 @@ describe('Welcome Component', () => {
 
   it('renders features section', () => {
     renderComponent();
-    expect(screen.getByText('AI-Powered Validation')).toBeInTheDocument();
-    expect(screen.getByText('Multilingual Support')).toBeInTheDocument();
-    expect(screen.getByText('Community Voting')).toBeInTheDocument();
+    expect(screen.getByText('AI-POWERED VALIDATION')).toBeInTheDocument();
+    expect(screen.getByText('MULTILINGUAL SUPPORT')).toBeInTheDocument();
+    expect(screen.getByText('COMMUNITY VOTING')).toBeInTheDocument();
   });
 
   it('renders stats', () => {
     renderComponent();
-    expect(screen.getByText('Languages supported')).toBeInTheDocument();
-    expect(screen.getByText('AI services integrated')).toBeInTheDocument();
-    expect(screen.getByText('Resolution workflow')).toBeInTheDocument();
+    expect(screen.getByText('LANGUAGES')).toBeInTheDocument();
+    expect(screen.getByText('AI SERVICES')).toBeInTheDocument();
+    expect(screen.getByText('WORKFLOW')).toBeInTheDocument();
   });
 });

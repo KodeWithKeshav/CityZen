@@ -45,14 +45,14 @@ describe('Login Component', () => {
 
   it('renders login form correctly', () => {
     renderWithRouter(<Login />);
-    expect(screen.getByText('Sign In')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('you@example.com')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /authenticate session/i })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter your credentials')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('••••••••••••')).toBeInTheDocument();
   });
 
   it('shows error if fields are empty on submit', async () => {
     renderWithRouter(<Login />);
-    const submitButton = screen.getByRole('button', { name: /login/i });
+    const submitButton = screen.getByRole('button', { name: /authenticate session/i });
     
     fireEvent.click(submitButton);
     
@@ -70,10 +70,10 @@ describe('Login Component', () => {
       data: { token: 'fake-token', user: { fullName: 'John Doe', userType: 'citizen' } }
     });
 
-    await user.type(screen.getByPlaceholderText('you@example.com'), 'test@example.com');
-    await user.type(screen.getByPlaceholderText('••••••••'), 'password123');
+    await user.type(screen.getByPlaceholderText('Enter your credentials'), 'test@example.com');
+    await user.type(screen.getByPlaceholderText('••••••••••••'), 'password123');
     
-    await user.click(screen.getByRole('button', { name: /login/i }));
+    await user.click(screen.getByRole('button', { name: /authenticate session/i }));
 
     await waitFor(() => {
       expect(api.makeApiCall).toHaveBeenCalledWith('/api/auth/login', {
