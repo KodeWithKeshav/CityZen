@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../context/AuthContext'
 import { makeApiCall, apiClient } from '../../services/api'
+import LanguageSwitcher from '../../components/LanguageSwitcher'
 import toast from 'react-hot-toast'
 import { HiMail, HiLockClosed, HiEye, HiEyeOff, HiArrowRight } from 'react-icons/hi'
 
@@ -13,27 +14,38 @@ export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const [showPw, setShowPw] = useState(false)
+  const [maintainSession, setMaintainSession] = useState(true)
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
+  const handleChange = (e) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.email || !form.password) { toast.error(t('login.fillFields')); return }
+    const email = form.email.trim()
+    if (!email || !form.password) { toast.error(t('login.fillFields')); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error(t('login.invalidEmail', { defaultValue: 'Please enter a valid email address' }))
+      return
+    }
     setLoading(true)
     try {
       const res = await makeApiCall(apiClient.auth.login, {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({ email, password: form.password }),
       })
-      if (res.success) {
-        login(res.data.token, res.data.user)
-        toast.success(t('login.welcomeBack', { name: res.data.user.fullName || '' }))
-        
-        if (res.data.user.userType === 'admin') {
+      const token = res?.data?.token ?? res?.token
+      const user = res?.data?.user ?? res?.user
+      if (res?.success && token && user) {
+        login(token, user)
+        toast.success(t('login.welcomeBack', { name: user.fullName || user.full_name || user.name || '' }))
+
+        const userType = user.userType || user.user_type || user.role
+        if (userType === 'admin') {
           navigate('/admin/dashboard', { replace: true })
         } else {
           navigate('/citizen/feed', { replace: true })
         }
+      } else {
+        toast.error(res?.message || t('login.loginFailed'))
       }
     } catch (err) {
       toast.error(err.message || t('login.loginFailed'))
@@ -80,7 +92,7 @@ export default function Login() {
       </div>
 
       {/* ─── Right: Login Form ─── */}
-      <div className="flex-1 flex items-center justify-center p-8 lg:p-16">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-16">
         <div className="w-full max-w-md fade-in">
           {/* Mobile brand */}
           <div className="lg:hidden mb-8">
@@ -92,22 +104,26 @@ export default function Login() {
           </div>
 
           {/* Tab toggle */}
-          <div className="flex border-b border-black/10 mb-8">
-            <div className="px-4 py-3 text-sm font-semibold text-on-surface border-b-2 border-black">
-              {t('login.tabLogin')}
+          <div className="flex items-center justify-between border-b border-black/10 mb-8">
+            <div className="flex">
+              <div className="px-4 py-3 text-sm font-semibold text-on-surface border-b-2 border-black">
+                {t('login.tabLogin')}
+              </div>
+              <Link to="/citizen/signup" className="px-4 py-3 text-sm text-primary-400 hover:text-on-surface transition-colors">
+                {t('login.tabRegister')}
+              </Link>
             </div>
-            <Link to="/citizen/signup" className="px-4 py-3 text-sm text-primary-400 hover:text-on-surface transition-colors">
-              {t('login.tabRegister')}
-            </Link>
+            <LanguageSwitcher />
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="text-label-sm text-on-surface-variant block mb-2">
+              <label htmlFor="login-email" className="text-label-sm text-on-surface-variant block mb-2">
                 <HiMail className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />
                 {t('login.emailLabel')}
               </label>
               <input
+                id="login-email"
                 name="email"
                 type="email"
                 value={form.email}
@@ -119,12 +135,13 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="text-label-sm text-on-surface-variant block mb-2">
+              <label htmlFor="login-password" className="text-label-sm text-on-surface-variant block mb-2">
                 <HiLockClosed className="inline w-3.5 h-3.5 mr-1.5 -mt-0.5" />
                 {t('login.passwordLabel')}
               </label>
               <div className="relative">
                 <input
+                  id="login-password"
                   name="password"
                   type={showPw ? 'text' : 'password'}
                   value={form.password}
@@ -133,7 +150,12 @@ export default function Login() {
                   className="input pr-12"
                   autoComplete="current-password"
                 />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-4 top-1/2 -translate-y-1/2 text-primary-400 hover:text-on-surface">
+                <button
+                  type="button"
+                  onClick={() => setShowPw((prev) => !prev)}
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-primary-400 hover:text-on-surface"
+                >
                   {showPw ? <HiEyeOff className="w-5 h-5" /> : <HiEye className="w-5 h-5" />}
                 </button>
               </div>
@@ -141,10 +163,19 @@ export default function Login() {
 
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 border border-black/20 bg-white accent-black" />
+                <input
+                  type="checkbox"
+                  checked={maintainSession}
+                  onChange={(e) => setMaintainSession(e.target.checked)}
+                  className="w-4 h-4 border border-black/20 bg-white accent-black"
+                />
                 {t('login.maintainSession')}
               </label>
-              <button type="button" className="text-label-sm text-on-surface underline underline-offset-2">
+              <button
+                type="button"
+                onClick={() => toast(t('login.recoverKeyInfo', { defaultValue: 'Please contact your system administrator to reset your access key.' }))}
+                className="text-label-sm text-on-surface underline underline-offset-2"
+              >
                 {t('login.recoverKey')}
               </button>
             </div>
