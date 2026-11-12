@@ -7,13 +7,23 @@ describe('API Service', () => {
     global.fetch = vi.fn();
   });
 
+  // makeApiCall() sniffs the response's content-type header before parsing
+  // the body (src/services/api.js), so every mocked fetch response below
+  // needs a `headers.get()` - a mock missing it throws a TypeError, which
+  // makeApiCall's own catch block then reports as a generic connectivity
+  // error, masking the real failure. Older versions of these tests predated
+  // that content-type check and omitted `headers` entirely.
+  const jsonResponse = (body, { ok = true, status = 200 } = {}) => ({
+    ok,
+    status,
+    headers: { get: () => 'application/json' },
+    json: async () => body,
+  });
+
   describe('makeApiCall', () => {
     it('makes standard fetch request', async () => {
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, data: { foo: 'bar' } })
-      });
-      
+      global.fetch.mockResolvedValueOnce(jsonResponse({ success: true, data: { foo: 'bar' } }));
+
       const res = await makeApiCall('http://localhost:3001/test');
       expect(global.fetch).toHaveBeenCalledWith('http://localhost:3001/test', {
         headers: { 'Content-Type': 'application/json' }
@@ -23,10 +33,7 @@ describe('API Service', () => {
 
     it('adds authorization header if token exists', async () => {
       authStorage.save('fake-token', { id: 1 });
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true })
-      });
+      global.fetch.mockResolvedValueOnce(jsonResponse({ success: true }));
 
       await makeApiCall('http://localhost:3001/protected');
       expect(global.fetch).toHaveBeenCalledWith('http://localhost:3001/protected', {
@@ -38,13 +45,24 @@ describe('API Service', () => {
     });
 
     it('throws error on non-ok response', async () => {
-      global.fetch.mockResolvedValueOnce({
-        ok: false,
-        status: 400,
-        json: async () => ({ message: 'Bad Request' })
-      });
+      global.fetch.mockResolvedValueOnce(jsonResponse({ message: 'Bad Request' }, { ok: false, status: 400 }));
 
       await expect(makeApiCall('http://localhost:3001/error')).rejects.toThrow('Bad Request');
+    });
+
+    it('falls back to a plain-text body when the response is not JSON (boundary case)', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        headers: { get: () => 'text/plain' },
+        text: async () => 'Bad Gateway',
+      });
+      await expect(makeApiCall('http://localhost:3001/down')).rejects.toThrow('Bad Gateway');
+    });
+
+    it('reports a connectivity error (not a raw TypeError) when fetch itself fails (boundary/error case)', async () => {
+      global.fetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+      await expect(makeApiCall('http://localhost:3001/unreachable')).rejects.toThrow(/unable to reach the server/i);
     });
   });
 

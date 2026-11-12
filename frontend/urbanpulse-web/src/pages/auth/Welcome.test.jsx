@@ -28,7 +28,10 @@ describe('Welcome Component', () => {
 
   it('renders standard hero headings', () => {
     renderComponent();
-    expect(screen.getByText(/Your Voice./i)).toBeInTheDocument();
+    // The hero <h1> is the brand mark ("CITYZEN"); it appears both in the
+    // navbar and the hero section, so assert there are at least two.
+    expect(screen.getAllByText('CITYZEN').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Institutional Portal')).toBeInTheDocument();
   });
 
   it('navigates to login when Sign In buttons are clicked', () => {
@@ -53,15 +56,22 @@ describe('Welcome Component', () => {
 
   it('renders features section', () => {
     renderComponent();
-    expect(screen.getByText('AI-Powered Validation')).toBeInTheDocument();
-    expect(screen.getByText('Multilingual Support')).toBeInTheDocument();
-    expect(screen.getByText('Community Voting')).toBeInTheDocument();
+    expect(screen.getByText('AI-POWERED VALIDATION')).toBeInTheDocument();
+    expect(screen.getByText('MULTILINGUAL SUPPORT')).toBeInTheDocument();
+    expect(screen.getByText('COMMUNITY VOTING')).toBeInTheDocument();
+    expect(screen.getByText('LOCATION PRIORITY')).toBeInTheDocument();
+    expect(screen.getByText('TRANSPARENCY METRICS')).toBeInTheDocument();
+    expect(screen.getByText('HEAT MAP INTELLIGENCE')).toBeInTheDocument();
   });
 
   it('renders stats', () => {
     renderComponent();
-    expect(screen.getByText('Languages supported')).toBeInTheDocument();
-    expect(screen.getByText('AI services integrated')).toBeInTheDocument();
-    expect(screen.getByText('Resolution workflow')).toBeInTheDocument();
+    expect(screen.getByText('LANGUAGES')).toBeInTheDocument();
+    expect(screen.getByText('AI SERVICES')).toBeInTheDocument();
+    expect(screen.getByText('WORKFLOW')).toBeInTheDocument();
+    expect(screen.getByText('OPEN SOURCE')).toBeInTheDocument();
+    // The stat values themselves (6 languages, 5 AI services, etc.)
+    expect(screen.getByText('6')).toBeInTheDocument();
+    expect(screen.getByText('3-STAGE')).toBeInTheDocument();
   });
 });
