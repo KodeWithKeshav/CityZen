@@ -2,14 +2,15 @@ import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
-import { Bar, Doughnut } from 'react-chartjs-2'
+import { Bar } from 'react-chartjs-2'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement,
-  Title, Tooltip, Legend, ArcElement
+  Title, Tooltip, Legend
 } from 'chart.js'
 import { getCategoryLabel } from '../../utils/priorityUtils'
+import StatusDoughnutChart from '../../components/StatusDoughnutChart'
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 export default function Transparency() {
   const { t } = useTranslation(['citizen', 'admin', 'complaint'])
@@ -126,7 +127,7 @@ export default function Transparency() {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Status Breakdown */}
-        <div className="border border-neutral-200 bg-white p-4 sm:p-6">
+        <div className="border border-neutral-200 bg-white p-4 sm:p-6 flex flex-col">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
             <span className="font-bold uppercase tracking-wider text-neutral-900">
               {t('transparency.statusDistribution')}
@@ -134,22 +135,7 @@ export default function Transparency() {
             <span className="text-neutral-500">{t('transparency.proportionalAudit')}</span>
           </div>
           {total > 0 ? (
-            <div className="max-w-xs mx-auto p-2 sm:p-4">
-              <Doughnut
-                data={doughnutData}
-                options={{
-                  plugins: {
-                    legend: {
-                      position: 'bottom',
-                      labels: {
-                        font: { family: 'monospace', size: 10 },
-                        boxWidth: 12,
-                      }
-                    }
-                  }
-                }}
-              />
-            </div>
+            <StatusDoughnutChart data={doughnutData} maxChartWidth="max-w-[260px]" />
           ) : (
             <p className="text-neutral-400 font-mono text-xs text-center py-12">
               {t('transparency.noIncidentData')}

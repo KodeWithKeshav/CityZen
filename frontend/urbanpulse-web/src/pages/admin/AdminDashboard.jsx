@@ -4,17 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
-import { Doughnut } from 'react-chartjs-2'
-import {
-  Chart as ChartJS, CategoryScale, LinearScale, BarElement,
-  Title, Tooltip, Legend, ArcElement
-} from 'chart.js'
 import { HiRefresh, HiArrowRight } from 'react-icons/hi'
 import { formatLocalizedDateTime } from '../../utils/dateLocale'
 import { getPriorityTier } from '../../utils/priorityUtils'
 import { useTranslatedList, useTranslatedText } from '../../context/TranslationContext'
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
+import StatusDoughnutChart from '../../components/StatusDoughnutChart'
 
 export default function AdminDashboard() {
   const { t, i18n } = useTranslation(['admin', 'common'])
@@ -224,7 +218,7 @@ export default function AdminDashboard() {
           {/* Middle Operational Section: Distribution & Recent Incidents */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Status Donut */}
-            <div className="border border-neutral-200 bg-white p-4 sm:p-6 font-mono">
+            <div className="border border-neutral-200 bg-white p-4 sm:p-6 font-mono flex flex-col">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3 mb-4 text-xs">
                 <span className="font-bold uppercase tracking-wider text-neutral-900">
                   {t('dashboard.statusAllocation')}
@@ -232,22 +226,7 @@ export default function AdminDashboard() {
                 <span className="text-neutral-500">{t('dashboard.liveCohort')}</span>
               </div>
               {complaints.total > 0 ? (
-                <div className="max-w-[220px] mx-auto py-2">
-                  <Doughnut
-                    data={doughnutData}
-                    options={{
-                      plugins: {
-                        legend: {
-                          position: 'bottom',
-                          labels: {
-                            font: { family: 'monospace', size: 9 },
-                            boxWidth: 10,
-                          }
-                        }
-                      }
-                    }}
-                  />
-                </div>
+                <StatusDoughnutChart data={doughnutData} maxChartWidth="max-w-[230px]" />
               ) : (
                 <p className="text-neutral-400 text-xs text-center py-10">
                   {t('dashboard.noActiveTelemetry')}
