@@ -25,12 +25,12 @@ function buildBoundingBox(lat, lng, radiusMeters) {
 // Get nearby complaints (registered BEFORE /:id so "nearby" is not captured as an ID)
 router.get('/nearby', async (req, res) => {
   try {
-    const { latitude, longitude, distance = 5000, limit = 20 } = req.query;
+    const { latitude, lat: latParam, longitude, lng: lngParam, distance, radius, limit = 20 } = req.query;
     const userId = req.user?.id || null;
 
-    const lat = parseCoord(latitude);
-    const lng = parseCoord(longitude);
-    const parsedDistance = parseFloat(distance);
+    const lat = parseCoord(latitude ?? latParam);
+    const lng = parseCoord(longitude ?? lngParam);
+    const parsedDistance = parseFloat(distance ?? radius ?? 5000);
     const parsedLimit = parseInt(limit, 10);
     const radiusMeters = Number.isFinite(parsedDistance) && parsedDistance > 0 ? parsedDistance : 5000;
     const maxResults = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(100, parsedLimit) : 20;
@@ -344,35 +344,12 @@ router.get('/:id/progress', async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Get complaint with progress stages and timeline
+    // Fetch core complaint without relying on optional FK relations that may not exist in schema
     const { data: complaint, error: complaintError } = await supabase
       .from('complaints')
       .select(`
         *,
-        users:user_id (id, full_name),
-        complaint_stages (
-          id,
-          stage_number,
-          stage_name,
-          stage_description,
-          stage_status,
-          assigned_officer_id,
-          assigned_contractor_id,
-          estimated_completion_date,
-          actual_completion_date,
-          created_at,
-          updated_at,
-          officers (name, department, contact_phone),
-          contractors (name, company_name, contact_phone)
-        ),
-        complaint_timeline (
-          id,
-          action_type,
-          action_description,
-          performed_by,
-          created_at,
-          metadata
-        )
+        users:user_id (id, full_name)
       `)
       .eq('id', id)
       .maybeSingle();
@@ -403,8 +380,54 @@ router.get('/:id/progress', async (req, res) => {
       return d.toLocaleDateString('en-US', opts);
     };
 
+    // Fetch optional stages/timeline if those tables exist; fall back to complaint_workflow + complaint_updates
+    const [stagesRes, timelineRes, workflowRes, updatesRes] = await Promise.all([
+      supabase.from('complaint_stages').select('*').eq('complaint_id', id).order('stage_number', { ascending: true }),
+      supabase.from('complaint_timeline').select('*').eq('complaint_id', id).order('created_at', { ascending: false }),
+      supabase.from('complaint_workflow').select('*').eq('complaint_id', id).maybeSingle(),
+      supabase.from('complaint_updates').select('*').eq('complaint_id', id).order('created_at', { ascending: false })
+    ]);
+
+    let rawStages = !stagesRes.error && Array.isArray(stagesRes.data) ? stagesRes.data : [];
+    if (rawStages.length === 0 && !workflowRes.error && workflowRes.data) {
+      const wf = workflowRes.data;
+      rawStages = [
+        {
+          id: `${wf.id || id}-stage-1`,
+          stage_number: 1,
+          stage_name: 'Inspection & Assessment',
+          stage_description: wf.step_1_notes || 'Initial inspection and priority verification',
+          stage_status: wf.step_1_status || 'pending',
+          assigned_officer_id: wf.step_1_officer_id || null,
+          created_at: wf.step_1_timestamp || wf.created_at,
+          actual_completion_date: wf.step_1_status === 'completed' ? wf.step_1_timestamp : null
+        },
+        {
+          id: `${wf.id || id}-stage-2`,
+          stage_number: 2,
+          stage_name: 'Department Approval & Estimation',
+          stage_description: wf.step_2_notes || 'Resource allocation and cost estimation',
+          stage_status: wf.step_2_status || 'pending',
+          assigned_officer_id: wf.step_2_officer_id || null,
+          created_at: wf.step_2_timestamp || wf.created_at,
+          actual_completion_date: wf.step_2_status === 'completed' ? wf.step_2_timestamp : null
+        },
+        {
+          id: `${wf.id || id}-stage-3`,
+          stage_number: 3,
+          stage_name: 'Field Execution & Resolution',
+          stage_description: wf.step_3_notes || 'On-site remediation and completion verification',
+          stage_status: wf.step_3_status || 'pending',
+          assigned_contractor_id: wf.step_3_contractor_id || null,
+          estimated_completion_date: wf.step_3_start_date || null,
+          actual_completion_date: wf.step_3_completion_date || null,
+          created_at: wf.step_3_timestamp || wf.created_at
+        }
+      ];
+    }
+
     // Sort stages by stage_number before determining active/next stage
-    const stages = (complaint.complaint_stages || [])
+    const stages = rawStages
       .map(stage => ({
         ...stage,
         formatted_created_date: formatDate(stage.created_at),
@@ -425,7 +448,19 @@ router.get('/:id/progress', async (req, res) => {
     }
 
     // Format and sort timeline by date (newest first)
-    const timeline = (complaint.complaint_timeline || [])
+    const rawTimeline = (!timelineRes.error && Array.isArray(timelineRes.data) && timelineRes.data.length > 0)
+      ? timelineRes.data
+      : (!updatesRes.error && Array.isArray(updatesRes.data)
+          ? updatesRes.data.map(u => ({
+              id: u.id,
+              action_type: u.new_status ? `status_${u.new_status}` : 'status_update',
+              action_description: u.update_notes || (u.new_status ? `Status updated to ${u.new_status}` : 'Complaint updated'),
+              performed_by: u.updated_by_id || null,
+              created_at: u.created_at
+            }))
+          : []);
+
+    const timeline = rawTimeline
       .map(entry => ({
         ...entry,
         formatted_date: formatDate(entry.created_at, true)

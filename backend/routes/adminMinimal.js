@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { geometryColumnsAvailable, GEOMETRY_PLACEHOLDER, languageColumnAvailable } = require('../services/schemaAvailability');
+const { geometryColumnsAvailable, GEOMETRY_PLACEHOLDER, languageColumnAvailable, contentFlagColumnsAvailable } = require('../services/schemaAvailability');
 const { authenticateUser, authorizeUserType } = require('../middleware/auth');
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -104,10 +104,16 @@ router.get('/complaints/priority-queue', async (req, res) => {
     // (database/add_language_column_to_complaints.sql).
     const geometryReady = await geometryColumnsAvailable(supabase);
     const languageReady = await languageColumnAvailable(supabase);
-    const baseColumns = 'id, title, description, category, status, priority_score, location_address, created_at, user_id, verification_status, image_urls, vote_count, content_flagged, content_flag_reason';
+    const contentFlagReady = await contentFlagColumnsAvailable(supabase);
+    const baseColumns = 'id, title, description, category, status, priority_score, location_address, created_at, user_id, verification_status, image_urls, vote_count';
     const geometryColumns = 'estimated_width_cm, estimated_length_cm, estimated_area_cm2, estimated_depth_cm, geometry_confidence, geometry_status';
 
-    const selectColumns = [baseColumns, geometryReady ? geometryColumns : null, languageReady ? 'language' : null]
+    const selectColumns = [
+      baseColumns,
+      contentFlagReady ? 'content_flagged, content_flag_reason' : null,
+      geometryReady ? geometryColumns : null,
+      languageReady ? 'language' : null,
+    ]
       .filter(Boolean)
       .join(', ');
 
@@ -141,7 +147,22 @@ router.get('/complaints/priority-queue', async (req, res) => {
     }
 
     if (flagged === 'true') {
-      complaintsQuery = complaintsQuery.eq('content_flagged', true);
+      if (contentFlagReady) {
+        complaintsQuery = complaintsQuery.eq('content_flagged', true);
+      } else {
+        return res.json({
+          success: true,
+          data: {
+            complaints: [],
+            pagination: {
+              total: 0,
+              page: pageNum,
+              limit: limitNum || 0,
+              totalPages: 0
+            }
+          }
+        });
+      }
     }
 
     if (typeof priority === 'string' && priority.trim()) {
@@ -195,6 +216,9 @@ router.get('/complaints/priority-queue', async (req, res) => {
     // fields just come back null (renders as "no estimate" in the admin
     // UI, same as a complaint geometry estimation hasn't finished for)
     // until the migration is applied.
+    if (!contentFlagReady && complaints) {
+      complaints = complaints.map(c => ({ ...c, content_flagged: false, content_flag_reason: null }));
+    }
     if (!geometryReady && complaints) {
       complaints = complaints.map(c => ({ ...c, ...GEOMETRY_PLACEHOLDER }));
     }

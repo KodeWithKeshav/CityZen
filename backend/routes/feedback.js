@@ -77,7 +77,7 @@ router.post('/submit', async (req, res) => {
       console.error('❌ Error inserting feedback:', insertError);
       
       // If table doesn't exist, create it
-      if (insertError.code === '42P01') {
+      if (insertError.code === '42P01' || insertError.code === 'PGRST205') {
         console.log('📋 Creating complaint_feedback table...');
         
         const { error: createTableError } = await supabase.rpc('create_feedback_table', {});
@@ -151,6 +151,18 @@ router.get('/stats', async (req, res) => {
       .select('rating, created_at');
       
     if (statsError) {
+      if (statsError.code === '42P01' || statsError.code === 'PGRST205') {
+        return res.status(200).json({
+          success: true,
+          data: {
+            totalFeedback: 0,
+            averageRating: 0,
+            ratingDistribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+            recentFeedback: [],
+            tableReady: false
+          }
+        });
+      }
       console.error('❌ Error getting feedback stats:', statsError);
       return res.status(500).json({
         success: false,

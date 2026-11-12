@@ -17,6 +17,7 @@ const caches = {
   geometry: { available: null, checkedAt: 0 },
   deviceId: { available: null, checkedAt: 0 },
   language: { available: null, checkedAt: 0 },
+  contentFlag: { available: null, checkedAt: 0 },
 };
 
 async function probeColumnAvailable(supabase, table, column, cacheKey) {
@@ -84,4 +85,14 @@ async function languageColumnAvailable(supabase) {
   return probeColumnAvailable(supabase, 'complaints', 'language', 'language');
 }
 
-module.exports = { geometryColumnsAvailable, GEOMETRY_PLACEHOLDER, deviceIdColumnAvailable, languageColumnAvailable };
+async function contentFlagColumnsAvailable(supabase) {
+  return probeColumnAvailable(supabase, 'complaints', 'content_flagged', 'contentFlag');
+}
+
+module.exports = {
+  geometryColumnsAvailable,
+  GEOMETRY_PLACEHOLDER,
+  deviceIdColumnAvailable,
+  languageColumnAvailable,
+  contentFlagColumnsAvailable,
+};
