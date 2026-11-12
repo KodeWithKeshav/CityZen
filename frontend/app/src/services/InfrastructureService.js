@@ -4,7 +4,7 @@
  */
 class InfrastructureService {
   constructor() {
-    this.apiKey = process.env.EXPO_PUBLIC_GOOGLE_MOBILE_API_KEY || 'AIzaSyBqn-8BPXpdcIAnjaEN9iwNC47epZP6Q6w';
+    this.apiKey = process.env.EXPO_PUBLIC_GOOGLE_MOBILE_API_KEY || null;
     console.log('🏗️ InfrastructureService initialized, API key:', this.apiKey ? 'SET' : 'NOT SET');
   }
 

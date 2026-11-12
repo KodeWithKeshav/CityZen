@@ -115,15 +115,15 @@ const WeatherWidget = () => {
 
         <View style={styles.currentDetailsRow}>
           <View style={styles.detailItem}>
-            <MaterialCommunityIcons name="thermometer-lines" size={18} color="#rgba(255,255,255,0.8)" />
+            <MaterialCommunityIcons name="thermometer-lines" size={18} color="rgba(255,255,255,0.8)" />
             <Text style={styles.detailText}>Feels {Math.round(current.feelsLike)}°</Text>
           </View>
           <View style={styles.detailItem}>
-            <Ionicons name="water-outline" size={18} color="#rgba(255,255,255,0.8)" />
+            <Ionicons name="water-outline" size={18} color="rgba(255,255,255,0.8)" />
             <Text style={styles.detailText}>{current.humidity}%</Text>
           </View>
           <View style={styles.detailItem}>
-            <Ionicons name="speedometer-outline" size={18} color="#rgba(255,255,255,0.8)" />
+            <Ionicons name="speedometer-outline" size={18} color="rgba(255,255,255,0.8)" />
             <Text style={styles.detailText}>{Math.round(current.windSpeed)} km/h</Text>
           </View>
         </View>

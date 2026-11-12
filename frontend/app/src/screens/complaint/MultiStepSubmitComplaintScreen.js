@@ -81,8 +81,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   const [nearbyInfrastructure, setNearbyInfrastructure] = useState(null);
   const [isLoadingInfrastructure, setIsLoadingInfrastructure] = useState(false);
 
-  // Refs for speech service
-  // const descriptionInputRef = useRef(null); // Not needed with custom component
+  // Refs for speech service and debounced description analysis
+  const descriptionDebounceRef = useRef(null);
 
   // Language options for voice input
   const languageOptions = [
@@ -172,9 +172,14 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   const handleDescriptionChange = useCallback((text) => {
     setComplaintData(prev => ({ ...prev, description: text }));
 
+    if (descriptionDebounceRef.current) {
+      clearTimeout(descriptionDebounceRef.current);
+      descriptionDebounceRef.current = null;
+    }
+
     // Debounced content analysis (emotion + authenticity)
     if (text.trim().length > 10) {
-      setTimeout(() => {
+      descriptionDebounceRef.current = setTimeout(() => {
         analyzeDescriptionContent(text);
       }, 1000); // 1 second delay to avoid too many API calls
     } else {
@@ -371,10 +376,11 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     });
 
     return () => {
-      // Clean up speech service on component unmount
-      if (isRecording) {
-        speechService.stopSpeech();
+      if (descriptionDebounceRef.current) {
+        clearTimeout(descriptionDebounceRef.current);
       }
+      // Clean up speech service on component unmount
+      speechService.stopSpeech().catch(() => {});
     };
   }, []);
 
@@ -436,20 +442,20 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   const renderContent = () => {
     switch (currentStep) {
       case 1:
-        return <Step1IssueAndLocation />;
+        return renderStep1IssueAndLocation();
       case 2:
-        return <Step2PhotoUpload />;
+        return renderStep2PhotoUpload();
       case 3:
-        return <Step3Details />;
+        return renderStep3Details();
       case 4:
-        return <Step4Success />;
+        return renderStep4Success();
       default:
-        return <Step1IssueAndLocation />;
+        return renderStep1IssueAndLocation();
     }
   };
 
   // Step 1: Issue Type Selection and Location Capture
-  const Step1IssueAndLocation = () => {
+  const renderStep1IssueAndLocation = () => {
     const handleCategorySelect = async (category) => {
       setComplaintData(prev => {
         const categoryChanged = !!prev.category && prev.category !== category;
@@ -590,7 +596,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               {nearbyInfrastructure.places.slice(0, 3).map((place, index) => (
                 <View key={index} style={styles.infrastructureItem}>
                   <Text style={styles.infrastructureName}>
-                    {place.name} ({place.types[0].replace('_', ' ')})
+                    {place.name} ({(place.types?.[0] || 'facility').replace('_', ' ')})
                   </Text>
                   <Text style={styles.infrastructureDistance}>
                     {place.distance}m away
@@ -635,7 +641,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   };
 
   // Step 2: Photo Upload and AI Validation Against the Selected Category
-  const Step2PhotoUpload = () => {
+  const renderStep2PhotoUpload = () => {
     const pickImage = async () => {
       try {
         // Request permissions
@@ -731,6 +737,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           method: 'POST',
           body: data,
         });
+        if (!cloudRes.ok) {
+          throw new Error(`Cloudinary upload failed (${cloudRes.status})`);
+        }
         const cloudResult = await cloudRes.json();
 
         if (!cloudResult.secure_url) throw new Error('Cloudinary upload failed');
@@ -755,6 +764,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imageUrl: cloudResult.secure_url, category: complaintData.category }),
         });
+        if (!validateRes.ok) {
+          throw new Error(`Image validation failed (${validateRes.status})`);
+        }
         const result = await validateRes.json();
 
         console.log('📋 Validation result:', result);
@@ -949,7 +961,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   };
 
   // Step 3: Details (title, description, emotion + authenticity analysis) and final submission
-  const Step3Details = () => {
+  const renderStep3Details = () => {
     const startVoiceInput = async () => {
       setVoiceError(null);
 
@@ -1044,7 +1056,12 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             body: JSON.stringify(submissionData),
             signal: controller.signal,
           });
-          result = await response.json();
+          const rawText = await response.text();
+          try {
+            result = rawText ? JSON.parse(rawText) : {};
+          } catch (parseError) {
+            result = { success: false, message: rawText || `HTTP ${response.status}` };
+          }
         } finally {
           clearTimeout(timeoutId);
         }
@@ -1482,7 +1499,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
   };
 
   // Step 4: Success Screen
-  const Step4Success = () => {
+  const renderStep4Success = () => {
     if (!submissionResult) {
       return (
         <View style={styles.stepContainer}>
@@ -1544,8 +1561,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                     title: submissionResult.complaint.title,
                     category: submissionResult.complaint.category,
                     status: submissionResult.complaint.status || 'pending',
-                    latitude: complaintData.locationData.latitude,
-                    longitude: complaintData.locationData.longitude,
+                    latitude: complaintData.locationData?.latitude,
+                    longitude: complaintData.locationData?.longitude,
                   },
                 })
               }
@@ -1569,9 +1586,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         description: complaintData.description,
         category: complaintData.category,
         status: submissionResult.complaint.status || 'pending',
-        latitude: complaintData.locationData.latitude,
-        longitude: complaintData.locationData.longitude,
-        location: complaintData.locationData.description || complaintData.locationData.address,
+        latitude: complaintData.locationData?.latitude,
+        longitude: complaintData.locationData?.longitude,
+        location: complaintData.locationData?.description || complaintData.locationData?.address,
         created_at: new Date().toISOString()
       };
 
@@ -1639,7 +1656,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Location Accuracy:</Text>
             <Text style={styles.detailValue}>
-              ±{complaintData.locationData.radiusM}m ({complaintData.locationData.precision})
+              ±{complaintData.locationData?.radiusM ?? 0}m ({complaintData.locationData?.precision || 'street'})
             </Text>
           </View>
 
@@ -1754,7 +1771,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                             <View key={`high-${index}`} style={styles.infrastructureModalItem}>
                               <View style={styles.infrastructureItemHeader}>
                                 <Text style={styles.infrastructureItemType}>
-                                  {infra.infrastructureType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                  {(infra.infrastructureType || 'facility').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                                 </Text>
                                 <Text style={styles.infrastructureItemDistance}>{infra.distance}m away</Text>
                               </View>
@@ -1792,7 +1809,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                             <View key={`medium-${index}`} style={styles.infrastructureModalItem}>
                               <View style={styles.infrastructureItemHeader}>
                                 <Text style={styles.infrastructureItemType}>
-                                  {infra.infrastructureType.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                  {(infra.infrastructureType || 'facility').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
                                 </Text>
                                 <Text style={styles.infrastructureItemDistance}>{infra.distance}m away</Text>
                               </View>

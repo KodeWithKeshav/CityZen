@@ -27,7 +27,7 @@ import MapView, { Marker, Circle } from 'react-native-maps';
 const { width, height } = Dimensions.get('window');
 
 const ComplaintDetailScreen = ({ route, navigation }) => {
-  const { complaintId } = route.params;
+  const { complaintId } = route.params || {};
   const [complaint, setComplaint] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updatingVote, setUpdatingVote] = useState(false);
@@ -157,6 +157,10 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
   };
 
   const fetchComplaintDetails = async () => {
+    if (!complaintId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const response = await makeApiCall(
@@ -168,6 +172,9 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
         const submitterUser = response.complaint.users || response.complaint.user || {
           full_name: response.complaint.user_name || response.complaint.citizenName || 'Verified Citizen'
         };
+        const timeAgo = response.complaint.created_at
+          ? getTimeAgo(new Date(response.complaint.created_at))
+          : '';
 
         setComplaint({
           ...response.complaint,
@@ -204,8 +211,8 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
     try {
       // Prepare the request data for comprehensive priority calculation
       const requestData = {
-        latitude: complaint.latitude,
-        longitude: complaint.longitude,
+        latitude: complaint.location_latitude ?? complaint.latitude,
+        longitude: complaint.location_longitude ?? complaint.longitude,
         complaintType: complaint.category || 'pothole',
         locationMeta: {
           privacyLevel: 'exact',
@@ -573,7 +580,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
             <Text style={styles.title}>{complaint.title}</Text>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(complaint.status) }]}>
               <Text style={styles.statusText}>
-                {complaint.status?.charAt(0).toUpperCase() + complaint.status?.slice(1).replace('_', ' ')}
+                {((complaint.status || 'pending').charAt(0).toUpperCase() + (complaint.status || 'pending').slice(1)).replace('_', ' ')}
               </Text>
             </View>
           </View>
@@ -702,13 +709,13 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
             <Text style={styles.sectionTitle}>Location</Text>
             <Text style={styles.locationAddress}>{complaint.location_address}</Text>
             
-            {complaint.location_latitude && complaint.location_longitude && (
+            {Number.isFinite(Number(complaint.location_latitude)) && Number.isFinite(Number(complaint.location_longitude)) && (
               <View style={styles.mapContainer}>
                 <MapView
                   style={styles.map}
                   initialRegion={{
-                    latitude: complaint.location_latitude,
-                    longitude: complaint.location_longitude,
+                    latitude: Number(complaint.location_latitude),
+                    longitude: Number(complaint.location_longitude),
                     latitudeDelta: 0.01,
                     longitudeDelta: 0.01,
                   }}
@@ -719,8 +726,8 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                 >
                   <Marker
                     coordinate={{
-                      latitude: complaint.location_latitude,
-                      longitude: complaint.location_longitude,
+                      latitude: Number(complaint.location_latitude),
+                      longitude: Number(complaint.location_longitude),
                     }}
                     title={complaint.title}
                   >
@@ -734,8 +741,8 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                   
                   <Circle
                     center={{
-                      latitude: complaint.location_latitude,
-                      longitude: complaint.location_longitude,
+                      latitude: Number(complaint.location_latitude),
+                      longitude: Number(complaint.location_longitude),
                     }}
                     radius={150}
                     fillColor="rgba(52, 152, 219, 0.2)"
@@ -848,7 +855,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                   backgroundColor: getPriorityColor(complaint.priority_score)
                 }]}>
                   <Text style={styles.priorityScore}>
-                    {complaint.priority_score?.toFixed(2) || 'N/A'}
+                    {Number.isFinite(Number(complaint.priority_score)) ? Number(complaint.priority_score).toFixed(2) : 'N/A'}
                   </Text>
                 </View>
               </View>
@@ -858,7 +865,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                   backgroundColor: getPriorityColor(complaint.location_sensitivity_score)
                 }]}>
                   <Text style={styles.priorityScore}>
-                    {complaint.location_sensitivity_score?.toFixed(2) || 'N/A'}
+                    {Number.isFinite(Number(complaint.location_sensitivity_score)) ? Number(complaint.location_sensitivity_score).toFixed(2) : 'N/A'}
                   </Text>
                 </View>
               </View>
@@ -868,7 +875,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                   backgroundColor: getPriorityColor(complaint.ai_confidence_score)
                 }]}>
                   <Text style={styles.priorityScore}>
-                    {complaint.ai_confidence_score?.toFixed(2) || 'N/A'}
+                    {Number.isFinite(Number(complaint.ai_confidence_score)) ? Number(complaint.ai_confidence_score).toFixed(2) : 'N/A'}
                   </Text>
                 </View>
               </View>
@@ -1038,7 +1045,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                         backgroundColor: getStatusColor(similar.status)
                       }]}>
                         <Text style={styles.similarStatusText}>
-                          {similar.status?.charAt(0).toUpperCase() + similar.status?.slice(1)}
+                          {(similar.status || 'pending').charAt(0).toUpperCase() + (similar.status || 'pending').slice(1)}
                         </Text>
                       </View>
                       <Text style={styles.similarDistance}>{similar.distance}m</Text>

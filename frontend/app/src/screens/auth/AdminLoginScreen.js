@@ -30,7 +30,8 @@ const AdminLoginScreen = ({ navigation }) => {
   };
 
   const handleLogin = async () => {
-    if (!formData.email || !formData.password) {
+    const trimmedEmail = formData.email.trim();
+    if (!trimmedEmail || !formData.password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -39,7 +40,7 @@ const AdminLoginScreen = ({ navigation }) => {
     try {
       const response = await makeApiCall(apiClient.auth.login, {
         method: 'POST',
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, email: trimmedEmail }),
       });
 
       if (response.success) {

@@ -30,7 +30,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [searchTimeout, setSearchTimeout] = useState(null);
+  const searchTimeoutRef = useRef(null);
   const [region, setRegion] = useState({
     latitude: 10.9837,
     longitude: 76.9266,
@@ -174,7 +174,11 @@ const ComplaintMapScreen = ({ navigation, route }) => {
               'User-Agent': 'CityZen App 1.0'
             }
           });
-          
+
+          if (!geocodeResponse.ok) {
+            throw new Error(`Geocoding failed with status ${geocodeResponse.status}`);
+          }
+
           const geocodeData = await geocodeResponse.json();
           console.log('🗺️ Geocoding response:', geocodeData.length, 'results');
           
@@ -235,10 +239,13 @@ const ComplaintMapScreen = ({ navigation, route }) => {
         );
 
         matchingComplaints.slice(0, 3).forEach(complaint => {
+          const lat = parseFloat(complaint.location_latitude);
+          const lng = parseFloat(complaint.location_longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
           results.push({
             id: `complaint_${complaint.id}`,
-            latitude: parseFloat(complaint.location_latitude),
-            longitude: parseFloat(complaint.location_longitude),
+            latitude: lat,
+            longitude: lng,
             title: complaint.title,
             subtitle: `${complaint.category} • Complaint`,
             complaint: complaint,
@@ -365,6 +372,9 @@ const ComplaintMapScreen = ({ navigation, route }) => {
     try {
       console.log('🔄 Fetching complaints from:', `${API_BASE_URL}/api/complaints/all`);
       const response = await fetch(`${API_BASE_URL}/api/complaints/all`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
       
       if (data.success && data.complaints) {
@@ -391,8 +401,8 @@ const ComplaintMapScreen = ({ navigation, route }) => {
     
     // Cleanup function
     return () => {
-      if (searchTimeout) {
-        clearTimeout(searchTimeout);
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
       }
       if (regionChangeTimeoutRef.current) {
         clearTimeout(regionChangeTimeoutRef.current);
@@ -695,7 +705,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
                         </View>
                         <View style={styles.clusterInfo}>
                           <Text style={styles.clusterTitle}>{complaint.title}</Text>
-                          <Text style={styles.clusterStatus}>{complaint.status.replace('_', ' ')}</Text>
+                          <Text style={styles.clusterStatus}>{(complaint.status || 'pending').replace('_', ' ')}</Text>
                           <Text style={styles.clusterCategory}>{complaint.category}</Text>
                         </View>
                       </TouchableOpacity>
@@ -707,7 +717,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
                 <>
                   <View style={styles.statusSection}>
                     <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedComplaint.status) }]}>
-                      <Text style={styles.statusText}>{selectedComplaint.status.toUpperCase()}</Text>
+                      <Text style={styles.statusText}>{(selectedComplaint.status || 'pending').toUpperCase()}</Text>
                     </View>
                   </View>
 
@@ -795,8 +805,8 @@ const ComplaintMapScreen = ({ navigation, route }) => {
               setSearchQuery(text);
               
               // Clear previous timeout
-              if (searchTimeout) {
-                clearTimeout(searchTimeout);
+              if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
               }
               
               if (text.trim().length === 0) {
@@ -804,11 +814,10 @@ const ComplaintMapScreen = ({ navigation, route }) => {
                 setShowSearchResults(false);
               } else if (text.trim().length >= 2) {
                 // Debounced search - search after 500ms of no typing
-                const newTimeout = setTimeout(() => {
+                searchTimeoutRef.current = setTimeout(() => {
                   console.log('⏱️ Auto-searching after typing pause:', text);
                   searchLocation(text);
                 }, 500);
-                setSearchTimeout(newTimeout);
               }
             }}
             onSubmitEditing={handleSearch}

@@ -29,6 +29,11 @@ import LocationService from '../../services/LocationService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ComplaintProgressModal from '../../components/ComplaintProgressModal';
 
+import NewsCarousel from '../../components/NewsCarousel';
+import NewsCard from '../../components/NewsCard';
+import NewsService from '../../services/NewsService';
+import WeatherWidget from '../../components/WeatherWidget';
+
 /**
  * Get guest vote status from local storage
  */
@@ -45,10 +50,6 @@ const getGuestVoteStatus = async (complaintId) => {
     return false;
   }
 };
-import NewsCarousel from '../../components/NewsCarousel';
-import NewsCard from '../../components/NewsCard';
-import NewsService from '../../services/NewsService';
-import WeatherWidget from '../../components/WeatherWidget';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width;
@@ -155,16 +156,19 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
 
       if (locationData) {
         console.log(' User location:', locationData);
-        setUserLocation({
+        const coords = {
           latitude: locationData.latitude,
           longitude: locationData.longitude,
-        });
+        };
+        setUserLocation(coords);
+        return coords;
       } else {
         Alert.alert(
           "Location Error",
           "We couldn't determine your current location. Please check your device settings and try again.",
           [{ text: "OK" }]
         );
+        return null;
       }
     } catch (error) {
       console.error(' Error getting location:', error);
@@ -214,14 +218,15 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     }
   }, [complaints]);
 
-  const fetchNearbyComplaints = async () => {
-    if (!userLocation) return;
+  const fetchNearbyComplaints = async (locationOverride = null) => {
+    const targetLocation = locationOverride || userLocation;
+    if (!targetLocation) return;
     
     setLoading(true);
     try {
       // Call the backend API to get complaints within 3km (changed from 5km)
       const response = await makeApiCall(
-        `${apiClient.baseUrl}/api/complaints?latitude=${userLocation.latitude}&longitude=${userLocation.longitude}&radius=3000`,
+        `${apiClient.baseUrl}/api/complaints?latitude=${targetLocation.latitude}&longitude=${targetLocation.longitude}&radius=3000`,
         { method: 'GET' }
       );
       
@@ -398,9 +403,9 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchUserLocation();
-    if (userLocation) {
-      await fetchNearbyComplaints();
+    const freshLocation = await fetchUserLocation();
+    if (freshLocation) {
+      await fetchNearbyComplaints(freshLocation);
     } else {
       setRefreshing(false);
     }
@@ -413,23 +418,6 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     try {
       setNewsLoading(true);
       console.log(' Starting to fetch location-based news...');
-      
-      // DEBUG: Test NewsAPI directly before using NewsService
-      console.log(' DEBUG: Testing NewsAPI directly...');
-      const directTestUrl = 'https://newsapi.org/v2/top-headlines?country=in&pageSize=3&apiKey=a7c4dd34b48e43ef843e3a9e9743b0b0';
-      try {
-        const directResponse = await fetch(directTestUrl);
-        const directData = await directResponse.json();
-        console.log(' Direct API test result:', directData.status, 'Articles:', directData.articles?.length || 0);
-        if (directData.articles && directData.articles.length > 0) {
-          console.log(' Direct API first headline:', directData.articles[0].title);
-        }
-        if (directData.status === 'error') {
-          console.log(' Direct API error:', directData.message, directData.code);
-        }
-      } catch (directError) {
-        console.log(' Direct API test failed:', directError.message);
-      }
       
       // Clear cache to force fresh API call
       NewsService.clearCache();
@@ -523,11 +511,6 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     setFeedData(combined);
     console.log(' Feed data updated with', combined.length, 'items');
   }, [complaints, allNews]);
-
-  // Fetch news on component mount
-  useEffect(() => {
-    fetchNews();
-  }, []);
 
   const handleUpvote = async (complaintId, index) => {
     // Find the complaint in the state
@@ -1003,6 +986,9 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     }
 
     // Like button animation
+    if (!likeAnimations.current[item.id]) {
+      likeAnimations.current[item.id] = new Animated.Value(0);
+    }
     const likeScale = likeAnimations.current[item.id].interpolate({
       inputRange: [0, 0.5, 1],
       outputRange: [1, 1.3, 1],
@@ -1063,7 +1049,9 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
               style={styles.modernStatusBadge}
             >
               <Text style={styles.modernStatusText}>
-                {item.status?.charAt(0).toUpperCase() + item.status?.slice(1).replace('_', ' ')}
+                {item.status
+                  ? item.status.charAt(0).toUpperCase() + item.status.slice(1).replace('_', ' ')
+                  : 'Pending'}
               </Text>
             </LinearGradient>
             <TouchableOpacity 
@@ -1286,7 +1274,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
                     {console.log('️ No top news to display')}
                     <View style={{ padding: 10, backgroundColor: '#f0f0f0', margin: 10, borderRadius: 8 }}>
                       <Text style={{ textAlign: 'center', color: '#666' }}>
-                        Loading Location News... (Debug: {topNews.length} news available)
+                        Loading Location News...
                       </Text>
                     </View>
                   </>

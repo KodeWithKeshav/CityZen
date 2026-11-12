@@ -35,8 +35,14 @@ const AdminSignupScreen = ({ navigation }) => {
   };
 
   const validateForm = () => {
-    if (!formData.email || !formData.password || !formData.fullName || 
-        !formData.phoneNumber || !formData.department || !formData.employeeId) {
+    const email = formData.email.trim();
+    const fullName = formData.fullName.trim();
+    const phoneNumber = formData.phoneNumber.trim();
+    const department = formData.department.trim();
+    const employeeId = formData.employeeId.trim();
+
+    if (!email || !formData.password || !fullName ||
+        !phoneNumber || !department || !employeeId) {
       Alert.alert('Error', 'Please fill in all required fields');
       return false;
     }
@@ -51,20 +57,14 @@ const AdminSignupScreen = ({ navigation }) => {
       return false;
     }
 
-    if (!formData.email.includes('@')) {
+    if (!email.includes('@')) {
       Alert.alert('Error', 'Please enter a valid email address');
       return false;
     }
 
-    if (!formData.email.includes('gov') && !formData.email.includes('civic')) {
-      Alert.alert(
-        'Warning', 
-        'Admin accounts typically use government or organizational email addresses. Continue anyway?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Continue', onPress: () => null }
-        ]
-      );
+    if (phoneNumber.replace(/\D/g, '').length < 10) {
+      Alert.alert('Error', 'Please enter a valid phone number (at least 10 digits)');
+      return false;
     }
 
     return true;
@@ -73,9 +73,15 @@ const AdminSignupScreen = ({ navigation }) => {
   const handleSignup = async () => {
     if (!validateForm()) return;
 
+    const trimmedEmail = formData.email.trim().toLowerCase();
+    const isGovEmail = trimmedEmail.includes('gov') || trimmedEmail.includes('civic');
+    const approvalMessage = isGovEmail
+      ? 'Admin accounts require approval. Your registration will be reviewed by system administrators.'
+      : 'Admin accounts typically use government or organizational email addresses, and require approval. Continue anyway?';
+
     Alert.alert(
       'Admin Registration',
-      'Admin accounts require approval. Your registration will be reviewed by system administrators.',
+      approvalMessage,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -85,8 +91,11 @@ const AdminSignupScreen = ({ navigation }) => {
             try {
               const signupData = {
                 ...formData,
+                email: trimmedEmail,
+                fullName: formData.fullName.trim(),
+                phoneNumber: formData.phoneNumber.trim(),
                 userType: 'admin',
-                address: `Department: ${formData.department}, Employee ID: ${formData.employeeId}`,
+                address: `Department: ${formData.department.trim()}, Employee ID: ${formData.employeeId.trim()}`,
               };
               delete signupData.confirmPassword;
               delete signupData.department;

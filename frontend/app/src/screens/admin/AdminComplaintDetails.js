@@ -30,7 +30,7 @@ const getComplaintImageUrl = (complaint) => {
 };
 
 const AdminComplaintDetails = ({ route, navigation }) => {
-  const { complaintId } = route.params;
+  const { complaintId } = route.params || {};
   const [complaint, setComplaint] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,6 +48,11 @@ const AdminComplaintDetails = ({ route, navigation }) => {
   const [geometryRetryLoading, setGeometryRetryLoading] = useState(false);
 
   useEffect(() => {
+    if (!complaintId) {
+      Alert.alert('Error', 'Missing complaint ID');
+      navigation.goBack();
+      return;
+    }
     loadComplaintDetails();
     loadOfficers();
     loadContractors();
@@ -316,7 +321,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Basic Information</Text>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(complaint.status) }]}>
-              <Text style={styles.statusText}>{complaint.status.toUpperCase()}</Text>
+              <Text style={styles.statusText}>{(complaint.status || 'pending').toUpperCase()}</Text>
             </View>
           </View>
 
@@ -578,7 +583,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
                     { backgroundColor: getStatusColor(stage.stage_status) }
                   ]}>
                     <Text style={styles.stageStatusText}>
-                      {stage.stage_status.replace('_', ' ').toUpperCase()}
+                      {(stage.stage_status || 'pending').replace('_', ' ').toUpperCase()}
                     </Text>
                   </View>
                 </View>

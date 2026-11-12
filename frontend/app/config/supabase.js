@@ -144,12 +144,25 @@ export const makeApiCall = async (url, options = {}) => {
     const response = await fetch(url, mergedOptions);
     console.log('📥 Response status:', response.status);
 
-    const data = await response.json();
+    const rawText = await response.text();
+    let data = {};
+    if (rawText) {
+      try {
+        data = JSON.parse(rawText);
+      } catch (_parseErr) {
+        data = { message: rawText };
+      }
+    }
     console.log('📋 Response data:', data);
 
     if (!response.ok) {
       console.error('❌ API Error:', data);
-      throw new Error(data.message || `HTTP ${response.status}: API call failed`);
+      const validationMessage = Array.isArray(data.errors) && data.errors.length > 0
+        ? data.errors[0].msg || data.errors[0].message
+        : null;
+      throw new Error(
+        data.message || data.error || validationMessage || `HTTP ${response.status}: API call failed`
+      );
     }
 
     return data;

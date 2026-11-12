@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { makeApiCall } from '../../config/supabase';
+import { makeApiCall, apiClient } from '../../config/supabase';
 
 const { width, height } = Dimensions.get('window');
 
@@ -42,8 +42,13 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
   }, [visible, complaintId]);
 
   const fetchComplaintProgress = async () => {
+    if (!complaintId) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await makeApiCall(`/complaint-details/${complaintId}/progress`, 'GET');
+      const response = await makeApiCall(`${apiClient.baseUrl}/api/complaint-details/${complaintId}/progress`);
       if (response.success) {
         setProgressData(response.data);
       } else {
@@ -340,7 +345,7 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
                   {[
                     { label: 'Submitted', value: progressData.complaint.formatted_created_date, icon: 'calendar-outline' },
                     { label: 'Category',  value: progressData.complaint.category?.replace(/_/g, ' '), icon: 'pricetag-outline' },
-                    { label: 'Priority',  value: progressData.complaint.priority_score ? `${progressData.complaint.priority_score.toFixed(1)} / 10` : 'N/A', icon: 'speedometer-outline', highlight: true },
+                    { label: 'Priority',  value: Number.isFinite(Number(progressData.complaint.priority_score)) ? `${Number(progressData.complaint.priority_score).toFixed(1)} / 10` : 'N/A', icon: 'speedometer-outline', highlight: true },
                     { label: 'Reporter',  value: progressData.complaint.users?.full_name || progressData.complaint.user?.full_name || progressData.complaint.user_name || progressData.complaint.citizenName || 'Verified Citizen', icon: 'person-outline' },
                   ].map((row, i, arr) => (
                     <View key={row.label} style={[styles.infoRow, i < arr.length - 1 && styles.infoRowBorder]}>

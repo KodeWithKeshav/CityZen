@@ -54,7 +54,7 @@ const SubmitComplaintScreen = ({ navigation }) => {
  // Auto-capture location when category is selected
  useEffect(() => {
  if (formData.category && !locationCaptured) {
- autoCaptureLo‌‌cation();
+ autoCaptureLocation();
  }
  }, [formData.category]);
 
@@ -96,9 +96,7 @@ const SubmitComplaintScreen = ({ navigation }) => {
  
  return () => {
  // Clean up speech service on component unmount
- if (isRecording) {
- speechService.stopSpeech();
- }
+ speechService.stopSpeech().catch(() => {});
  };
  }, []);
 
@@ -138,7 +136,7 @@ const SubmitComplaintScreen = ({ navigation }) => {
  };
 
  // Auto-capture location based on complaint category
- const autoCaptureLo‌‌cation = async () => {
+ const autoCaptureLocation = async () => {
  if (autoCapturingLocation || locationCaptured) return;
  
  setAutoCapturingLocation(true);
@@ -504,7 +502,7 @@ const SubmitComplaintScreen = ({ navigation }) => {
  'Location is required for priority assessment. Would you like to capture your location now?',
  [
  { text: 'Cancel', style: 'cancel' },
- { text: 'Get Location', onPress: () => autoCaptureLo‌‌cation() }
+ { text: 'Get Location', onPress: () => autoCaptureLocation() }
  ]
  );
  return;
@@ -592,7 +590,7 @@ const SubmitComplaintScreen = ({ navigation }) => {
  text: 'Provide Feedback', 
  onPress: () => navigation.navigate('FeedbackScreen', {
  complaintId: result.complaint.id,
- complaintTitle: title
+ complaintTitle: formData.title.trim()
  })
  }]
  );
@@ -841,7 +839,7 @@ const SubmitComplaintScreen = ({ navigation }) => {
  setLocationCaptured(false);
  setLocationData(null);
  setLocationPriorityScore(null);
- autoCaptureLo‌‌cation();
+ autoCaptureLocation();
  }}
  >
  <Text style={styles.recaptureButtonText}>Recapture Location</Text>
@@ -852,7 +850,7 @@ const SubmitComplaintScreen = ({ navigation }) => {
  {!locationCaptured && !autoCapturingLocation && formData.category && (
  <TouchableOpacity 
  style={styles.manualLocationButton}
- onPress={autoCaptureLo‌‌cation}
+ onPress={autoCaptureLocation}
  >
  <Text style={styles.manualLocationButtonText}>Capture Location Now</Text>
  </TouchableOpacity>

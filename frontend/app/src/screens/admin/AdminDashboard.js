@@ -240,7 +240,7 @@ const AdminDashboard = ({ navigation }) => {
               onPress={() => Alert.alert('Citizen Management', 'Manage eco-citizen accounts')}
             >
               <LinearGradient
-                colors={[EnvironmentalTheme.accent.lime, EnvironmentalTheme.primary.light]}
+                colors={[EnvironmentalTheme.accent.teal, EnvironmentalTheme.primary.light]}
                 style={styles.actionGradient}
               >
                 <View style={styles.actionIconContainer}>
@@ -282,7 +282,7 @@ const AdminDashboard = ({ navigation }) => {
         >
           <View style={styles.cardHeader}>
             <View style={styles.cardTitleRow}>
-              <Ionicons name="time" size={24} color={EnvironmentalTheme.accent.brown} />
+              <Ionicons name="time" size={24} color={EnvironmentalTheme.accent.amber} />
               <Text style={styles.cardTitle}>Recent Activity</Text>
             </View>
             <TouchableOpacity>

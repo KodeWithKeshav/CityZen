@@ -34,7 +34,11 @@ const CitizenSignupScreen = ({ navigation }) => {
   };
 
   const validateForm = () => {
-    if (!formData.email || !formData.password || !formData.fullName || !formData.phoneNumber) {
+    const email = formData.email.trim();
+    const fullName = formData.fullName.trim();
+    const phoneNumber = formData.phoneNumber.trim();
+
+    if (!email || !formData.password || !fullName || !phoneNumber) {
       Alert.alert('Error', 'Please fill in all required fields');
       return false;
     }
@@ -49,8 +53,13 @@ const CitizenSignupScreen = ({ navigation }) => {
       return false;
     }
 
-    if (!formData.email.includes('@')) {
+    if (!email.includes('@')) {
       Alert.alert('Error', 'Please enter a valid email address');
+      return false;
+    }
+
+    if (phoneNumber.replace(/\D/g, '').length < 10) {
+      Alert.alert('Error', 'Please enter a valid phone number (at least 10 digits)');
       return false;
     }
 
@@ -64,6 +73,10 @@ const CitizenSignupScreen = ({ navigation }) => {
     try {
       const signupData = {
         ...formData,
+        email: formData.email.trim().toLowerCase(),
+        fullName: formData.fullName.trim(),
+        phoneNumber: formData.phoneNumber.trim(),
+        address: formData.address ? formData.address.trim() : '',
         userType: 'citizen',
       };
       delete signupData.confirmPassword;

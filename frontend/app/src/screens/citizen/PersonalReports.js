@@ -36,8 +36,8 @@ const PersonalReports = ({ navigation }) => {
       const response = await makeApiCall(apiClient.complaints.personalReports);
       
       if (response.success) {
-        setReports(response.data.complaints);
-        setStats(response.data.stats);
+        setReports(response.data?.complaints || []);
+        setStats(response.data?.stats || {});
       } else {
         Alert.alert('Error', response.message || 'Failed to load your reports');
       }
@@ -194,7 +194,7 @@ const PersonalReports = ({ navigation }) => {
         'resolved': 'RESOLVED',
         'cancelled': 'CANCELLED'
       };
-      return statusMap[status] || status.toUpperCase();
+      return statusMap[status] || (status ? status.toUpperCase() : 'UNKNOWN');
     };
 
     return (
@@ -244,13 +244,13 @@ const PersonalReports = ({ navigation }) => {
         <View style={styles.progressIndicator}>
           <View style={styles.progressLabelRow}>
             <Ionicons name="layers-outline" size={12} color="#6B7280" />
-            <Text style={styles.progressText}>Stage {report.currentStage} of 5</Text>
+            <Text style={styles.progressText}>Stage {report.currentStage || 1} of 5</Text>
           </View>
           <View style={styles.progressBar}>
             <View style={[
               styles.progressFill,
               {
-                width: `${(report.currentStage / 5) * 100}%`,
+                width: `${((report.currentStage || 1) / 5) * 100}%`,
                 backgroundColor: getStatusColor(report.status),
               }
             ]} />
