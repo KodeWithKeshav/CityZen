@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import 'leaflet/dist/leaflet.css'
 import { HiArrowRight, HiSparkles } from 'react-icons/hi'
 import { getPriorityTier } from '../../utils/priorityUtils'
+import { useTranslatedList } from '../../context/TranslationContext'
 import ExplainAiModal from '../../components/ExplainAiModal'
 
 delete L.Icon.Default.prototype._getIconUrl
@@ -71,7 +72,7 @@ function MapAutoCenter({ coordsList }) {
 }
 
 export default function AdminComplaintMap() {
-  const { t } = useTranslation('admin')
+  const { t } = useTranslation(['admin', 'common'])
   const [complaints, setComplaints] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -113,59 +114,63 @@ export default function AdminComplaintMap() {
       })
   }, [complaints, filter])
 
+  const mappedComplaints = useMemo(() => mapped.map(m => m.complaint), [mapped])
+  const translatedMappedComplaints = useTranslatedList(mappedComplaints, ['title', 'complaintTitle', 'description'])
+
   const coordsList = useMemo(() => mapped.map(m => m.coords), [mapped])
 
   const center = coordsList.length > 0 ? coordsList[0] : [20.5937, 78.9629]
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] border border-neutral-300 bg-white">
-      {/* Top Controls Bar */}
-      <div className="p-4 border-b border-neutral-300 bg-white z-10">
-        <div className="flex items-start justify-between flex-wrap gap-4 mb-3">
-          <div>
-            <div className="font-mono text-xs text-neutral-500 uppercase tracking-widest mb-0.5">
-              {t('complaintMap.gisCadastre')}
-            </div>
-            <h1 className="font-serif text-2xl font-bold text-neutral-900 uppercase">
-              {t('complaintMap.title')}
-            </h1>
-            <p className="text-xs text-neutral-600 font-sans mt-0.5">
-              {t('complaintMap.subtitle', { count: mapped.length })}
-            </p>
-          </div>
-
-          <div className="flex gap-1.5 flex-wrap font-mono text-xs">
-            {['all', 'pending', 'resolved', 'in_progress', 'rejected'].map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 border uppercase tracking-wider transition-colors ${
-                  filter === f
-                    ? 'bg-neutral-900 text-white border-black font-bold'
-                    : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
-                }`}
-              >
-                {f.replace(/_/g, ' ')}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex gap-4 flex-wrap items-center font-mono text-xs border-t border-neutral-100 pt-2">
-          <span className="text-neutral-400 text-[10px] uppercase">{t('complaintMap.statusVectors')}</span>
-          {Object.entries(STATUS_COLORS)
-            .filter(([k]) => !k.includes('-'))
-            .map(([s, c]) => (
-              <div key={s} className="flex items-center gap-1.5 text-[11px] text-neutral-600 uppercase">
-                <div className="w-2.5 h-2.5" style={{ backgroundColor: c }} />
-                <span>{s.replace(/_/g, ' ')}</span>
+    <div className="p-3 sm:p-4 lg:p-6 min-h-[calc(100dvh-56px)] lg:h-[calc(100dvh-56px)] flex flex-col">
+      <div className="flex-1 flex flex-col border border-neutral-300 bg-white min-h-[540px]">
+        {/* Top Controls Bar */}
+        <div className="p-3 sm:p-4 border-b border-neutral-300 bg-white z-10">
+          <div className="flex items-start justify-between flex-wrap gap-3 sm:gap-4 mb-3">
+            <div>
+              <div className="font-mono text-xs text-neutral-500 uppercase tracking-widest mb-0.5">
+                {t('complaintMap.gisCadastre')}
               </div>
-            ))}
-        </div>
-      </div>
+              <h1 className="font-serif text-xl sm:text-2xl font-bold text-neutral-900 uppercase">
+                {t('complaintMap.title')}
+              </h1>
+              <p className="text-xs text-neutral-600 font-sans mt-0.5">
+                {t('complaintMap.subtitle', { count: mapped.length })}
+              </p>
+            </div>
 
-      {/* Map */}
-      <div className="flex-1 relative z-0">
+            <div className="flex gap-1.5 flex-wrap font-mono text-xs">
+              {['all', 'pending', 'resolved', 'in_progress', 'rejected'].map(f => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`px-2.5 sm:px-3 py-1.5 border uppercase tracking-wider transition-colors ${
+                    filter === f
+                      ? 'bg-neutral-900 text-white border-black font-bold'
+                      : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
+                  }`}
+                >
+                  {t(`common:statusFilters.${f}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-3 sm:gap-4 flex-wrap items-center font-mono text-xs border-t border-neutral-100 pt-2">
+            <span className="text-neutral-400 text-[10px] uppercase">{t('complaintMap.statusVectors')}</span>
+            {Object.entries(STATUS_COLORS)
+              .filter(([k]) => !k.includes('-'))
+              .map(([s, c]) => (
+                <div key={s} className="flex items-center gap-1.5 text-[11px] text-neutral-600 uppercase">
+                  <div className="w-2.5 h-2.5" style={{ backgroundColor: c }} />
+                  <span>{t(`common:statusFilters.${s}`, s.replace(/_/g, ' '))}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        {/* Map */}
+        <div className="flex-1 relative z-0 min-h-[360px]">
         {loading ? (
           <div className="flex items-center justify-center h-full font-mono text-xs text-neutral-500">
             {t('complaintMap.initializing')}
@@ -181,9 +186,11 @@ export default function AdminComplaintMap() {
               url={ACTIVE_TILE_LAYER.url}
             />
             <MapAutoCenter coordsList={coordsList} />
-            {mapped.map(({ complaint: c, coords }) => {
+            {mapped.map(({ coords }, idx) => {
+              const c = translatedMappedComplaints[idx] || mapped[idx].complaint
               const statusKey = (c.status || 'pending').toLowerCase()
               const color = STATUS_COLORS[statusKey] || STATUS_COLORS.pending
+              const normalizedStatus = statusKey.replace(/-/g, '_')
               return (
                 <CircleMarker
                   key={c._id || c.id}
@@ -201,7 +208,7 @@ export default function AdminComplaintMap() {
                         {t('complaintMap.dossierLabel', { id: String(c._id || c.id || '').slice(-6).toUpperCase() })}
                       </span>
                       {(() => {
-                        const pTier = getPriorityTier(c)
+                        const pTier = getPriorityTier(c, t)
                         if (pTier.score === null) return null
                         return (
                           <div className={`text-[10px] font-bold tracking-wider uppercase mb-1 px-1.5 py-0.5 border ${pTier.badgeClass}`}>
@@ -239,7 +246,7 @@ export default function AdminComplaintMap() {
                       })()}
                       <div className="flex items-center justify-between border-t border-neutral-200 pt-2">
                         <span className="uppercase text-[10px] font-bold text-neutral-700">
-                          {(c.status || 'pending').replace(/_/g, ' ')}
+                          {t(`common:statusFilters.${normalizedStatus}`, (c.status || 'pending').replace(/_/g, ' '))}
                         </span>
                         <button
                           type="button"
@@ -266,6 +273,7 @@ export default function AdminComplaintMap() {
         title={explainModalState.title}
         category={explainModalState.category}
       />
+      </div>
     </div>
   )
 }

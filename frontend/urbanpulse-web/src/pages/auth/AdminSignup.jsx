@@ -89,7 +89,7 @@ export default function AdminSignup() {
       </div>
 
       {/* ─── Right: Form ─── */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-16">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 lg:p-16">
         <div className="w-full max-w-md fade-in">
           {/* Mobile brand */}
           <div className="lg:hidden mb-6">
@@ -100,15 +100,15 @@ export default function AdminSignup() {
             <p className="text-label-sm text-primary-400 mt-1">{t('adminSignup.tagline')}</p>
           </div>
 
-          <div className="mb-8 flex items-start justify-between gap-4">
-            <div>
+          <div className="mb-6 sm:mb-8 flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
               <h2 className="font-epilogue text-headline-md text-on-surface mb-2">{t('adminSignup.title')}</h2>
               <p className="text-sm text-on-surface-variant">{t('adminSignup.desc')}</p>
             </div>
             <LanguageSwitcher />
           </div>
 
-          <div className="card p-6">
+          <div className="card p-4 sm:p-6">
             <form onSubmit={handleSubmit} className="space-y-5">
               {[
                 { icon: HiUser, label: t('adminSignup.fullName'), name: 'fullName', placeholder: t('adminSignup.fullNamePlaceholder'), autoComplete: 'name' },
@@ -157,7 +157,7 @@ export default function AdminSignup() {
             </form>
           </div>
 
-          <div className="mt-6 flex items-center justify-between text-sm text-on-surface-variant">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm text-on-surface-variant">
             <Link to="/login" className="text-on-surface font-semibold underline underline-offset-2">{t('adminSignup.requestAccess')}</Link>
             <button
               type="button"

@@ -12,12 +12,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
+import { useTranslatedText } from '../../context/TranslationContext';
 
 const { width } = Dimensions.get('window');
 
 const ModernAdminDashboard = ({ navigation }) => {
+  const { t } = useTranslation(['admin', 'common', 'citizen']);
   const [userData, setUserData] = useState(null);
+  const translatedAdminName = useTranslatedText(userData?.fullName || '');
   const [dashboardData, setDashboardData] = useState({
     totalComplaints: 0,
     resolvedComplaints: 0,
@@ -26,7 +30,7 @@ const ModernAdminDashboard = ({ navigation }) => {
     resolutionRate: 0,
     totalCitizens: 0
   });
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -69,7 +73,7 @@ const ModernAdminDashboard = ({ navigation }) => {
       }
     } catch (error) {
       console.error('Dashboard load error:', error);
-      Alert.alert('Error', 'Failed to load dashboard data');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.loadDashboardFailed'));
     } finally {
       setLoading(false);
     }
@@ -83,12 +87,12 @@ const ModernAdminDashboard = ({ navigation }) => {
 
   const handleLogout = async () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      t('citizen:mobileReports.logoutTitle'),
+      t('citizen:mobileReports.logoutConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:mobileNav.cancel'), style: 'cancel' },
         {
-          text: 'Logout',
+          text: t('citizen:mobileReports.logoutTitle'),
           style: 'destructive',
           onPress: async () => {
             await AsyncStorage.multiRemove(['authToken', 'userData']);
@@ -100,10 +104,10 @@ const ModernAdminDashboard = ({ navigation }) => {
   };
 
   const statCards = [
-    { label: 'TOTAL', value: dashboardData.totalComplaints, icon: 'document-text-outline', color: '#1A1A1A' },
-    { label: 'RESOLVED', value: dashboardData.resolvedComplaints, icon: 'checkmark-circle-outline', color: '#1A1A1A' },
-    { label: 'PENDING', value: dashboardData.pendingComplaints, icon: 'time-outline', color: '#1A1A1A' },
-    { label: 'IN PROGRESS', value: dashboardData.inProgressComplaints, icon: 'sync-outline', color: '#6366F1' },
+    { label: t('admin:mobileAdmin.totalLabel'), value: dashboardData.totalComplaints, icon: 'document-text-outline', color: '#1A1A1A' },
+    { label: t('common:statusFilters.resolved').toUpperCase(), value: dashboardData.resolvedComplaints, icon: 'checkmark-circle-outline', color: '#1A1A1A' },
+    { label: t('common:statusFilters.pending').toUpperCase(), value: dashboardData.pendingComplaints, icon: 'time-outline', color: '#1A1A1A' },
+    { label: t('common:statusFilters.in_progress').toUpperCase(), value: dashboardData.inProgressComplaints, icon: 'sync-outline', color: '#6366F1' },
   ];
 
   return (
@@ -114,11 +118,11 @@ const ModernAdminDashboard = ({ navigation }) => {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.brandMark}>CITYZEN</Text>
-          <Text style={styles.brandSub}>Admin Console</Text>
+          <Text style={styles.brandSub}>{t('admin:mobileAdmin.adminConsole')}</Text>
         </View>
         <TouchableOpacity style={styles.avatarButton} onPress={handleLogout}>
           <Text style={styles.avatarText}>
-            {userData?.fullName?.charAt(0)?.toUpperCase() || 'A'}
+            {(translatedAdminName || userData?.fullName)?.charAt(0)?.toUpperCase() || 'A'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -134,9 +138,9 @@ const ModernAdminDashboard = ({ navigation }) => {
         {/* Welcome */}
         <View style={styles.welcomeSection}>
           <Text style={styles.greetingText}>
-            Hello, {userData?.fullName || 'Admin'}
+            {t('admin:mobileAdmin.helloAdmin', { name: translatedAdminName || userData?.fullName || t('admin:mobileAdmin.adminDefault') })}
           </Text>
-          <Text style={styles.headerSubtitle}>Civic Complaint Management</Text>
+          <Text style={styles.headerSubtitle}>{t('admin:mobileAdmin.civicManagement')}</Text>
         </View>
 
         {/* Stat cards */}
@@ -156,7 +160,7 @@ const ModernAdminDashboard = ({ navigation }) => {
         <View style={styles.resolutionCard}>
           <View style={styles.resolutionLeft}>
             <Text style={styles.resolutionRate}>{dashboardData.resolutionRate}%</Text>
-            <Text style={styles.resolutionLabel}>Resolution Rate</Text>
+            <Text style={styles.resolutionLabel}>{t('citizen:mobileTransparency.resolutionRate')}</Text>
           </View>
           <View style={styles.resolutionBar}>
             <View style={[styles.resolutionFill, { width: `${Math.min(dashboardData.resolutionRate, 100)}%` }]} />
@@ -171,7 +175,7 @@ const ModernAdminDashboard = ({ navigation }) => {
             </View>
             <View>
               <Text style={styles.citizensNumber}>{dashboardData.totalCitizens}</Text>
-              <Text style={styles.citizensLabel}>Registered Citizens</Text>
+              <Text style={styles.citizensLabel}>{t('admin:mobileAdmin.registeredCitizens')}</Text>
             </View>
           </View>
         </View>
@@ -183,28 +187,28 @@ const ModernAdminDashboard = ({ navigation }) => {
       <View style={styles.bottomNav}>
         <TouchableOpacity style={[styles.navItem, styles.activeNavItem]}>
           <Ionicons name="grid" size={22} color="#1A1A1A" />
-          <Text style={[styles.navText, styles.activeNavText]}>Dashboard</Text>
+          <Text style={[styles.navText, styles.activeNavText]}>{t('admin:mobileAdmin.navDashboard')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navItem}
           onPress={() => navigation.navigate('PriorityQueue')}
         >
           <Ionicons name="list-outline" size={22} color="#9CA3AF" />
-          <Text style={styles.navText}>Queue</Text>
+          <Text style={styles.navText}>{t('admin:mobileAdmin.navQueue')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navItem}
           onPress={() => navigation.navigate('CitizenManagement')}
         >
           <Ionicons name="people-outline" size={22} color="#9CA3AF" />
-          <Text style={styles.navText}>Citizens</Text>
+          <Text style={styles.navText}>{t('admin:mobileAdmin.navCitizens')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.navItem}
           onPress={() => navigation.navigate('AdminComplaintMap')}
         >
           <Ionicons name="map-outline" size={22} color="#9CA3AF" />
-          <Text style={styles.navText}>Map</Text>
+          <Text style={styles.navText}>{t('common:mobileNav.map')}</Text>
         </TouchableOpacity>
       </View>
     </View>

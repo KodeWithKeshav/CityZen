@@ -8,18 +8,48 @@
     "stepOf": "ಹಂತ {{current}} / {{total}}"
   },
   "categories": {
-    "pothole": { "label": "ಗುಂಡಿ", "desc": "ರಸ್ತೆಯಲ್ಲಿ ಬಿರುಕು, ಗುಂಡಿ, ಅಥವಾ ತೀವ್ರ ಹಾನಿ" },
-    "fallen_tree": { "label": "ಬಿದ್ದ ಮರ", "desc": "ರಸ್ತೆಯನ್ನು ತಡೆಯುವ ಮರ ಅಥವಾ ಕೊಂಬೆ" },
-    "garbage_dumping": { "label": "ಕಸ ಸುರಿಯುವುದು", "desc": "ಅಕ್ರಮ ಪುರಸಭೆ ಅಥವಾ ವಾಣಿಜ್ಯ ತ್ಯಾಜ್ಯ ಸುರಿಯುವಿಕೆ" },
-    "stray_cattle": { "label": "ಬೀದಿ ಜಾನುವಾರುಗಳು", "desc": "ಸಂಚಾರಕ್ಕೆ ಅಡ್ಡಿಯಾಗುವ ಜಾನುವಾರುಗಳು" },
-    "fallen_electric_pole": { "label": "ಬಿದ್ದ ವಿದ್ಯುತ್ ಕಂಬ", "desc": "ಹಾನಿಗೊಳಗಾದ ಕಂಬ, ತೆರೆದ ತಂತಿಗಳು, ಅಥವಾ ಟ್ರಾನ್ಸ್‌ಫಾರ್ಮರ್ ವೈಫಲ್ಯ" },
-    "concrete_structure_damage": { "label": "ರಚನಾತ್ಮಕ ಹಾನಿ", "desc": "ಬಿರುಕುಗಳು, ಸೇತುವೆ ಸವೆತ, ಅಥವಾ ರಸ್ತೆ ಕುಸಿತ" },
-    "road_waterlogging": { "label": "ರಸ್ತೆಯಲ್ಲಿ ನೀರು ನಿಲ್ಲುವಿಕೆ", "desc": "ಮಳೆನೀರು ನಿಲ್ಲುವಿಕೆ ಅಥವಾ ಚರಂಡಿ ಉಕ್ಕಿ ಹರಿಯುವಿಕೆ" }
+    "pothole": {
+      "label": "ಗುಂಡಿ",
+      "desc": "ರಸ್ತೆಯಲ್ಲಿ ಬಿರುಕು, ಗುಂಡಿ, ಅಥವಾ ತೀವ್ರ ಹಾನಿ"
+    },
+    "fallen_tree": {
+      "label": "ಬಿದ್ದ ಮರ",
+      "desc": "ರಸ್ತೆಯನ್ನು ತಡೆಯುವ ಮರ ಅಥವಾ ಕೊಂಬೆ"
+    },
+    "garbage_dumping": {
+      "label": "ಕಸ ಸುರಿಯುವುದು",
+      "desc": "ಅಕ್ರಮ ಪುರಸಭೆ ಅಥವಾ ವಾಣಿಜ್ಯ ತ್ಯಾಜ್ಯ ಸುರಿಯುವಿಕೆ"
+    },
+    "stray_cattle": {
+      "label": "ಬೀದಿ ಜಾನುವಾರುಗಳು",
+      "desc": "ಸಂಚಾರಕ್ಕೆ ಅಡ್ಡಿಯಾಗುವ ಜಾನುವಾರುಗಳು"
+    },
+    "fallen_electric_pole": {
+      "label": "ಬಿದ್ದ ವಿದ್ಯುತ್ ಕಂಬ",
+      "desc": "ಹಾನಿಗೊಳಗಾದ ಕಂಬ, ತೆರೆದ ತಂತಿಗಳು, ಅಥವಾ ಟ್ರಾನ್ಸ್‌ಫಾರ್ಮರ್ ವೈಫಲ್ಯ"
+    },
+    "concrete_structure_damage": {
+      "label": "ರಚನಾತ್ಮಕ ಹಾನಿ",
+      "desc": "ಬಿರುಕುಗಳು, ಸೇತುವೆ ಸವೆತ, ಅಥವಾ ರಸ್ತೆ ಕುಸಿತ"
+    },
+    "road_waterlogging": {
+      "label": "ರಸ್ತೆಯಲ್ಲಿ ನೀರು ನಿಲ್ಲುವಿಕೆ",
+      "desc": "ಮಳೆನೀರು ನಿಲ್ಲುವಿಕೆ ಅಥವಾ ಚರಂಡಿ ಉಕ್ಕಿ ಹರಿಯುವಿಕೆ"
+    }
   },
   "privacyLevels": {
-    "exact": { "label": "ನಿಖರ GPS", "desc": "±5–10ಮೀ ನಿಖರತೆ" },
-    "street": { "label": "ಬೀದಿ ಮಟ್ಟ", "desc": "±25ಮೀ ನಿಖರತೆ" },
-    "area": { "label": "ನೆರೆಹೊರೆ", "desc": "±150ಮೀ ವಾರ್ಡ್ ತ್ರಿಜ್ಯ ಅಂದಾಜು" }
+    "exact": {
+      "label": "ನಿಖರ GPS",
+      "desc": "±5–10ಮೀ ನಿಖರತೆ"
+    },
+    "street": {
+      "label": "ಬೀದಿ ಮಟ್ಟ",
+      "desc": "±25ಮೀ ನಿಖರತೆ"
+    },
+    "area": {
+      "label": "ನೆರೆಹೊರೆ",
+      "desc": "±150ಮೀ ವಾರ್ಡ್ ತ್ರಿಜ್ಯ ಅಂದಾಜು"
+    }
   },
   "languages": {
     "en": "English",
@@ -66,5 +96,114 @@
     "micError": "ಮೈಕ್ರೋಫೋನ್ ಸಕ್ರಿಯಗೊಳಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ",
     "uploadError": "ಪ್ರತಿಲೇಖನ ಸೇವೆಯನ್ನು ತಲುಪಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ.",
     "failed": "ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ವಿಫಲವಾಗಿದೆ. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ ಅಥವಾ ನಿಮ್ಮ ದೂರನ್ನು ಟೈಪ್ ಮಾಡಿ."
+  },
+  "mobileSubmit": {
+    "allowExactLocation": "ನಿಖರ ಸ್ಥಳವನ್ನು ಅನುಮತಿಸಿ",
+    "allowLocation": "ಸ್ಥಳವನ್ನು ಅನುಮತಿಸಿ",
+    "cameraPermDesc": "ನಾಗರಿಕ ಸಮಸ್ಯೆಯ ಫೋಟೋ ತೆಗೆಯಲು ದಯವಿಟ್ಟು ಕ್ಯಾಮೆರಾ ಪ್ರವೇಶವನ್ನು ಅನುಮತಿಸಿ.",
+    "categoryLabel": "ವರ್ಗ",
+    "complaintDetails": "ದೂರಿನ ವಿವರಗಳು",
+    "complaintIdLabel": "ದೂರು ID",
+    "connectionErrorTitle": "ಸಂಪರ್ಕ ದೋಷ",
+    "contentMismatchDesc": "ಈ ವಿವರಣೆಯು ಆಯ್ಕೆಮಾಡಿದ ಸಮಸ್ಯೆಯ ಪ್ರಕಾರಕ್ಕೆ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ. ಸಲ್ಲಿಸುವ ಮೊದಲು ದಯವಿಟ್ಟು ವಿವರಣೆಯನ್ನು ತಿದ್ದಿರಿ ಅಥವಾ ಸೂಚಿಸಿದ ವರ್ಗವನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
+    "contentMismatchTitle": "ವಿವರಣೆ ಸಮಸ್ಯೆಗೆ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ",
+    "descMismatchDesc": "ವಿವರಣೆ ಆಯ್ಕೆಮಾಡಿದ ಸಮಸ್ಯೆಯ ಪ್ರಕಾರಕ್ಕೆ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ವಿವರಣೆಯನ್ನು ತಿದ್ದಿರಿ.",
+    "descMismatchTitle": "ವಿವರಣೆ ಸಮಸ್ಯೆಯ ಪ್ರಕಾರಕ್ಕೆ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ",
+    "done": "ಮುಗಿಯಿತು",
+    "endpointNotFoundDesc": "API ಎಂಡ್‌ಪಾಯಿಂಟ್ ಕಂಡುಬಂದಿಲ್ಲ. ದಯವಿಟ್ಟು ಆಪ್ ಅಪ್‌ಡೇಟ್ ಮಾಡಿ.",
+    "enterDescription": "ದಯವಿಟ್ಟು ಸಮಸ್ಯೆಯ ವಿವರಣೆಯನ್ನು ನಮೂದಿಸಿ",
+    "enterTitle": "ದಯವಿಟ್ಟು ದೂರಿಗೆ ಶೀರ್ಷಿಕೆಯನ್ನು ನಮೂದಿಸಿ",
+    "getLocation": "ಸ್ಥಳ ಪಡೆಯಿರಿ",
+    "goToPhotoStep": "ಫೋಟೋ ಹಂತಕ್ಕೆ ಹೋಗಿ",
+    "highPriorityDesc": "ಪ್ರಮುಖ ಮೂಲಸೌಕರ್ಯಕ್ಕೆ ಸಮೀಪವಿರುವುದರಿಂದ ನಿಮ್ಮ ದೂರನ್ನು {{level}} ಆದ್ಯತೆಯಾಗಿ ಗುರುತಿಸಲಾಗಿದೆ. ತಕ್ಷಣ ಗಮನ ಹರಿಸಲಾಗುವುದು.",
+    "highPriorityTitle": "ಹೆಚ್ಚಿನ ಆದ್ಯತೆಯ ದೂರು ಪತ್ತೆಯಾಗಿದೆ",
+    "invalidDataDesc": "ಅಮಾನ್ಯ ಡೇಟಾ ಸಲ್ಲಿಸಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಎಲ್ಲಾ ಕ್ಷೇತ್ರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ.",
+    "issueTypeChangedDesc": "ಸಮಸ್ಯೆಯ ಪ್ರಕಾರ ಬದಲಾಗಿರುವುದರಿಂದ ನಿಮ್ಮ ಫೋಟೋವನ್ನು ಮರುಪರಿಶೀಲಿಸಬೇಕು. ದಯವಿಟ್ಟು ಫೋಟೋ ಹಂತಕ್ಕೆ ಹಿಂತಿರುಗಿ ಹೊಸ ಪ್ರಕಾರಕ್ಕೆ ಹೊಂದುವ ಫೋಟೋ ಸೇರಿಸಿ.",
+    "issueTypeChangedTitle": "ಸಮಸ್ಯೆಯ ಪ್ರಕಾರ ಬದಲಾಗಿದೆ",
+    "later": "ನಂತರ",
+    "locationAccuracyLabel": "ಸ್ಥಳದ ನಿಖರತೆ",
+    "locationCapturedDesc": "ನಿಖರತೆ: ±{{radius}}ಮೀ ({{precision}})\nಗೌಪ್ಯತೆ ಮಟ್ಟ: {{privacyLevel}}\nಹತ್ತಿರದ ಮೂಲಸೌಕರ್ಯದ ಆಧಾರದ ಮೇಲೆ ನಿಮ್ಮ ದೂರಿಗೆ ಆದ್ಯತೆ ನೀಡಲಾಗುವುದು.",
+    "locationCapturedTitle": "ಸ್ಥಳವನ್ನು ಯಶಸ್ವಿಯಾಗಿ ಪಡೆಯಲಾಗಿದೆ!",
+    "locationErrorDesc": "ಸ್ಥಳವನ್ನು ಪಡೆಯಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ನೀವು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಬಹುದು ಅಥವಾ ಸ್ಥಳವಿಲ್ಲದೆ ಸಲ್ಲಿಸಬಹುದು (ಕಡಿಮೆ ಆದ್ಯತೆ).",
+    "locationErrorTitle": "ಸ್ಥಳ ದೋಷ",
+    "locationNormalDesc": "ನಿಮ್ಮ ದೂರಿಗೆ ಆದ್ಯತೆ ನೀಡಲು ಮತ್ತು ಸರಿಯಾದ ಪುರಸಭೆ ಕಚೇರಿಗೆ ಕಳುಹಿಸಲು ನಾವು ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ಪಡೆಯುತ್ತೇವೆ. ಬೀದಿ ಮಟ್ಟದ ನಿಖರತೆಯೊಂದಿಗೆ ನಿಮ್ಮ ಗೌಪ್ಯತೆ ರಕ್ಷಿಸಲ್ಪಡುತ್ತದೆ.",
+    "locationRequiredContinueDesc": "ಆದ್ಯತೆ ಮೌಲ್ಯಮಾಪನಕ್ಕೆ ಸ್ಥಳ ಅಗತ್ಯವಿದೆ. ಈಗ ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ಪಡೆಯಲು ಬಯಸುವಿರಾ?",
+    "locationRequiredTitle": "ಸ್ಥಳ ಅಗತ್ಯವಿದೆ",
+    "locationUrgentDesc": "{{category}} ದೂರುಗಳಿಗೆ ತುರ್ತು ಸ್ಪಂದನೆಗೆ ಆದ್ಯತೆ ನೀಡಲು ನಿಮ್ಮ ನಿಖರವಾದ ಸ್ಥಳ ಅಗತ್ಯವಿದೆ. ಇದು ಹತ್ತಿರದ ತಂಡಕ್ಕೆ ಕಳುಹಿಸಲು ಸಹಾಯ ಮಾಡುತ್ತದೆ.",
+    "networkFailedDesc": "ಸರ್ವರ್‌ಗೆ ಸಂಪರ್ಕಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಇಂಟರ್ನೆಟ್ ಸಂಪರ್ಕವನ್ನು ಪರಿಶೀಲಿಸಿ.",
+    "nextSteps": "ಮುಂದಿನ ಹಂತಗಳು",
+    "photoMismatchDesc": "ಫೋಟೋ ಆಯ್ಕೆಮಾಡಿದ ಸಮಸ್ಯೆಯ ಪ್ರಕಾರಕ್ಕೆ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ. ದಯವಿಟ್ಟು ಹಿಂದಕ್ಕೆ ಹೋಗಿ ಹೊಂದುವ ಫೋಟೋ ಸೇರಿಸಿ ಅಥವಾ ತೆಗೆದುಹಾಕಿ.",
+    "photoMismatchTitle": "ಫೋಟೋ ಸಮಸ್ಯೆಯ ಪ್ರಕಾರಕ್ಕೆ ಹೊಂದಿಕೆಯಾಗುತ್ತಿಲ್ಲ",
+    "photoNotValidatedDesc": "ಆಯ್ಕೆಮಾಡಿದ ಸಮಸ್ಯೆಯ ಪ್ರಕಾರಕ್ಕೆ ನಿಮ್ಮ ಫೋಟೋ ಮೌಲ್ಯೀಕರಿಸಲ್ಪಟ್ಟಿಲ್ಲ. ದಯವಿಟ್ಟು ಫೋಟೋ ಹಂತಕ್ಕೆ ಹಿಂತಿರುಗಿ ಮರುಪರಿಶೀಲಿಸಿ ಅಥವಾ ತೆಗೆದುಹಾಕಿ.",
+    "photoNotValidatedTitle": "ಫೋಟೋ ಮೌಲ್ಯೀಕರಿಸಲಾಗಿಲ್ಲ",
+    "photoPermDesc": "ಫೋಟೋ ಆಯ್ಕೆ ಮಾಡಲು ದಯವಿಟ್ಟು ಗ್ಯಾಲರಿ ಪ್ರವೇಶವನ್ನು ಅನುಮತಿಸಿ.",
+    "pickImageFailed": "ಚಿತ್ರವನ್ನು ಆಯ್ಕೆ ಮಾಡಲು ವಿಫಲವಾಗಿದೆ",
+    "priorityAnalysis": "ಆದ್ಯತೆ ವಿಶ್ಲೇಷಣೆ",
+    "priorityLevelLabel": "ಆದ್ಯತೆಯ ಮಟ್ಟ",
+    "selectCategoryError": "ದಯವಿಟ್ಟು ದೂರಿನ ವರ್ಗವನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+    "serverErrorDesc": "ಸರ್ವರ್ ದೋಷ. ದಯವಿಟ್ಟು ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    "serverErrorTitle": "ಸರ್ವರ್ ದೋಷ",
+    "serviceErrorTitle": "ಸೇವಾ ದೋಷ",
+    "skipLocation": "ಸ್ಥಳವನ್ನು ಬಿಟ್ಟುಬಿಡಿ",
+    "statusLabel": "ಸ್ಥಿತಿ",
+    "submitConnFallback": "ದಯವಿಟ್ಟು ನಿಮ್ಮ ಸಂಪರ್ಕವನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    "submitFailedTitle": "ಸಲ್ಲಿಕೆ ವಿಫಲವಾಗಿದೆ",
+    "submittedLabel": "ಸಲ್ಲಿಸಲಾಗಿದೆ",
+    "successSubtitle": "ನಿಮ್ಮ ನಾಗರಿಕ ದೂರು ನೋಂದಾಯಿಸಲ್ಪಟ್ಟಿದೆ ಮತ್ತು ಕ್ರಮಕ್ಕಾಗಿ ಕಳುಹಿಸಲಾಗಿದೆ.",
+    "successTitle": "ದೂರು ಸಲ್ಲಿಸಲಾಗಿದೆ!",
+    "switchCategoryTo": "ವರ್ಗವನ್ನು \"{{category}}\" ಗೆ ಬದಲಾಯಿಸಿ",
+    "takePhotoFailed": "ಫೋಟೋ ತೆಗೆಯಲು ವಿಫಲವಾಗಿದೆ",
+    "timeoutDesc": "ವಿನಂತಿಯ ಸಮಯ ಮೀರಿದೆ. ಸಂಪರ್ಕವನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    "titleLabel": "ಶೀರ್ಷಿಕೆ",
+    "understood": "ಅರ್ಥವಾಯಿತು",
+    "validationErrorDesc": "ಚಿತ್ರವನ್ನು ಮೌಲ್ಯೀಕರಿಸಲು ವಿಫಲವಾಗಿದೆ. ನಿಮ್ಮ ಸಂಪರ್ಕವನ್ನು ಪರಿಶೀಲಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    "validationErrorTitle": "ಮೌಲ್ಯೀಕರಣ ದೋಷ",
+    "viewOnMap": "ನಕ್ಷೆಯಲ್ಲಿ ವೀಕ್ಷಿಸಿ",
+    "votesLabel": "ಮತಗಳು",
+    "validIssueDetectedTitle": "ಮಾನ್ಯ ನಾಗರಿಕ ಸಮಸ್ಯೆ ಪತ್ತೆಯಾಗಿದೆ",
+    "confidenceScoreLabel": "ವಿಶ್ವಾಸ ಸ್ಕೋರ್: {{score}}%",
+    "imageValidationFailedTitle": "ಚಿತ್ರ ಪರಿಶೀಲನೆ ವಿಫಲವಾಗಿದೆ",
+    "imageValidationFailedDesc": "ವಿಶ್ವಾಸ ಸ್ಕೋರ್: {{score}}%\nಆಯ್ಕೆ ಮಾಡಿದ ಚಿತ್ರವು ಮಾನ್ಯ ನಾಗರಿಕ ಸಮಸ್ಯೆಯನ್ನು ತೋರಿಸುತ್ತಿಲ್ಲ. ದಯವಿಟ್ಟು ಬೇರೆ ಚಿತ್ರವನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
+    "imageValidationSubmitAnywayDesc": "ವಿಶ್ವಾಸ ಸ್ಕೋರ್: {{score}}%\n\nಆಯ್ಕೆ ಮಾಡಿದ ಚಿತ್ರವು ಮಾನ್ಯ ನಾಗರಿಕ ಸಮಸ್ಯೆಯನ್ನು ತೋರಿಸುತ್ತಿಲ್ಲ. ತುರ್ತು ಸಮಸ್ಯೆಗಳಿಗೆ ನೀವು ಇನ್ನೂ ಸಲ್ಲಿಸಬಹುದು.",
+    "changeImage": "ಚಿತ್ರ ಬದಲಾಯಿಸಿ",
+    "submitAnyway": "ಹೇಗಾದರೂ ಸಲ್ಲಿಸಿ",
+    "validationFailedFallback": "ಪರಿಶೀಲನೆ ವಿಫಲವಾಗಿದೆ.",
+    "tryAgain": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
+    "keepAnyway": "ಹೇಗಾದರೂ ಇರಿಸಿ",
+    "skipValidation": "ಪರಿಶೀಲನೆ ಬಿಡಿ",
+    "selectIssueImageError": "ದಯವಿಟ್ಟು ನಾಗರಿಕ ಸಮಸ್ಯೆಯ ಚಿತ್ರವನ್ನು ಆಯ್ಕೆಮಾಡಿ",
+    "expectedResponseLabel": "ನಿರೀಕ್ಷಿತ ಪ್ರತಿಕ್ರಿಯೆ",
+    "processingFallback": "ಪ್ರಕ್ರಿಯೆಯಲ್ಲಿದೆ",
+    "reasoningLabel": "ಕಾರಣ",
+    "viewDetails": "ವಿವರಗಳನ್ನು ವೀಕ್ಷಿಸಿ",
+    "provideFeedback": "ಪ್ರತಿಕ್ರಿಯೆ ನೀಡಿ",
+    "totalScoreLabel": "ಒಟ್ಟು ಸ್ಕೋರ್",
+    "locationAnalysisHeader": "ಸ್ಥಳ ವಿಶ್ಲೇഷಣೆ",
+    "scoreLabel": "ಸ್ಕೋರ್",
+    "facilitiesNearbyLabel": "ಹತ್ತಿರದ ಸೌಲಭ್ಯಗಳು",
+    "privacyLabel": "ಗೌಪ್ಯತೆ",
+    "imageAnalysisHeader": "ಚಿತ್ರ ವಿಶ್ಲೇഷಣೆ",
+    "validatingCivicIssue": "ನಾಗರಿಕ ಸಮಸ್ಯೆಯನ್ನು ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ...",
+    "civicIssueFallback": "ನಾಗರಿಕ ಸಮಸ್ಯೆ",
+    "validIssueClassification": "ಮಾನ್ಯ ನಾಗರಿಕ ಸಮಸ್ಯೆ ಪತ್ತೆಯಾಗಿದೆ (ವರ್ಗೀಕರಣ: {{classification}})",
+    "submitCivicComplaintTitle": "ನಾಗರಿಕ ದೂರು ಸಲ್ಲಿಸಿ",
+    "submitCivicComplaintSubtitle": "AI-ಆಧಾರಿತ ಆದ್ಯತೆ ಸ್ಕೋರಿಂಗ್‌ನೊಂದಿಗೆ ನಾಗರಿಕ ಸಮಸ್ಯೆಗಳನ್ನು ವರದಿ ಮಾಡಿ",
+    "complaintCategoryRequired": "ದೂರಿನ ವರ್ಗ *",
+    "locationOptionalFieldLabel": "ಸ್ಥಳ",
+    "locationOptionalPlaceholder": "ಸಮಸ್ಯೆಯ ಸ್ಥಳ ಅಥವಾ ವಿಳಾಸ (ಐಚ್ಛಿಕ)",
+    "locationPriorityAssessmentRequired": "ಸ್ಥಳ ಆದ್ಯತೆ ಮೌಲ್ಯಮಾಪನ *",
+    "locationAutoCaptureHint": "ನೀವು ದೂರಿನ ವರ್ಗವನ್ನು ಆಯ್ಕೆಮಾಡಿದಾಗ ಸ್ಥಳವನ್ನು ಸ್ವಯಂಚಾಲಿತವಾಗಿ ಸೆರೆಹಿಡಿಯಲಾಗುತ್ತದೆ",
+    "capturingLocationStatus": "ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ಸೆರೆಹಿಡಿಯಲಾಗುತ್ತಿದೆ...",
+    "accuracyInline": "ನಿಖರತೆ: ±{{radius}}m ({{precision}})",
+    "privacyInline": "ಗೌಪ್ಯತೆ: {{description}}",
+    "recaptureLocation": "ಸ್ಥಳವನ್ನು ಮರು-ಸೆರೆಹಿಡಿಯಿರಿ",
+    "captureLocationNow": "ಈಗಲೇ ಸ್ಥಳವನ್ನು ಸೆರೆಹಿಡಿಯಿರಿ",
+    "locationPriorityAnalysisTitle": "ಸ್ಥಳ ಆದ್ಯತೆ ವಿಶ್ಲೇഷಣೆ",
+    "priorityLevelInline": "ಆದ್ಯತೆಯ ಮಟ್ಟ: {{level}} ({{score}}%)",
+    "issuePhotoRequired": "ಸಮಸ್ಯೆಯ ಫೋಟೋ *",
+    "issuePhotoHint": "ನಾಗರಿಕ ಸಮಸ್ಯೆಯನ್ನು ತೋರಿಸುವ ಸ್ಪಷ್ಟ ಫೋಟೋವನ್ನು ಅಪ್‌ಲೋಡ್ ಮಾಡಿ. ನಮ್ಮ AI ಅದನ್ನು ಪರಿಶೀಲಿಸುತ್ತದೆ.",
+    "takePhoto": "ಫೋಟೋ ತೆಗೆಯಿರಿ",
+    "chooseFromGallery": "ಗ್ಯಾಲರಿಯಿಂದ ಆಯ್ಕೆಮಾಡಿ",
+    "submitComplaintBtn": "ದೂರು ಸಲ್ಲಿಸಿ"
   }
 }

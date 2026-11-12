@@ -8,13 +8,27 @@
     "statTotalImpact": "कुल प्रभाव",
     "quickActions": "त्वरित कार्रवाई",
     "actions": {
-      "newReport": { "sub": "पर्यावरणीय चिंता दर्ज करें" },
-      "feed": { "sub": "सभी शिकायतें देखें" },
-      "map": { "sub": "क्षेत्र की स्थिति देखें" },
-      "reports": { "sub": "अपनी सबमिशन ट्रैक करें" },
-      "chatbot": { "sub": "एआई से मदद लें" },
-      "feedback": { "sub": "हमारी सेवा को रेट करें" },
-      "transparency": { "sub": "सरकारी मेट्रिक्स" }
+      "newReport": {
+        "sub": "पर्यावरणीय चिंता दर्ज करें"
+      },
+      "feed": {
+        "sub": "सभी शिकायतें देखें"
+      },
+      "map": {
+        "sub": "क्षेत्र की स्थिति देखें"
+      },
+      "reports": {
+        "sub": "अपनी सबमिशन ट्रैक करें"
+      },
+      "chatbot": {
+        "sub": "एआई से मदद लें"
+      },
+      "feedback": {
+        "sub": "हमारी सेवा को रेट करें"
+      },
+      "transparency": {
+        "sub": "सरकारी मेट्रिक्स"
+      }
     }
   },
   "feedback": {
@@ -31,7 +45,14 @@
     "title": "नगरपालिका प्रतिक्रिया प्रोटोकॉल",
     "subtitle": "प्लेटफ़ॉर्म संचालन, प्रतिक्रिया गति, और फील्ड टीम के आचरण के संबंध में संरचित मूल्यांकन प्रदान करें।",
     "scoreLabel": "समग्र सेवा संतुष्टि स्कोर *",
-    "ratingLabels": ["", "1/5 — अपर्याप्त", "2/5 — कमज़ोर", "3/5 — स्वीकार्य", "4/5 — संतोषजनक", "5/5 — उत्कृष्ट"],
+    "ratingLabels": [
+      "",
+      "1/5 — अपर्याप्त",
+      "2/5 — कमज़ोर",
+      "3/5 — स्वीकार्य",
+      "4/5 — संतोषजनक",
+      "5/5 — उत्कृष्ट"
+    ],
     "focusVector": "फोकस क्षेत्र",
     "selectDomain": "ऑडिट डोमेन चुनें (वैकल्पिक)",
     "domainUsability": "इंटरफ़ेस नेविगेशन और सुगमता",
@@ -42,7 +63,12 @@
     "remarksPlaceholder": "सिस्टम उपयोगिता, डिस्पैचर स्पष्टता, या समाधान गति के बारे में अपनी टिप्पणियाँ विस्तार से बताएँ...",
     "charsCount": "{{count}}/500 वर्ण",
     "recording": "मूल्यांकन दर्ज हो रहा है...",
-    "submit": "मूल्यांकन लेजर सबमिट करें →"
+    "submit": "मूल्यांकन लेजर सबमिट करें →",
+    "complaintRequired": "कृपया मूल्यांकन के लिए एक घटना रिपोर्ट चुनें",
+    "relatedDossier": "संबंधित घटना दस्तावेज़ *",
+    "selectReport": "एक घटना रिपोर्ट चुनें",
+    "incidentReportFallback": "घटना रिपोर्ट",
+    "complaintIdPlaceholder": "शिकायत आईडी दर्ज करें (यदि कोई नहीं है तो पहले रिपोर्ट दर्ज करें)"
   },
   "personalReports": {
     "loadFailed": "आपकी रिपोर्ट लोड करने में विफल",
@@ -69,10 +95,22 @@
     "title": "पारदर्शिता और शासन लेजर",
     "subtitle": "रीयल-टाइम नगरपालिका प्रदर्शन मेट्रिक्स, समाधान गति, और सार्वजनिक व्यय निरीक्षण।",
     "stats": {
-      "totalDispatches": { "label": "कुल दर्ज डिस्पैच", "sub": "संचयी प्रविष्टि" },
-      "resolvedAudited": { "label": "हल और ऑडिट किया गया", "sub": "सत्यापित पूर्ण" },
-      "pendingAction": { "label": "लंबित कार्रवाई", "sub": "ट्रायेज कतार में" },
-      "resolutionRate": { "label": "समाधान दर", "sub": "दक्षता आधार रेखा" }
+      "totalDispatches": {
+        "label": "कुल दर्ज डिस्पैच",
+        "sub": "संचयी प्रविष्टि"
+      },
+      "resolvedAudited": {
+        "label": "हल और ऑडिट किया गया",
+        "sub": "सत्यापित पूर्ण"
+      },
+      "pendingAction": {
+        "label": "लंबित कार्रवाई",
+        "sub": "ट्रायेज कतार में"
+      },
+      "resolutionRate": {
+        "label": "समाधान दर",
+        "sub": "दक्षता आधार रेखा"
+      }
     },
     "statusDistribution": "डिस्पैच स्थिति वितरण",
     "proportionalAudit": "आनुपातिक ऑडिट",
@@ -121,5 +159,82 @@
     "noIncidentsDesc": "चयनित फ़िल्टर मानदंड या भौगोलिक त्रिज्या से कोई शिकायत मेल नहीं खाती।",
     "resetFilters": "फ़िल्टर रीसेट करें",
     "fileReportPlain": "रिपोर्ट दर्ज करें"
+  },
+  "complaintDetail": {
+    "loadFailed": "घटना विवरण लोड करने में विफल",
+    "voteRemoved": "वोट हटाया गया",
+    "voteLogged": "नागरिक समर्थन वोट दर्ज किया गया",
+    "votingUnavailable": "वोटिंग उपलब्ध नहीं है",
+    "linkCopied": "लिंक क्लिपबोर्ड पर कॉपी किया गया",
+    "notFoundTitle": "रिकॉर्ड नहीं मिला",
+    "notFoundDesc": "अनुरोधित शिकायत रिकॉर्ड नगर रजिस्ट्री से प्राप्त नहीं हो सका।",
+    "returnToLedger": "लेजर पर लौटें",
+    "backToLedger": "शिकायत सूची पर वापस जाएँ",
+    "share": "साझा करें",
+    "concurred": "समर्थित",
+    "concur": "समर्थन करें",
+    "recordId": "रिकॉर्ड आईडी: #{{id}}",
+    "defaultTitle": "नागरिक अवसंरचना घटना",
+    "registeredBy": "द्वारा दर्ज",
+    "category": "श्रेणी",
+    "unassigned": "अनिर्दिष्ट",
+    "severityLevel": "गंभीरता स्तर",
+    "priorityScore": "प्राथमिकता स्कोर",
+    "recordTimestamp": "दर्ज समय",
+    "undated": "तिथि रहित",
+    "geoReference": "भौगोलिक संदर्भ",
+    "noAddress": "नगर क्षेत्र पता निर्दिष्ट नहीं है",
+    "gps": "जीपीएस: {{lat}}, {{lon}}",
+    "statementHeader": "नागरिक विवरण और क्षेत्रीय टिप्पणियाँ",
+    "photoEvidence": "संलग्न फोटो प्रमाण",
+    "explainAi": "AI व्याख्या (SAM-3)",
+    "neuralAnalysisTitle": "स्वचालित न्यूरल विश्लेषण और सत्यापन",
+    "sentiment": "भावना",
+    "urgencyRating": "तात्कालिकता रेटिंग",
+    "detectedClass": "पहचाना गया वर्ग",
+    "corroborated": "सत्यापित",
+    "affirmative": "पुष्ट",
+    "suspicious": "संदिग्ध",
+    "synthesis": "सारांश:",
+    "timelineTitle": "समाधान क्रम और प्रेषण समयरेखा",
+    "timelineEmpty": "प्रारंभिक शिकायत दर्ज। डिस्पैचर समीक्षा लंबित है।",
+    "priorityVectorTitle": "एल्गोरिदमिक प्राथमिकता वेक्टर विश्लेषण",
+    "ahpWeighting": "AHP बहु-मानदंड भार",
+    "infraImpact": "बुनियादी ढांचा प्रभाव",
+    "emergencyRoutes": "आपातकालीन पहुंच मार्ग",
+    "modelConfidence": "मॉडल विश्वास",
+    "visualVerification": "दृश्य सत्यापन",
+    "severityUrgency": "गंभीरता / तात्कालिकता",
+    "sentimentModel": "नागरिक भावना मॉडल",
+    "communityVotes": "सामुदायिक वोट",
+    "votesCount": "{{count}} वोट",
+    "crowdVerification": "नागरिक समूह सत्यापन"
+  },
+  "complaintMap": {
+    "loadFailed": "स्थानिक मानचित्र डेटा लोड करने में विफल",
+    "telemetryLabel": "भौगोलिक घटना टेलीमेट्री",
+    "title": "स्थानिक घनत्व मानचित्र",
+    "trackingDesc": "{{count}} स्थानीय नागरिक घटनाएँ ट्रैक की जा रही हैं। 2 किमी क्षेत्र देखने के लिए मानचित्र पर क्लिक करें।",
+    "heatmapMode": "हीटमैप घनत्व",
+    "pinsMode": "पिन वेक्टर",
+    "totalTelemetry": "कुल घटनाएँ",
+    "resolvedIncidents": "हल की गई घटनाएँ",
+    "resolutionEfficiency": "समाधान दक्षता",
+    "statusLabel": "स्थिति:",
+    "timeLabel": "अवधि:",
+    "timeAll": "सभी समय",
+    "time30": "30 दिन",
+    "time90": "90 दिन",
+    "time365": "1 वर्ष",
+    "initializing": "मानचित्र प्रारंभ हो रहा है...",
+    "scoreBadge": "{{label}} (स्कोर: {{score}})",
+    "localCoordinate": "स्थानीय निर्देशांक",
+    "explainAi": "AI व्याख्या (SAM-3)",
+    "dossierArrow": "डोजियर →",
+    "auditPerimeter": "क्षेत्र ऑडिट",
+    "zoneCount": "2.0 किमी दायरे में {{count}} घटना(एँ)",
+    "noZoneIncidents": "इस क्षेत्र के पास कोई समवर्ती घटना नहीं मिली।",
+    "coordinateRegistered": "निर्देशांक दर्ज",
+    "viewDetails": "विवरण देखें"
   }
 }

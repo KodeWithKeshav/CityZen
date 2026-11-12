@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import { useTranslatedText } from '../context/TranslationContext'
 import LanguageSwitcher from '../components/LanguageSwitcher'
 import {
   HiViewGrid, HiDocumentText, HiExclamationCircle, HiMap,
@@ -41,8 +42,12 @@ export default function AdminLayout() {
     setActivePopover((prev) => (prev === name ? null : name))
   }
 
-  const displayName = user?.fullName || user?.full_name || user?.name || user?.email || 'Admin'
-  const userInitial = displayName.charAt(0).toUpperCase()
+  const rawName = user?.fullName || user?.full_name || user?.name || ''
+  const translatedName = useTranslatedText(rawName)
+  const displayName = translatedName || rawName || user?.email || 'Admin'
+  const userInitial = (typeof Intl !== 'undefined' && Intl.Segmenter)
+    ? (new Intl.Segmenter().segment(displayName.trim() || 'A')[Symbol.iterator]().next().value?.segment || 'A').toUpperCase()
+    : displayName.charAt(0).toUpperCase()
 
   const sidebarContent = (
     <>
@@ -86,11 +91,16 @@ export default function AdminLayout() {
         ))}
       </nav>
 
+      {/* Mobile Language Switcher */}
+      <div className="px-3 pb-2 sm:hidden">
+        <LanguageSwitcher className="w-full" />
+      </div>
+
       {/* Settings */}
       <div className="px-3 pb-2">
         <button
           type="button"
-          onClick={() => togglePopover('settings')}
+          onClick={() => { setMobileNavOpen(false); togglePopover('settings') }}
           className={`sidebar-link w-full ${activePopover === 'settings' ? 'active' : ''}`}
         >
           <HiCog className="w-[18px] h-[18px]" />
@@ -113,7 +123,7 @@ export default function AdminLayout() {
   )
 
   return (
-    <div className="flex h-screen bg-surface-bright overflow-hidden">
+    <div className="flex h-screen h-[100dvh] bg-surface-bright overflow-hidden">
       {/* ─── Desktop Sidebar ─── */}
       <aside className="hidden md:flex w-[220px] flex-shrink-0 border-r border-black/10 bg-white flex-col">
         {sidebarContent}
@@ -126,7 +136,7 @@ export default function AdminLayout() {
             className="fixed inset-0 bg-black/40"
             onClick={() => setMobileNavOpen(false)}
           />
-          <aside className="relative z-10 w-[240px] max-w-[80vw] bg-white border-r border-black/10 flex flex-col h-full">
+          <aside className="relative z-10 w-[260px] max-w-[82vw] bg-white border-r border-black/10 flex flex-col h-full">
             {sidebarContent}
           </aside>
         </div>
@@ -135,11 +145,11 @@ export default function AdminLayout() {
       {/* ─── Main Area ─── */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top Bar */}
-        <header className="h-14 flex-shrink-0 border-b border-black/10 bg-white flex items-center justify-between gap-3 px-4 md:px-6 relative">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
+        <header className="h-14 flex-shrink-0 border-b border-black/10 bg-white flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 md:px-6 relative">
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
             <button
               type="button"
-              onClick={() => setMobileNavOpen(true)}
+              onClick={() => { setActivePopover(null); setMobileNavOpen(true) }}
               aria-label="Open navigation"
               className="md:hidden w-8 h-8 flex items-center justify-center border border-black/10 hover:bg-surface-container-high transition-colors flex-shrink-0"
             >
@@ -147,22 +157,22 @@ export default function AdminLayout() {
             </button>
 
             {/* Search */}
-            <form onSubmit={handleSearchSubmit} className="relative w-full max-w-xs">
-              <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary-400" />
+            <form onSubmit={handleSearchSubmit} className="relative w-full max-w-xs min-w-0">
+              <HiSearch className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('nav.search')}
                 aria-label={t('nav.search')}
-                className="w-full border border-black/10 pl-10 pr-4 py-2 text-sm text-on-surface placeholder:text-primary-300 focus:outline-none focus:border-black bg-surface-container-low"
+                className="w-full border border-black/10 pl-8 sm:pl-10 pr-2 sm:pr-4 py-1.5 sm:py-2 text-xs sm:text-sm text-on-surface placeholder:text-primary-300 focus:outline-none focus:border-black bg-surface-container-low"
               />
             </form>
           </div>
 
           {/* Right actions */}
-          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-            <LanguageSwitcher />
+          <div className="flex items-center gap-1.5 sm:gap-4 flex-shrink-0">
+            <LanguageSwitcher className="hidden sm:block" />
             <button
               type="button"
               onClick={() => togglePopover('notifications')}
@@ -189,17 +199,17 @@ export default function AdminLayout() {
 
           {/* Lightweight Header Popovers */}
           {activePopover && (
-            <div className="absolute right-4 md:right-6 top-14 mt-1 w-72 bg-white border border-black z-40 p-4 text-xs">
+            <div className="absolute right-3 md:right-6 top-14 mt-1 w-[min(18rem,calc(100vw-1.5rem))] bg-white border border-black z-40 p-4 text-xs">
               <div className="flex items-center justify-between border-b border-black/10 pb-2 mb-3">
                 <span className="text-label-sm text-on-surface">
-                  {activePopover === 'notifications' && 'Notifications'}
-                  {activePopover === 'help' && 'Admin Console Help'}
+                  {activePopover === 'notifications' && t('popovers.notificationsTitle')}
+                  {activePopover === 'help' && t('popovers.helpTitle')}
                   {activePopover === 'settings' && t('nav.admin.settings')}
                 </span>
                 <button
                   type="button"
                   onClick={() => setActivePopover(null)}
-                  aria-label="Close"
+                  aria-label={t('popovers.close')}
                   className="text-primary-400 hover:text-on-surface"
                 >
                   <HiX className="w-3.5 h-3.5" />
@@ -208,7 +218,7 @@ export default function AdminLayout() {
 
               {activePopover === 'notifications' && (
                 <div className="space-y-2 text-on-surface-variant">
-                  <p>Review high-priority civic reports in the triage queue.</p>
+                  <p>{t('popovers.notificationsDesc')}</p>
                   <button
                     type="button"
                     onClick={() => { setActivePopover(null); navigate('/admin/priority') }}
@@ -221,16 +231,16 @@ export default function AdminLayout() {
 
               {activePopover === 'help' && (
                 <div className="space-y-1.5 text-on-surface-variant leading-relaxed">
-                  <p><strong className="text-on-surface">Priority Queue:</strong> Triage incidents by AI severity index.</p>
-                  <p><strong className="text-on-surface">All Complaints:</strong> Filter, inspect, and update dispatch status.</p>
-                  <p><strong className="text-on-surface">Complaint Map:</strong> Inspect spatial density across wards.</p>
+                  <p><strong className="text-on-surface">{t('nav.admin.priority')}:</strong> {t('popovers.helpPriorityDesc')}</p>
+                  <p><strong className="text-on-surface">{t('nav.admin.complaints')}:</strong> {t('popovers.helpComplaintsDesc')}</p>
+                  <p><strong className="text-on-surface">{t('nav.admin.map')}:</strong> {t('popovers.helpMapDesc')}</p>
                 </div>
               )}
 
               {activePopover === 'settings' && (
                 <div className="space-y-2 text-on-surface-variant">
                   <div>
-                    <span className="block text-[10px] uppercase text-primary-400">Account</span>
+                    <span className="block text-[10px] uppercase text-primary-400">{t('popovers.account')}</span>
                     <span className="font-semibold text-on-surface block truncate">{displayName}</span>
                     {user?.email && <span className="block truncate">{user.email}</span>}
                   </div>

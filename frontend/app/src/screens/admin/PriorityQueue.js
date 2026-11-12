@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,12 +12,17 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import SimpleDropdown from '../../components/SimpleDropdown';
 import { apiClient, makeApiCall } from '../../../config/supabase';
+import { useTranslatedList } from '../../context/TranslationContext';
+import { formatLocalizedDate } from '../../utils/dateLocale';
+import { getCategoryLabel, getStatusLabel } from '../../utils/priorityUtils';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 const PriorityQueue = ({ navigation }) => {
+  const { t, i18n } = useTranslation(['admin', 'common', 'complaint', 'citizen']);
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -31,7 +36,7 @@ const PriorityQueue = ({ navigation }) => {
   const [filterFlagged, setFilterFlagged] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
-  
+
   // Status change modal state
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
@@ -43,33 +48,58 @@ const PriorityQueue = ({ navigation }) => {
   const [selectedContractor, setSelectedContractor] = useState('');
   const [statusChangeLoading, setStatusChangeLoading] = useState(false);
 
+  const pqSource = useMemo(() => (complaints || []).map((c) => {
+    const cs = c.complaint_stages?.find(s => s.stage_status === 'in_progress') ||
+      c.complaint_stages?.find(s => s.stage_status === 'pending');
+    return {
+      ...c,
+      _citizenName: c.users?.full_name || c.user?.full_name || c.user_name || c.citizenName || '',
+      _stageName: cs?.stage_name || '',
+      _officerName: cs?.officers?.name || '',
+      _officerDept: cs?.officers?.department || '',
+      _contractorName: cs?.contractors?.name || '',
+      _contractorCompany: cs?.contractors?.company_name || '',
+    };
+  }), [complaints]);
+
+  const translatedComplaints = useTranslatedList(pqSource, [
+    'title', 'location_address', '_citizenName', '_stageName',
+    '_officerName', '_officerDept', '_contractorName', '_contractorCompany'
+  ]);
+  const translatedOfficers = useTranslatedList(officers, ['name', 'department']);
+  const translatedContractors = useTranslatedList(contractors, ['name', 'specialization']);
+
+  const displayComplaints = translatedComplaints.length > 0 ? translatedComplaints : pqSource;
+  const displayOfficers = translatedOfficers.length > 0 ? translatedOfficers : officers;
+  const displayContractors = translatedContractors.length > 0 ? translatedContractors : contractors;
+
   const categories = [
     'pothole', 'fallen_tree', 'garbage_dumping', 'stray_cattle',
     'fallen_electric_pole', 'concrete_structure_damage', 'road_waterlogging', 'others'
   ];
-  
+
   const statusOptions = ['pending', 'in_progress', 'resolved', 'rejected'];
-  
+
   const priorityOptions = [
-    { label: 'Low Priority (0-3)', value: 'low' },
-    { label: 'Medium Priority (4-6)', value: 'medium' },
-    { label: 'High Priority (7-8)', value: 'high' },
-    { label: 'Critical Priority (9-10)', value: 'critical' }
+    { label: t('admin:mobileAdmin.priorityLowOpt'), value: 'low' },
+    { label: t('admin:mobileAdmin.priorityMedOpt'), value: 'medium' },
+    { label: t('admin:mobileAdmin.priorityHighOpt'), value: 'high' },
+    { label: t('admin:mobileAdmin.priorityCritOpt'), value: 'critical' }
   ];
 
   const dateRangeOptions = [
-    { label: 'Last 24 Hours', value: '1' },
-    { label: 'Last 3 Days', value: '3' },
-    { label: 'Last Week', value: '7' },
-    { label: 'Last Month', value: '30' },
-    { label: 'Last 3 Months', value: '90' }
+    { label: t('admin:mobileAdmin.last24h'), value: '1' },
+    { label: t('admin:mobileAdmin.last3d'), value: '3' },
+    { label: t('admin:mobileAdmin.lastWeek'), value: '7' },
+    { label: t('admin:mobileAdmin.lastMonth'), value: '30' },
+    { label: t('admin:mobileAdmin.last3Months'), value: '90' }
   ];
 
   const assignmentOptions = [
-    { label: 'Unassigned', value: 'unassigned' },
-    { label: 'Assigned to Officer', value: 'officer_assigned' },
-    { label: 'Assigned to Contractor', value: 'contractor_assigned' },
-    { label: 'Fully Assigned', value: 'fully_assigned' }
+    { label: t('admin:mobileAdmin.unassigned'), value: 'unassigned' },
+    { label: t('admin:mobileAdmin.assignedOfficer'), value: 'officer_assigned' },
+    { label: t('admin:mobileAdmin.assignedContractor'), value: 'contractor_assigned' },
+    { label: t('admin:mobileAdmin.fullyAssigned'), value: 'fully_assigned' }
   ];
 
   useEffect(() => {
@@ -79,12 +109,12 @@ const PriorityQueue = ({ navigation }) => {
   const loadComplaints = async (page = 1) => {
     try {
       if (page === 1) setLoading(true);
-      
+
       const params = new URLSearchParams({
         page: page.toString(),
         limit: '20'
       });
-      
+
       if (searchText) params.append('search', searchText);
       if (filterLocation) params.append('location', filterLocation);
       if (filterCategory) params.append('category', filterCategory);
@@ -98,11 +128,11 @@ const PriorityQueue = ({ navigation }) => {
         searchText, filterLocation, filterCategory, filterStatus,
         filterPriority, filterDateRange, filterAssigned, filterFlagged
       });
-      
+
       const response = await makeApiCall(
         `${apiClient.baseUrl}/api/admin-enhanced/complaints/priority-queue?${params}`
       );
-      
+
       if (response.success) {
         if (page === 1) {
           setComplaints(response.data.complaints);
@@ -112,11 +142,11 @@ const PriorityQueue = ({ navigation }) => {
         setPagination(response.data.pagination);
         console.log(`Loaded ${response.data.complaints.length} complaints`);
       } else {
-        Alert.alert('Error', response.message || 'Failed to load complaints');
+        Alert.alert(t('common:mobileNav.error'), response.message || t('admin:mobileAdmin.loadComplaintsFailed'));
       }
     } catch (error) {
       console.error('Load complaints error:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.connectError'));
     } finally {
       setLoading(false);
     }
@@ -196,7 +226,7 @@ const PriorityQueue = ({ navigation }) => {
     setSelectedOfficer('');
     setSelectedContractor('');
     setShowStatusModal(true);
-    
+
     // Load officers and contractors if not already loaded
     if (officers.length === 0 || contractors.length === 0) {
       loadOfficersAndContractors();
@@ -205,12 +235,12 @@ const PriorityQueue = ({ navigation }) => {
 
   const updateComplaintStatus = async () => {
     if (!selectedComplaint || !newStatus) {
-      Alert.alert('Validation Error', 'Please select a new status before proceeding.');
+      Alert.alert(t('complaint:mobileSubmit.validationErrorTitle'), t('admin:mobileAdmin.selectNewStatusError'));
       return;
     }
 
     if (newStatus === selectedComplaint.status) {
-      Alert.alert('No Changes', 'The selected status is the same as the current status.');
+      Alert.alert(t('admin:mobileAdmin.noChangesTitle'), t('admin:mobileAdmin.sameStatusDesc'));
       return;
     }
 
@@ -240,20 +270,20 @@ const PriorityQueue = ({ navigation }) => {
       );
 
       if (response.success) {
-        const officerName = selectedOfficer ? 
-          officers.find(o => o.id.toString() === selectedOfficer)?.name : null;
-        const contractorName = selectedContractor ? 
-          contractors.find(c => c.id.toString() === selectedContractor)?.name : null;
-        
-        let successMessage = `Status updated to "${newStatus.replace('_', ' ').toUpperCase()}"`;
-        if (officerName) successMessage += `\nOfficer assigned: ${officerName}`;
-        if (contractorName) successMessage += `\nContractor assigned: ${contractorName}`;
+        const officerName = selectedOfficer ?
+          displayOfficers.find(o => o.id.toString() === selectedOfficer)?.name : null;
+        const contractorName = selectedContractor ?
+          displayContractors.find(c => c.id.toString() === selectedContractor)?.name : null;
+
+        let successMessage = t('admin:mobileAdmin.statusUpdatedTo', { status: getStatusLabel(newStatus, t) });
+        if (officerName) successMessage += `\n${t('admin:mobileAdmin.officerAssignedLine', { name: officerName })}`;
+        if (contractorName) successMessage += `\n${t('admin:mobileAdmin.contractorAssignedLine', { name: contractorName })}`;
 
         Alert.alert(
-          'Success', 
+          t('common:buttons.success'),
           successMessage,
-          [{ 
-            text: 'OK', 
+          [{
+            text: t('common:buttons.ok'),
             onPress: () => {
               setShowStatusModal(false);
               // Reset form
@@ -268,13 +298,13 @@ const PriorityQueue = ({ navigation }) => {
         );
       } else {
         console.error('Status update failed:', response);
-        Alert.alert('Update Failed', response.message || 'Failed to update complaint status. Please try again.');
+        Alert.alert(t('admin:mobileAdmin.updateFailedTitle'), response.message || t('admin:mobileAdmin.updateStatusFailed'));
       }
     } catch (error) {
       console.error('Status update error:', error);
       Alert.alert(
-        'Network Error', 
-        'Failed to connect to server. Please check your connection and try again.'
+        t('admin:mobileAdmin.networkErrorTitle'),
+        t('admin:mobileAdmin.networkErrorDesc')
       );
     } finally {
       setStatusChangeLoading(false);
@@ -284,9 +314,9 @@ const PriorityQueue = ({ navigation }) => {
   const renderComplaintCard = (complaint) => {
     const stagesCompleted = complaint.complaint_stages?.filter(s => s.stage_status === 'completed').length || 0;
     const totalStages = complaint.complaint_stages?.length || 0;
-    const currentStage = complaint.complaint_stages?.find(s => s.stage_status === 'in_progress') || 
-                       complaint.complaint_stages?.find(s => s.stage_status === 'pending');
-    
+    const currentStage = complaint.complaint_stages?.find(s => s.stage_status === 'in_progress') ||
+      complaint.complaint_stages?.find(s => s.stage_status === 'pending');
+
     return (
       <TouchableOpacity
         key={complaint.id}
@@ -305,43 +335,43 @@ const PriorityQueue = ({ navigation }) => {
               {complaint.title}
             </Text>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(complaint.status) }]}>
-              <Text style={styles.statusText}>{(complaint.status || 'pending').toUpperCase()}</Text>
+              <Text style={styles.statusText}>{getStatusLabel(complaint.status || 'pending', t)}</Text>
             </View>
           </View>
 
           {complaint.content_flagged && (
             <View style={[styles.statusBadge, { backgroundColor: '#C62828', alignSelf: 'flex-start', marginBottom: 4 }]}>
-              <Text style={styles.statusText}>FLAGGED FOR REVIEW</Text>
+              <Text style={styles.statusText}>{t('admin:mobileAdmin.flaggedForReview')}</Text>
             </View>
           )}
 
           <Text style={styles.complaintLocation} numberOfLines={1}>
-            {complaint.location_address || 'Location not specified'}
+            {complaint.location_address || t('admin:mobileAdmin.locationNotSpecified')}
           </Text>
 
           {complaint.geometry_status === 'completed' && (
             <Text style={styles.geometrySummary} numberOfLines={1}>
-              ~{complaint.estimated_width_cm}×{complaint.estimated_length_cm}cm (est.)
+              {t('admin:mobileAdmin.geometryEstShort', { w: complaint.estimated_width_cm, l: complaint.estimated_length_cm })}
             </Text>
           )}
 
           <Text style={styles.complaintUser}>
-            {complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || 'Verified Citizen'}
+            {complaint._citizenName || t('admin:mobileAdmin.verifiedCitizen')}
           </Text>
 
           {/* Progress Bar */}
           {totalStages > 0 && (
             <View style={styles.progressSection}>
               <View style={styles.progressBar}>
-                <View 
+                <View
                   style={[
-                    styles.progressFill, 
+                    styles.progressFill,
                     { width: `${(stagesCompleted / totalStages) * 100}%` }
-                  ]} 
+                  ]}
                 />
               </View>
               <Text style={styles.progressText}>
-                {stagesCompleted}/{totalStages} stages completed
+                {t('admin:mobileAdmin.stagesCompletedCount', { completed: stagesCompleted, total: totalStages })}
               </Text>
             </View>
           )}
@@ -349,16 +379,16 @@ const PriorityQueue = ({ navigation }) => {
           {/* Current Stage */}
           {currentStage && (
             <View style={styles.currentStageSection}>
-              <Text style={styles.currentStageLabel}>Current Stage:</Text>
-              <Text style={styles.currentStageName}>{currentStage.stage_name || 'Processing'}</Text>
+              <Text style={styles.currentStageLabel}>{t('admin:mobileAdmin.currentStageLabel')}</Text>
+              <Text style={styles.currentStageName}>{complaint._stageName || t('admin:mobileAdmin.processing')}</Text>
               {currentStage.officers && (
                 <Text style={styles.assignedOfficer}>
-                  Officer: {currentStage.officers.name} ({currentStage.officers.department || 'No Dept'})
+                  {t('admin:mobileAdmin.officerLine', { name: complaint._officerName || currentStage.officers.name, dept: complaint._officerDept || t('admin:mobileAdmin.noDept') })}
                 </Text>
               )}
               {currentStage.contractors && (
                 <Text style={styles.assignedContractor}>
-                  Contractor: {currentStage.contractors.name}{currentStage.contractors.company_name ? ` - ${currentStage.contractors.company_name}` : ''}
+                  {t('admin:mobileAdmin.contractorLine', { name: complaint._contractorName || currentStage.contractors.name, company: complaint._contractorCompany ? ` - ${complaint._contractorCompany}` : '' })}
                 </Text>
               )}
             </View>
@@ -366,27 +396,29 @@ const PriorityQueue = ({ navigation }) => {
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.viewButton}
               onPress={() => navigateToComplaintDetails(complaint.id)}
             >
               <Ionicons name="eye-outline" size={16} color="#1A1A1A" />
-              <Text style={styles.buttonText}>View Status</Text>
+              <Text style={styles.buttonText}>{t('admin:mobileAdmin.viewStatus')}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.editButton}
               onPress={() => showStatusChangeModal(complaint)}
             >
               <Ionicons name="create-outline" size={16} color="#1A1A1A" />
-              <Text style={styles.buttonText}>Change Status</Text>
+              <Text style={styles.buttonText}>{t('admin:mobileAdmin.changeStatus')}</Text>
             </TouchableOpacity>
           </View>
 
           {/* Timestamp */}
           <Text style={styles.timestamp}>
-            Created: {new Date(complaint.created_at).toLocaleDateString()} • 
-            Updated: {new Date(complaint.updated_at).toLocaleDateString()}
+            {t('admin:mobileAdmin.createdUpdatedDates', {
+              created: formatLocalizedDate(complaint.created_at, i18n.language),
+              updated: formatLocalizedDate(complaint.updated_at, i18n.language),
+            })}
           </Text>
         </View>
       </TouchableOpacity>
@@ -417,8 +449,8 @@ const PriorityQueue = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#374151" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Priority Queue</Text>
-        <TouchableOpacity 
+        <Text style={styles.headerTitle}>{t('admin:mobileAdmin.priorityQueueTitle')}</Text>
+        <TouchableOpacity
           style={styles.filterButtonContainer}
           onPress={() => setShowFilters(true)}
         >
@@ -437,7 +469,7 @@ const PriorityQueue = ({ navigation }) => {
           <Ionicons name="search-outline" size={20} color="#7f8c8d" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by issue name or location..."
+            placeholder={t('admin:mobileAdmin.searchByIssueOrLoc')}
             value={searchText}
             onChangeText={setSearchText}
             placeholderTextColor="#7f8c8d"
@@ -455,14 +487,14 @@ const PriorityQueue = ({ navigation }) => {
           onPress={() => setFilterFlagged(v => !v)}
         >
           <Ionicons name="alert-circle-outline" size={14} color="#fff" />
-          <Text style={styles.filterChipText}>Flagged for Review</Text>
+          <Text style={styles.filterChipText}>{t('admin:mobileAdmin.flaggedToggle')}</Text>
         </TouchableOpacity>
 
         {/* Active Filters Display */}
         {(filterLocation || filterCategory || filterStatus || filterPriority || filterDateRange || filterAssigned) && (
           <View style={styles.activeFilters}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {filterLocation && (
+              {Boolean(filterLocation) && (
                 <View style={styles.filterChip}>
                   <Text style={styles.filterChipText}>{filterLocation}</Text>
                   <TouchableOpacity onPress={() => setFilterLocation('')}>
@@ -470,31 +502,31 @@ const PriorityQueue = ({ navigation }) => {
                   </TouchableOpacity>
                 </View>
               )}
-              {filterCategory && (
+              {Boolean(filterCategory) && (
                 <View style={styles.filterChip}>
-                  <Text style={styles.filterChipText}>{filterCategory.replace('_', ' ')}</Text>
+                  <Text style={styles.filterChipText}>{getCategoryLabel(filterCategory, t)}</Text>
                   <TouchableOpacity onPress={() => setFilterCategory('')}>
                     <Ionicons name="close" size={14} color="#fff" />
                   </TouchableOpacity>
                 </View>
               )}
-              {filterStatus && (
+              {Boolean(filterStatus) && (
                 <View style={styles.filterChip}>
-                  <Text style={styles.filterChipText}>{filterStatus.replace('_', ' ')}</Text>
+                  <Text style={styles.filterChipText}>{getStatusLabel(filterStatus, t)}</Text>
                   <TouchableOpacity onPress={() => setFilterStatus('')}>
                     <Ionicons name="close" size={14} color="#fff" />
                   </TouchableOpacity>
                 </View>
               )}
-              {filterPriority && (
+              {Boolean(filterPriority) && (
                 <View style={styles.filterChip}>
-                  <Text style={styles.filterChipText}>{priorityOptions.find(p => p.value === filterPriority)?.label.split(' ')[0] || filterPriority}</Text>
+                  <Text style={styles.filterChipText}>{priorityOptions.find(p => p.value === filterPriority)?.label || filterPriority}</Text>
                   <TouchableOpacity onPress={() => setFilterPriority('')}>
                     <Ionicons name="close" size={14} color="#fff" />
                   </TouchableOpacity>
                 </View>
               )}
-              {filterDateRange && (
+              {Boolean(filterDateRange) && (
                 <View style={styles.filterChip}>
                   <Text style={styles.filterChipText}>{dateRangeOptions.find(d => d.value === filterDateRange)?.label || filterDateRange}</Text>
                   <TouchableOpacity onPress={() => setFilterDateRange('')}>
@@ -502,7 +534,7 @@ const PriorityQueue = ({ navigation }) => {
                   </TouchableOpacity>
                 </View>
               )}
-              {filterAssigned && (
+              {Boolean(filterAssigned) && (
                 <View style={styles.filterChip}>
                   <Text style={styles.filterChipText}>{assignmentOptions.find(a => a.value === filterAssigned)?.label || filterAssigned}</Text>
                   <TouchableOpacity onPress={() => setFilterAssigned('')}>
@@ -511,7 +543,7 @@ const PriorityQueue = ({ navigation }) => {
                 </View>
               )}
               <TouchableOpacity style={styles.clearAllChip} onPress={clearFilters}>
-                <Text style={styles.clearAllText}>Clear All</Text>
+                <Text style={styles.clearAllText}>{t('admin:mobileAdmin.clearAll')}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -535,23 +567,23 @@ const PriorityQueue = ({ navigation }) => {
       >
         {loading && complaints.length === 0 ? (
           <View style={styles.loadingContainer}>
-            <Text>Loading complaints...</Text>
+            <Text>{t('admin:mobileAdmin.loadingComplaints')}</Text>
           </View>
         ) : (
           <>
-            {complaints.map(renderComplaintCard)}
-            
+            {displayComplaints.map(renderComplaintCard)}
+
             {pagination.page < pagination.totalPages && (
               <TouchableOpacity style={styles.loadMoreButton} onPress={loadMoreComplaints}>
-                <Text style={styles.loadMoreText}>Load More</Text>
+                <Text style={styles.loadMoreText}>{t('admin:mobileAdmin.loadMore')}</Text>
               </TouchableOpacity>
             )}
-            
+
             {complaints.length === 0 && (
               <View style={styles.emptyContainer}>
                 <Ionicons name="document-outline" size={50} color="#bdc3c7" />
-                <Text style={styles.emptyText}>No complaints found</Text>
-                <Text style={styles.emptySubtext}>Try adjusting your search criteria</Text>
+                <Text style={styles.emptyText}>{t('admin:mobileAdmin.noComplaintsFound')}</Text>
+                <Text style={styles.emptySubtext}>{t('admin:mobileAdmin.adjustSearchCriteria')}</Text>
               </View>
             )}
           </>
@@ -570,7 +602,7 @@ const PriorityQueue = ({ navigation }) => {
             <View style={styles.modalHeader}>
               <View style={styles.headerTitleContainer}>
                 <Ionicons name="filter-outline" size={24} color="#2c3e50" />
-                <Text style={styles.modalTitle}>Filter Complaints</Text>
+                <Text style={styles.modalTitle}>{t('admin:mobileAdmin.filterComplaints')}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowFilters(false)}>
                 <Ionicons name="close" size={24} color="#2c3e50" />
@@ -580,10 +612,10 @@ const PriorityQueue = ({ navigation }) => {
             <ScrollView style={styles.filterContent} showsVerticalScrollIndicator={false}>
               {/* Search by Location */}
               <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Search by Location</Text>
+                <Text style={styles.filterLabel}>{t('admin:mobileAdmin.searchByLocationLabel')}</Text>
                 <TextInput
                   style={styles.filterInput}
-                  placeholder="Enter area, landmark, or address..."
+                  placeholder={t('admin:mobileAdmin.locationPlaceholder')}
                   placeholderTextColor="#bdc3c7"
                   value={filterLocation}
                   onChangeText={setFilterLocation}
@@ -592,15 +624,15 @@ const PriorityQueue = ({ navigation }) => {
 
               {/* Category Filter */}
               <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Complaint Category</Text>
+                <Text style={styles.filterLabel}>{t('admin:mobileAdmin.complaintCategoryLabel')}</Text>
                 <SimpleDropdown
                   value={filterCategory}
                   onValueChange={setFilterCategory}
-                  placeholder="All Categories"
+                  placeholder={t('admin:mobileAdmin.allCategories')}
                   items={[
-                    { label: 'All Categories', value: '' },
+                    { label: t('admin:mobileAdmin.allCategories'), value: '' },
                     ...categories.map(cat => ({
-                      label: cat.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      label: getCategoryLabel(cat, t),
                       value: cat,
                     })),
                   ]}
@@ -609,15 +641,15 @@ const PriorityQueue = ({ navigation }) => {
 
               {/* Status Filter */}
               <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Complaint Status</Text>
+                <Text style={styles.filterLabel}>{t('admin:mobileAdmin.complaintStatusLabel')}</Text>
                 <SimpleDropdown
                   value={filterStatus}
                   onValueChange={setFilterStatus}
-                  placeholder="All Statuses"
+                  placeholder={t('admin:mobileAdmin.allStatuses')}
                   items={[
-                    { label: 'All Statuses', value: '' },
+                    { label: t('admin:mobileAdmin.allStatuses'), value: '' },
                     ...statusOptions.map(status => ({
-                      label: status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      label: getStatusLabel(status, t),
                       value: status,
                     })),
                   ]}
@@ -626,34 +658,34 @@ const PriorityQueue = ({ navigation }) => {
 
               {/* Priority Filter */}
               <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Priority Level</Text>
+                <Text style={styles.filterLabel}>{t('admin:mobileAdmin.priorityLevelLabel')}</Text>
                 <SimpleDropdown
                   value={filterPriority}
                   onValueChange={setFilterPriority}
-                  placeholder="All Priority Levels"
-                  items={[{ label: 'All Priority Levels', value: '' }, ...priorityOptions]}
+                  placeholder={t('admin:mobileAdmin.allPriorityLevels')}
+                  items={[{ label: t('admin:mobileAdmin.allPriorityLevels'), value: '' }, ...priorityOptions]}
                 />
               </View>
 
               {/* Date Range Filter */}
               <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Date Range</Text>
+                <Text style={styles.filterLabel}>{t('admin:mobileAdmin.dateRangeLabel')}</Text>
                 <SimpleDropdown
                   value={filterDateRange}
                   onValueChange={setFilterDateRange}
-                  placeholder="All Time"
-                  items={[{ label: 'All Time', value: '' }, ...dateRangeOptions]}
+                  placeholder={t('admin:mobileAdmin.allTime')}
+                  items={[{ label: t('admin:mobileAdmin.allTime'), value: '' }, ...dateRangeOptions]}
                 />
               </View>
 
               {/* Assignment Filter */}
               <View style={styles.filterSection}>
-                <Text style={styles.filterLabel}>Assignment Status</Text>
+                <Text style={styles.filterLabel}>{t('admin:mobileAdmin.assignmentStatusLabel')}</Text>
                 <SimpleDropdown
                   value={filterAssigned}
                   onValueChange={setFilterAssigned}
-                  placeholder="All Assignments"
-                  items={[{ label: 'All Assignments', value: '' }, ...assignmentOptions]}
+                  placeholder={t('admin:mobileAdmin.allAssignments')}
+                  items={[{ label: t('admin:mobileAdmin.allAssignments'), value: '' }, ...assignmentOptions]}
                 />
               </View>
 
@@ -661,10 +693,10 @@ const PriorityQueue = ({ navigation }) => {
               {getActiveFilterCount() > 0 && (
                 <View style={styles.filterSummary}>
                   <Text style={styles.filterSummaryTitle}>
-                    Active Filters ({getActiveFilterCount()})
+                    {t('admin:mobileAdmin.activeFiltersTitle', { count: getActiveFilterCount() })}
                   </Text>
                   <Text style={styles.filterSummaryText}>
-                    {getActiveFilterCount()} filter{getActiveFilterCount() > 1 ? 's' : ''} applied to your complaint search
+                    {t('admin:mobileAdmin.filtersAppliedCount', { count: getActiveFilterCount() })}
                   </Text>
                 </View>
               )}
@@ -673,14 +705,14 @@ const PriorityQueue = ({ navigation }) => {
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
                 <Ionicons name="refresh-outline" size={20} color="#7f8c8d" />
-                <Text style={styles.clearButtonText}>Clear All</Text>
+                <Text style={styles.clearButtonText}>{t('admin:mobileAdmin.clearAll')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.applyButton} 
+              <TouchableOpacity
+                style={styles.applyButton}
                 onPress={() => setShowFilters(false)}
               >
                 <Ionicons name="checkmark-outline" size={20} color="#fff" />
-                <Text style={styles.applyButtonText}>Apply Filters</Text>
+                <Text style={styles.applyButtonText}>{t('admin:mobileAdmin.applyFilters')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -700,9 +732,9 @@ const PriorityQueue = ({ navigation }) => {
             <View style={styles.modernModalHeader}>
               <View style={styles.headerTitleContainer}>
                 <Ionicons name="settings-outline" size={24} color="#2c3e50" />
-                <Text style={styles.modernModalTitle}>Update Complaint Status</Text>
+                <Text style={styles.modernModalTitle}>{t('admin:mobileAdmin.updateComplaintStatus')}</Text>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.closeButton}
                 onPress={() => setShowStatusModal(false)}
               >
@@ -724,7 +756,7 @@ const PriorityQueue = ({ navigation }) => {
                     <View style={styles.currentStatusContainer}>
                       <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(selectedComplaint.status) }]} />
                       <Text style={styles.modernCurrentStatus}>
-                        Current: {(selectedComplaint.status || 'pending').replace('_', ' ').toUpperCase()}
+                        {t('admin:mobileAdmin.currentStatusInline', { status: getStatusLabel(selectedComplaint.status || 'pending', t) })}
                       </Text>
                     </View>
                   </View>
@@ -735,17 +767,17 @@ const PriorityQueue = ({ navigation }) => {
               <View style={styles.modernFieldContainer}>
                 <View style={styles.labelRow}>
                   <Ionicons name="flag-outline" size={16} color="#1A1A1A" />
-                  <Text style={styles.modernFieldLabel}>New Status *</Text>
+                  <Text style={styles.modernFieldLabel}>{t('admin:mobileAdmin.newStatusRequired')}</Text>
                 </View>
                 <SimpleDropdown
                   value={newStatus}
                   onValueChange={setNewStatus}
-                  placeholder="Choose New Status"
+                  placeholder={t('admin:mobileAdmin.chooseNewStatus')}
                   items={[
-                    { label: 'Pending', value: 'pending' },
-                    { label: 'In Progress', value: 'in_progress' },
-                    { label: 'Resolved', value: 'resolved' },
-                    { label: 'Rejected', value: 'rejected' },
+                    { label: getStatusLabel('pending', t), value: 'pending' },
+                    { label: getStatusLabel('in_progress', t), value: 'in_progress' },
+                    { label: getStatusLabel('resolved', t), value: 'resolved' },
+                    { label: getStatusLabel('rejected', t), value: 'rejected' },
                   ]}
                 />
               </View>
@@ -754,16 +786,16 @@ const PriorityQueue = ({ navigation }) => {
               <View style={styles.modernFieldContainer}>
                 <View style={styles.labelRow}>
                   <Ionicons name="person-outline" size={16} color="#1A1A1A" />
-                  <Text style={styles.modernFieldLabel}>Assign Officer</Text>
+                  <Text style={styles.modernFieldLabel}>{t('admin:mobileAdmin.assignOfficer')}</Text>
                 </View>
                 <SimpleDropdown
                   value={selectedOfficer}
                   onValueChange={setSelectedOfficer}
-                  placeholder="Select Officer (Optional)"
+                  placeholder={t('admin:mobileAdmin.selectOfficerOptional')}
                   items={[
-                    { label: 'Select Officer (Optional)', value: '' },
-                    ...officers.map(officer => ({
-                      label: `${officer.name} - ${officer.department || 'No Dept'}`,
+                    { label: t('admin:mobileAdmin.selectOfficerOptional'), value: '' },
+                    ...displayOfficers.map(officer => ({
+                      label: `${officer.name} - ${officer.department || t('admin:mobileAdmin.noDept')}`,
                       value: officer.id.toString(),
                     })),
                   ]}
@@ -774,15 +806,15 @@ const PriorityQueue = ({ navigation }) => {
               <View style={styles.modernFieldContainer}>
                 <View style={styles.labelRow}>
                   <Ionicons name="construct-outline" size={16} color="#1A1A1A" />
-                  <Text style={styles.modernFieldLabel}>Assign Contractor</Text>
+                  <Text style={styles.modernFieldLabel}>{t('admin:mobileAdmin.assignContractor')}</Text>
                 </View>
                 <SimpleDropdown
                   value={selectedContractor}
                   onValueChange={setSelectedContractor}
-                  placeholder="Select Contractor (Optional)"
+                  placeholder={t('admin:mobileAdmin.selectContractorOptional')}
                   items={[
-                    { label: 'Select Contractor (Optional)', value: '' },
-                    ...contractors.map(contractor => ({
+                    { label: t('admin:mobileAdmin.selectContractorOptional'), value: '' },
+                    ...displayContractors.map(contractor => ({
                       label: `${contractor.name}${contractor.specialization ? ` - ${contractor.specialization}` : ''}`,
                       value: contractor.id.toString(),
                     })),
@@ -794,12 +826,12 @@ const PriorityQueue = ({ navigation }) => {
               <View style={styles.modernFieldContainer}>
                 <View style={styles.labelRow}>
                   <Ionicons name="document-text-outline" size={16} color="#1A1A1A" />
-                  <Text style={styles.modernFieldLabel}>Notes & Comments</Text>
+                  <Text style={styles.modernFieldLabel}>{t('admin:mobileAdmin.notesAndComments')}</Text>
                 </View>
                 <View style={styles.modernTextInputContainer}>
                   <TextInput
                     style={styles.modernNotesInput}
-                    placeholder="Add notes about this status change..."
+                    placeholder={t('admin:mobileAdmin.addNotesPlaceholder')}
                     placeholderTextColor="#bdc3c7"
                     value={statusNotes}
                     onChangeText={setStatusNotes}
@@ -815,28 +847,28 @@ const PriorityQueue = ({ navigation }) => {
                 <View style={styles.previewSection}>
                   <View style={styles.previewTitleRow}>
                     <Ionicons name="eye-outline" size={16} color="#1A1A1A" />
-                    <Text style={styles.previewTitle}>Preview Changes</Text>
+                    <Text style={styles.previewTitle}>{t('admin:mobileAdmin.previewChanges')}</Text>
                   </View>
                   <View style={styles.previewContent}>
                     <View style={styles.previewRow}>
-                      <Text style={styles.previewLabel}>Status:</Text>
+                      <Text style={styles.previewLabel}>{t('admin:mobileAdmin.statusPreviewLabel')}</Text>
                       <Text style={[styles.previewValue, { color: getStatusColor(newStatus) }]}>
-                        {newStatus.replace('_', ' ').toUpperCase()}
+                        {getStatusLabel(newStatus, t)}
                       </Text>
                     </View>
                     {selectedOfficer && (
                       <View style={styles.previewRow}>
-                        <Text style={styles.previewLabel}>Officer:</Text>
+                        <Text style={styles.previewLabel}>{t('admin:mobileAdmin.officerPreviewLabel')}</Text>
                         <Text style={styles.previewValue}>
-                          {officers.find(o => o.id.toString() === selectedOfficer)?.name || 'Unknown'}
+                          {displayOfficers.find(o => o.id.toString() === selectedOfficer)?.name || t('common:common.unknown')}
                         </Text>
                       </View>
                     )}
                     {selectedContractor && (
                       <View style={styles.previewRow}>
-                        <Text style={styles.previewLabel}>Contractor:</Text>
+                        <Text style={styles.previewLabel}>{t('admin:mobileAdmin.contractorPreviewLabel')}</Text>
                         <Text style={styles.previewValue}>
-                          {contractors.find(c => c.id.toString() === selectedContractor)?.name || 'Unknown'}
+                          {displayContractors.find(c => c.id.toString() === selectedContractor)?.name || t('common:common.unknown')}
                         </Text>
                       </View>
                     )}
@@ -847,17 +879,17 @@ const PriorityQueue = ({ navigation }) => {
 
             {/* Action Buttons */}
             <View style={styles.modernModalActions}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.modernCancelButton}
                 onPress={() => setShowStatusModal(false)}
               >
                 <Ionicons name="close-outline" size={20} color="#7f8c8d" />
-                <Text style={styles.modernCancelText}>Cancel</Text>
+                <Text style={styles.modernCancelText}>{t('common:buttons.cancel')}</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
+
+              <TouchableOpacity
                 style={[
-                  styles.modernUpdateButton, 
+                  styles.modernUpdateButton,
                   statusChangeLoading && styles.buttonDisabled,
                   !newStatus && styles.buttonDisabled
                 ]}
@@ -867,12 +899,12 @@ const PriorityQueue = ({ navigation }) => {
                 {statusChangeLoading ? (
                   <>
                     <Ionicons name="sync-outline" size={20} color="#fff" />
-                    <Text style={styles.modernUpdateText}>Updating...</Text>
+                    <Text style={styles.modernUpdateText}>{t('admin:mobileAdmin.updating')}</Text>
                   </>
                 ) : (
                   <>
                     <Ionicons name="checkmark-outline" size={20} color="#fff" />
-                    <Text style={styles.modernUpdateText}>Update Status</Text>
+                    <Text style={styles.modernUpdateText}>{t('admin:mobileAdmin.updateStatus')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1169,7 +1201,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
   },
-  
+
   // Modal styles
   modalOverlay: {
     flex: 1,

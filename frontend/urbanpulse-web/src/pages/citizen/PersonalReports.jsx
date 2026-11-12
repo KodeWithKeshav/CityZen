@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
 import { HiDocumentReport, HiPlus, HiChevronRight } from 'react-icons/hi'
-import { format } from 'date-fns'
-import { getPriorityTier } from '../../utils/priorityUtils'
+import { getPriorityTier, getCategoryLabel } from '../../utils/priorityUtils'
+import { useTranslatedList } from '../../context/TranslationContext'
+import { formatLocalizedDate } from '../../utils/dateLocale'
 
 export default function PersonalReports() {
-  const { t } = useTranslation(['citizen', 'admin'])
+  const { t, i18n } = useTranslation(['citizen', 'admin', 'common', 'complaint'])
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
@@ -46,19 +47,27 @@ export default function PersonalReports() {
     return reports.filter(r => (r.status || '').toLowerCase().replace(/-/g, '_') === filter.toLowerCase())
   }, [reports, filter])
 
+  const translatedReports = useTranslatedList(filteredReports, [
+    'title',
+    'complaintTitle',
+    'description',
+    'location',
+    'location_address',
+  ])
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
+    <div className="max-w-4xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="border-b border-black pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
             <span>{t('citizen:personalReports.breadcrumbRegistry')}</span>
             <span>/</span>
             <span>{t('citizen:personalReports.breadcrumbSubmissions')}</span>
             <span>/</span>
             <span className="text-black font-semibold">{t('citizen:personalReports.breadcrumbDossiers')}</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 uppercase">
             {t('citizen:personalReports.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans">
@@ -68,7 +77,7 @@ export default function PersonalReports() {
 
         <button
           onClick={() => navigate('/citizen/submit')}
-          className="px-4 py-2 bg-black text-white font-mono text-xs font-bold uppercase tracking-wider hover:bg-neutral-800 flex items-center gap-2"
+          className="self-start sm:self-auto px-4 py-2 bg-black text-white font-mono text-xs font-bold uppercase tracking-wider hover:bg-neutral-800 flex items-center gap-2 whitespace-nowrap"
         >
           <HiPlus className="w-4 h-4" />
           <span>{t('citizen:personalReports.newDispatch')}</span>
@@ -82,18 +91,18 @@ export default function PersonalReports() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 border uppercase tracking-wider transition-colors ${
+              className={`px-3 py-1.5 border uppercase tracking-wider whitespace-nowrap transition-colors ${
                 filter === f
                   ? 'bg-neutral-900 text-white border-black font-bold'
                   : 'border-transparent text-neutral-600 hover:border-neutral-300'
               }`}
             >
-              {f.replace(/_/g, ' ')}
+              {t(`common:statusFilters.${f}`, f.replace(/_/g, ' '))}
             </button>
           ))}
         </div>
 
-        <div className="font-mono text-xs text-neutral-500 px-2 text-right">
+        <div className="font-mono text-xs text-neutral-500 px-2 text-left sm:text-right">
           {t('citizen:personalReports.totalRecords', { count: filteredReports.length })}
         </div>
       </div>
@@ -117,7 +126,7 @@ export default function PersonalReports() {
           <p className="text-sm text-neutral-500 font-sans mt-1">
             {filter === 'all'
               ? t('citizen:personalReports.noReportsAll')
-              : t('citizen:personalReports.noReportsFiltered', { status: filter.replace(/_/g, ' ') })}
+              : t('citizen:personalReports.noReportsFiltered', { status: t(`common:statusFilters.${filter}`, filter.replace(/_/g, ' ')) })}
           </p>
           <button
             onClick={() => navigate('/citizen/submit')}
@@ -128,15 +137,14 @@ export default function PersonalReports() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredReports.map(r => {
+          {translatedReports.map(r => {
             const statusKey = (r.status || 'pending').toLowerCase()
             const statusInfo = STATUS_CONFIG[statusKey] || {
               label: (r.status || t('admin:status.pending')).toUpperCase(),
               bg: 'bg-neutral-100 text-neutral-800 border-neutral-300',
             }
             const rawDate = r.createdAt || r.created_at
-            const parsedDate = rawDate ? new Date(rawDate) : null
-            const dateStr = parsedDate && !isNaN(parsedDate.getTime()) ? format(parsedDate, 'yyyy-MM-dd') : '—'
+            const dateStr = formatLocalizedDate(rawDate, {}, i18n.resolvedLanguage || i18n.language) || '—'
 
             return (
               <div
@@ -153,7 +161,7 @@ export default function PersonalReports() {
                       {statusInfo.label}
                     </span>
                     {(() => {
-                      const pTier = getPriorityTier(r)
+                      const pTier = getPriorityTier(r, t)
                       if (pTier.score === null) return null
                       return (
                         <span className={`px-2 py-0.5 border font-mono text-[10px] tracking-wider uppercase font-semibold ${pTier.badgeClass}`}>
@@ -163,7 +171,7 @@ export default function PersonalReports() {
                     })()}
                     {(r.category || r.issueType) && (
                       <span className="px-2 py-0.5 border border-neutral-200 bg-neutral-50 font-mono text-[10px] uppercase text-neutral-600">
-                        {(r.category || r.issueType).replace(/_/g, ' ')}
+                        {getCategoryLabel(r.category || r.issueType, t)}
                       </span>
                     )}
                   </div>

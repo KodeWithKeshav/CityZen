@@ -74,6 +74,11 @@ export const apiClient = {
     audio: `${API_BASE_URL}/api/transcribe/audio`,
   },
 
+  translate: {
+    batch: `${API_BASE_URL}/api/translate/batch`,
+    text: `${API_BASE_URL}/api/translate/text`,
+  },
+
   transparency: {
     data: `${API_BASE_URL}/api/transparency/dashboard`,
   },

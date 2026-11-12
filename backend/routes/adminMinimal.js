@@ -587,6 +587,65 @@ router.get('/citizens/:citizenId/details', async (req, res) => {
   }
 });
 
+// Update Citizen Account Status (active / inactive / suspended / banned)
+router.put('/citizens/:citizenId/status', async (req, res) => {
+  try {
+    const { citizenId } = req.params;
+    const { status } = req.body || {};
+    const validStatuses = ['active', 'inactive', 'suspended', 'banned'];
+    const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+
+    if (!validStatuses.includes(normalizedStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    const supabase = req.app.get('supabase');
+    const { data: targetUser, error: lookupError } = await supabase
+      .from('users')
+      .select('id, user_type')
+      .eq('id', citizenId)
+      .single();
+
+    if (lookupError || !targetUser) {
+      if (lookupError?.code === '22P02') {
+        return res.status(400).json({ success: false, message: 'Invalid citizen ID format' });
+      }
+      return res.status(404).json({ success: false, message: 'Citizen not found' });
+    }
+
+    if (targetUser.user_type !== 'citizen') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only citizen accounts can be updated via this endpoint'
+      });
+    }
+
+    const isActive = normalizedStatus === 'active';
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update({ is_active: isActive, updated_at: new Date().toISOString() })
+      .eq('id', citizenId)
+      .select('id, email, full_name, is_active')
+      .single();
+
+    if (updateError) {
+      return res.status(500).json({ success: false, message: 'Failed to update citizen status' });
+    }
+
+    res.json({
+      success: true,
+      message: `Citizen status updated to ${normalizedStatus}`,
+      data: { ...updatedUser, status: normalizedStatus }
+    });
+  } catch (error) {
+    console.error('Update citizen status error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update citizen status' });
+  }
+});
+
 // NEW: Delete Citizen and All Associated Data
 router.delete('/citizens/:citizenId', async (req, res) => {
   try {

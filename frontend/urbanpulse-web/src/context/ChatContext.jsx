@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient, authStorage } from '../services/api'
 
 const ChatContext = createContext(null)
@@ -9,14 +10,12 @@ export const useChatContext = () => {
   return ctx
 }
 
-const WELCOME_MSG = {
-  id: 'welcome',
-  role: 'assistant',
-  text: "👋 Hi! I'm your CityZen AI Assistant. Ask me anything about reporting civic issues, navigating the app, or tracking your complaints!",
-}
-
 export function ChatProvider({ children }) {
-  const [messages, setMessages]         = useState([WELCOME_MSG])
+  const { t, i18n } = useTranslation('chatbot')
+  const currentLang = (i18n.resolvedLanguage || i18n.language || 'en').split('-')[0].toLowerCase()
+  const welcomeText = t('floating.welcome')
+
+  const [messages, setMessages]         = useState([{ id: 'welcome', role: 'assistant', text: welcomeText }])
   const [isOpen, setIsOpen]             = useState(false)
   const [isMinimised, setIsMinimised]   = useState(true)   // floating bubble vs open panel
   const [loading, setLoading]           = useState(false)
@@ -27,6 +26,15 @@ export function ChatProvider({ children }) {
   const isMinimisedRef                  = useRef(isMinimised)
   const msgSeqRef                       = useRef(0)
   const guestSessionRef                 = useRef(`guest_${Math.random().toString(36).slice(2, 10)}`)
+
+  useEffect(() => {
+    setMessages(prev => {
+      if (prev.length === 1 && prev[0].id === 'welcome' && prev[0].text !== welcomeText) {
+        return [{ id: 'welcome', role: 'assistant', text: welcomeText }]
+      }
+      return prev
+    })
+  }, [welcomeText])
 
   useEffect(() => {
     messagesRef.current = messages
@@ -78,10 +86,11 @@ export function ChatProvider({ children }) {
           message: trimmed,
           conversationHistory: historyForApi,
           userId,
+          language: currentLang,
         }),
       })
 
-      const reply  = res?.reply || res?.message || "I couldn't process that. Please try again."
+      const reply  = res?.reply || res?.message || t('floating.fallbackError')
       const action = res?.action || null   // { type: 'navigate', page, label }
 
       const botMsg = {
@@ -104,13 +113,13 @@ export function ChatProvider({ children }) {
       setMessages(prev => [...prev, {
         id: nextMsgId(),
         role: 'assistant',
-        text: '⚠️ Unable to reach the AI. Please check your connection and try again.',
+        text: t('floating.connectionError'),
       }])
       if (isMinimisedRef.current) setHasUnread(true)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [currentLang, t])
 
   const executeNav = useCallback((action) => {
     if (!action || !navigatorRef.current) return
@@ -133,11 +142,12 @@ export function ChatProvider({ children }) {
   }, [closeChat])
 
   const clearChat = useCallback(() => {
-    messagesRef.current = [WELCOME_MSG]
-    setMessages([WELCOME_MSG])
+    const reset = [{ id: 'welcome', role: 'assistant', text: welcomeText }]
+    messagesRef.current = reset
+    setMessages(reset)
     setFollowUps([])
     setHasUnread(false)
-  }, [])
+  }, [welcomeText])
 
   return (
     <ChatContext.Provider value={{

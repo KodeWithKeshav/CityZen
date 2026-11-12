@@ -4,10 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
 import { HiArrowLeft, HiExclamationCircle, HiDocumentText, HiChevronRight } from 'react-icons/hi'
-import { format } from 'date-fns'
+import { formatLocalizedDate, formatLocalizedDateTime } from '../../utils/dateLocale'
+import { useTranslatedList, useTranslatedObject } from '../../context/TranslationContext'
 
 export default function CitizenDetails() {
-  const { t } = useTranslation('admin')
+  const { t, i18n } = useTranslation(['admin', 'common'])
   const { id } = useParams()
   const navigate = useNavigate()
   const [citizen, setCitizen] = useState(null)
@@ -48,7 +49,7 @@ export default function CitizenDetails() {
         } else {
           toast.error(res?.message || res?.error || t('citizenDetails.loadFailed'))
         }
-      } catch (err) {
+      } catch {
         if (!cancelled) toast.error(t('citizenDetails.loadFailed'))
       } finally {
         if (!cancelled) setLoading(false)
@@ -58,43 +59,49 @@ export default function CitizenDetails() {
     return () => { cancelled = true }
   }, [id])
 
+  const translatedCitizen = useTranslatedObject(citizen, ['fullName', 'address'])
+  const translatedComplaints = useTranslatedList(complaints, ['title', 'complaintTitle', 'description'])
+
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-4 font-mono text-xs text-neutral-500 py-12">
+      <div className="max-w-4xl mx-auto space-y-4 font-mono text-xs text-neutral-500 p-4 sm:p-6 lg:p-8 py-12">
         <div className="h-6 w-32 bg-neutral-200 animate-pulse" />
-        <div className="border border-neutral-200 p-8 h-48 bg-white animate-pulse" />
+        <div className="border border-neutral-200 p-6 sm:p-8 h-48 bg-white animate-pulse" />
       </div>
     )
   }
 
   if (!citizen) {
     return (
-      <div className="max-w-xl mx-auto border border-neutral-300 bg-white p-12 text-center my-12">
-        <HiExclamationCircle className="w-12 h-12 text-neutral-400 mx-auto mb-3" />
-        <h2 className="font-serif text-xl font-bold text-neutral-900 uppercase">
-          {t('citizenDetails.notFoundTitle')}
-        </h2>
-        <p className="text-xs text-neutral-500 font-sans mt-1">
-          {t('citizenDetails.notFoundDesc', { id })}
-        </p>
-        <button
-          onClick={() => navigate(-1)}
-          className="mt-6 px-4 py-2 bg-black text-white font-mono text-xs uppercase"
-        >
-          {t('citizenDetails.returnToRoster')}
-        </button>
+      <div className="max-w-xl mx-auto p-4 sm:p-6 lg:p-8 my-6 sm:my-12">
+        <div className="border border-neutral-300 bg-white p-8 sm:p-12 text-center">
+          <HiExclamationCircle className="w-12 h-12 text-neutral-400 mx-auto mb-3" />
+          <h2 className="font-serif text-xl font-bold text-neutral-900 uppercase">
+            {t('citizenDetails.notFoundTitle')}
+          </h2>
+          <p className="text-xs text-neutral-500 font-sans mt-1 break-all">
+            {t('citizenDetails.notFoundDesc', { id })}
+          </p>
+          <button
+            onClick={() => navigate(-1)}
+            className="mt-6 px-4 py-2 bg-black text-white font-mono text-xs uppercase"
+          >
+            {t('citizenDetails.returnToRoster')}
+          </button>
+        </div>
       </div>
     )
   }
 
-  const initial = (citizen.fullName || 'C').charAt(0).toUpperCase()
-  const parsedEnrolled = citizen.createdAt ? new Date(citizen.createdAt) : null
-  const dateStr = parsedEnrolled && !Number.isNaN(parsedEnrolled.getTime())
-    ? format(parsedEnrolled, 'yyyy-MM-dd HH:mm')
-    : t('citizenDetails.undated')
+  const displayCitizen = translatedCitizen || citizen
+  const initialStr = (displayCitizen.fullName || 'C').trim()
+  const initial = (typeof Intl !== 'undefined' && Intl.Segmenter)
+    ? (new Intl.Segmenter().segment(initialStr)[Symbol.iterator]().next().value?.segment || initialStr.charAt(0)).toUpperCase()
+    : initialStr.charAt(0).toUpperCase()
+  const dateStr = formatLocalizedDateTime(citizen.createdAt, i18n.language) || t('citizenDetails.undated')
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
+    <div className="max-w-4xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 pb-12">
       {/* Back button */}
       <button
         onClick={() => navigate(-1)}
@@ -106,40 +113,40 @@ export default function CitizenDetails() {
 
       {/* Profile Card */}
       <div className="border border-neutral-200 bg-white">
-        <div className="p-6 border-b border-neutral-200 flex flex-col sm:flex-row sm:items-center gap-4 bg-neutral-50">
+        <div className="p-4 sm:p-6 border-b border-neutral-200 flex flex-col sm:flex-row sm:items-center gap-4 bg-neutral-50">
           <div className="w-14 h-14 bg-black text-white flex items-center justify-center font-mono text-2xl font-bold flex-shrink-0">
             {initial}
           </div>
           <div className="flex-1 min-w-0">
-            <span className="font-mono text-[10px] text-neutral-500 uppercase tracking-widest block mb-0.5">
+            <span className="font-mono text-[10px] text-neutral-500 uppercase tracking-widest block mb-0.5 break-all">
               {t('citizenDetails.profileRecord', { id })}
             </span>
-            <h1 className="font-serif text-2xl font-bold text-neutral-900 uppercase">
-              {citizen.fullName || t('citizenDetails.anonymousCitizen')}
+            <h1 className="font-serif text-xl sm:text-2xl font-bold text-neutral-900 uppercase break-words">
+              {displayCitizen.fullName || t('citizenDetails.anonymousCitizen')}
             </h1>
-            <p className="text-xs font-mono text-neutral-600 mt-0.5">
-              {citizen.email}
+            <p className="text-xs font-mono text-neutral-600 mt-0.5 break-all">
+              {displayCitizen.email}
             </p>
           </div>
         </div>
 
         {/* Identity Details */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-neutral-200 divide-x divide-neutral-200 font-mono text-xs">
-          <div className="p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 border-b border-neutral-200 gap-px bg-neutral-200 font-mono text-xs">
+          <div className="p-4 bg-white">
             <span className="text-neutral-500 uppercase text-[10px] block mb-1">{t('citizenDetails.phoneNumber')}</span>
-            <span className="font-bold text-neutral-900">{citizen.phoneNumber || t('citizenDetails.unregistered')}</span>
+            <span className="font-bold text-neutral-900">{displayCitizen.phoneNumber || t('citizenDetails.unregistered')}</span>
           </div>
-          <div className="p-4">
+          <div className="p-4 bg-white">
             <span className="text-neutral-500 uppercase text-[10px] block mb-1">{t('citizenDetails.residenceWard')}</span>
             <span className="font-bold text-neutral-900 truncate block">
-              {citizen.address || t('citizenManagement.wardUnassigned')}
+              {displayCitizen.address || t('citizenManagement.wardUnassigned')}
             </span>
           </div>
-          <div className="p-4">
+          <div className="p-4 bg-white">
             <span className="text-neutral-500 uppercase text-[10px] block mb-1">{t('citizenDetails.enrolledDate')}</span>
             <span className="font-bold text-neutral-900">{dateStr}</span>
           </div>
-          <div className="p-4">
+          <div className="p-4 bg-white">
             <span className="text-neutral-500 uppercase text-[10px] block mb-1">{t('citizenDetails.dispatchesFiled')}</span>
             <span className="font-bold text-neutral-900">{t('citizenDetails.submissionsCount', { count: complaints.length })}</span>
           </div>
@@ -147,8 +154,8 @@ export default function CitizenDetails() {
       </div>
 
       {/* Citizen Complaint Submissions History */}
-      <div className="border border-neutral-200 bg-white p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-neutral-200 pb-3 font-mono text-xs">
+      <div className="border border-neutral-200 bg-white p-4 sm:p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3 font-mono text-xs">
           <div className="flex items-center gap-2">
             <HiDocumentText className="w-4 h-4 text-neutral-700" />
             <span className="font-bold uppercase tracking-wider text-neutral-900">
@@ -164,25 +171,22 @@ export default function CitizenDetails() {
           </div>
         ) : (
           <div className="divide-y divide-neutral-200 font-mono text-xs">
-            {complaints.map(c => {
+            {translatedComplaints.map(c => {
               const statusKey = (c.status || 'pending').toLowerCase()
               const statusInfo = STATUS_CONFIG[statusKey] || {
                 label: (c.status || t('status.pending')).toUpperCase(),
                 bg: 'bg-neutral-100 text-neutral-800 border-neutral-300',
               }
-              const parsedTime = c.createdAt ? new Date(c.createdAt) : null
-              const timeStr = parsedTime && !Number.isNaN(parsedTime.getTime())
-                ? format(parsedTime, 'yyyy-MM-dd')
-                : '—'
+              const timeStr = formatLocalizedDate(c.createdAt, {}, i18n.language) || '—'
 
               return (
                 <div
                   key={c._id || c.id}
                   onClick={() => navigate(`/admin/complaints/${c._id || c.id}`)}
-                  className="py-3 flex items-center justify-between gap-4 hover:bg-neutral-50 px-2 cursor-pointer transition-colors"
+                  className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 hover:bg-neutral-50 px-2 cursor-pointer transition-colors"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className="text-neutral-400 text-[10px]">
                         #{String(c._id || c.id || '').slice(-6).toUpperCase()}
                       </span>
@@ -198,9 +202,9 @@ export default function CitizenDetails() {
                     </p>
                   </div>
 
-                  <div className="text-right flex-shrink-0 text-neutral-500">
+                  <div className="flex sm:block items-center justify-between text-left sm:text-right flex-shrink-0 text-neutral-500">
                     <div>{timeStr}</div>
-                    <span className="text-neutral-900 font-bold hover:underline inline-flex items-center gap-1 text-[11px] mt-1">
+                    <span className="text-neutral-900 font-bold hover:underline inline-flex items-center gap-1 text-[11px] sm:mt-1">
                       {t('citizenDetails.audit')} <HiChevronRight className="w-3.5 h-3.5" />
                     </span>
                   </div>

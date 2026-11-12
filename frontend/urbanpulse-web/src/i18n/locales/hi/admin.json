@@ -24,12 +24,30 @@
     "viewPrioritySequencing": "प्राथमिकता अनुक्रम देखें →",
     "loadFailed": "परिचालन कंसोल टेलीमेट्री लोड करने में विफल",
     "stats": {
-      "totalIncidents": { "label": "कुल दर्ज घटनाएँ", "sub": "संग्रहीत और सक्रिय" },
-      "remediated": { "label": "सुधारित और बंद", "sub": "बंद ऑडिट दस्तावेज़" },
-      "pendingDispatch": { "label": "लंबित डिस्पैच / ट्रायेज", "sub": "टीम आवंटन की प्रतीक्षा में" },
-      "activeFieldTeams": { "label": "सक्रिय फील्ड टीमें", "sub": "वर्तमान में मरम्मत के तहत" },
-      "verifiedCitizens": { "label": "सत्यापित नागरिक खाते", "sub": "क्षेत्राधिकार में नामांकित" },
-      "slaIndex": { "label": "एसएलए समाधान सूचकांक", "sub": "आधार लक्ष्य: 90%" }
+      "totalIncidents": {
+        "label": "कुल दर्ज घटनाएँ",
+        "sub": "संग्रहीत और सक्रिय"
+      },
+      "remediated": {
+        "label": "सुधारित और बंद",
+        "sub": "बंद ऑडिट दस्तावेज़"
+      },
+      "pendingDispatch": {
+        "label": "लंबित डिस्पैच / ट्रायेज",
+        "sub": "टीम आवंटन की प्रतीक्षा में"
+      },
+      "activeFieldTeams": {
+        "label": "सक्रिय फील्ड टीमें",
+        "sub": "वर्तमान में मरम्मत के तहत"
+      },
+      "verifiedCitizens": {
+        "label": "सत्यापित नागरिक खाते",
+        "sub": "क्षेत्राधिकार में नामांकित"
+      },
+      "slaIndex": {
+        "label": "एसएलए समाधान सूचकांक",
+        "sub": "आधार लक्ष्य: 90%"
+      }
     },
     "statusAllocation": "स्थिति आवंटन",
     "liveCohort": "लाइव कोहोर्ट",
@@ -42,10 +60,26 @@
     "moduleLabel": "मॉड्यूल: {{tag}}",
     "accessConsole": "कंसोल एक्सेस करें →",
     "panels": {
-      "allComplaints": { "label": "सभी शिकायतें रजिस्ट्री", "desc": "घटना स्थितियों का ऑडिट, पुनः असाइन और अद्यतन करें", "tag": "लेजर" },
-      "prioritySequencing": { "label": "प्राथमिकता अनुक्रम", "desc": "एआई-प्राथमिकता वाला परिचालन समाधान क्रम", "tag": "तात्कालिकता" },
-      "geospatialCadastre": { "label": "भू-स्थानिक कैडस्ट्रे", "desc": "इंटरैक्टिव भौगोलिक हीटमैप और त्रिज्या ऑडिट", "tag": "स्थानिक" },
-      "citizenDirectory": { "label": "नागरिक निर्देशिका", "desc": "सत्यापित नागरिक रोस्टर और गतिविधि ऑडिट लॉग", "tag": "निर्देशिका" }
+      "allComplaints": {
+        "label": "सभी शिकायतें रजिस्ट्री",
+        "desc": "घटना स्थितियों का ऑडिट, पुनः असाइन और अद्यतन करें",
+        "tag": "लेजर"
+      },
+      "prioritySequencing": {
+        "label": "प्राथमिकता अनुक्रम",
+        "desc": "एआई-प्राथमिकता वाला परिचालन समाधान क्रम",
+        "tag": "तात्कालिकता"
+      },
+      "geospatialCadastre": {
+        "label": "भू-स्थानिक कैडस्ट्रे",
+        "desc": "इंटरैक्टिव भौगोलिक हीटमैप और त्रिज्या ऑडिट",
+        "tag": "स्थानिक"
+      },
+      "citizenDirectory": {
+        "label": "नागरिक निर्देशिका",
+        "desc": "सत्यापित नागरिक रोस्टर और गतिविधि ऑडिट लॉग",
+        "tag": "निर्देशिका"
+      }
     }
   },
   "citizenManagement": {
@@ -140,6 +174,151 @@
     "queued": "कतारबद्ध",
     "dimensions": "आयाम",
     "severityIndex": "गंभीरता सूचकांक",
-    "dispatchDossier": "डिस्पैच दस्तावेज़"
+    "dispatchDossier": "डिस्पैच दस्तावेज़",
+    "cmUnit": "सेमी"
+  },
+  "complaintsRegistry": {
+    "breadcrumbArchive": "परिचालन अभिलेखागार",
+    "breadcrumbSubmissions": "सभी प्रविष्टियां",
+    "breadcrumbCadastre": "पंजीकरण रजिस्टर",
+    "title": "घटना प्रेषण रजिस्ट्री",
+    "subtitle": "नागरिक प्रेषण, फील्ड स्थिति और समाधान प्रमाणों का केंद्रीकृत नगर बहीखाता।",
+    "refreshTooltip": "सूची रीफ़्रेश करें",
+    "searchPlaceholder": "आईडी, कीवर्ड, शिकायतकर्ता या सड़क के पते से खोजें...",
+    "loadFailed": "नगर शिकायत सूची लोड करने में विफल",
+    "loading": "नगर रजिस्ट्री लोड हो रही है...",
+    "noRecordsTitle": "कोई रिकॉर्ड नहीं मिला",
+    "noRecordsDesc": "दिए गए मानदंडों से कोई पंजीकृत प्रेषण मेल नहीं खाता।",
+    "matchingRecords": "मिलते रिकॉर्ड:",
+    "of": "में से",
+    "statusFilter": "स्थिति फ़िल्टर:",
+    "audit": "ऑडिट",
+    "table": {
+      "id": "आईडी",
+      "incident": "घटना और विवरण",
+      "citizen": "नागरिक",
+      "category": "श्रेणी",
+      "severity": "गंभीरता",
+      "status": "स्थिति",
+      "date": "दिनांक",
+      "action": "कार्रवाई"
+    },
+    "flagged": "चिह्नित",
+    "flaggedTooltip": "समीक्षा के लिए प्रामाणिकता जांच द्वारा चिह्नित",
+    "scorePrefix": "स्कोर: {{score}} / 100",
+    "unclassifiedIncident": "अवर्गीकृत घटना",
+    "filedOn": "दर्ज तिथि"
+  },
+  "complaintDossier": {
+    "loadFailed": "घटना प्रेषण डोजियर लोड करने में विफल",
+    "statusUpdated": "नगर बहीखाते में घटना की स्थिति और नोट्स अपडेट किए गए",
+    "updateFailed": "बहीखाता अपडेट विफल",
+    "selectStatus": "कृपया एक स्थिति चुनें",
+    "notFoundTitle": "घटना रिकॉर्ड नहीं मिला",
+    "notFoundDesc": "डोजियर #{{id}} नगर रजिस्ट्री में मौजूद नहीं है।",
+    "returnToRegistry": "रजिस्ट्री पर लौटें",
+    "backToRegistry": "घटना रजिस्ट्री पर वापस जाएं",
+    "dossierHeader": "प्रेषण ऑडिट डोजियर · रिकॉर्ड #{{id}}",
+    "civicIncident": "नागरिक घटना",
+    "reportingCitizen": "रिपोर्ट करने वाले नागरिक",
+    "classification": "वर्गीकरण",
+    "priorityScore": "प्राथमिकता स्कोर",
+    "recordedTimestamp": "दर्ज समय",
+    "severityTier": "गंभीरता स्तर",
+    "citizenConcurrences": "नागरिक समर्थन",
+    "votesCount": "{{count}} वोट",
+    "recordedNarrative": "दर्ज नागरिक विवरण",
+    "geoReference": "भौगोलिक निर्देशांक संदर्भ",
+    "coordsLogged": "निर्देशांक दर्ज किए गए",
+    "gps": "जीपीएस: {{lat}}, {{lon}}",
+    "verifiedPhoto": "सत्यापित फील्ड फोटो",
+    "explainAi": "एआई व्याख्या (SAM-3)",
+    "neuralValidation": "स्वचालित न्यूरल सत्यापन डोजियर",
+    "authenticityScore": "प्रामाणिकता स्कोर",
+    "capturedLanguage": "दर्ज की गई भाषा",
+    "contentFlagged": "ऑडिट के लिए सामग्री चिह्नित",
+    "flaggedWarning": "स्वचालित मॉडरेशन ने मैनुअल सत्यापन के लिए इस विवरण को चिह्नित किया है।",
+    "statusUpdateTitle": "नगर प्रेषण कार्रवाई और स्थिति नियंत्रण",
+    "statusLabel": "प्रेषण स्थिति",
+    "adminNotesLabel": "समाधान / प्रेषण नोट्स",
+    "adminNotesPlaceholder": "निरीक्षण टिप्पणियां, नियुक्त फील्ड टीम या समाधान प्रमाण दर्ज करें...",
+    "saveUpdate": "अपडेट सहेजें",
+    "saving": "सहेजा जा रहा है...",
+    "verificationStatus": "सत्यापन स्थिति",
+    "authenticityCheck": "विवरण प्रामाणिकता जांच",
+    "flaggedForReview": "समीक्षा के लिए चिह्नित",
+    "dispatcherProtocolTitle": "डिस्पैचर प्रोटोकॉल: स्थिति अद्यतन",
+    "dispatcherProtocolDesc": "घटना की स्थिति बदलें और आधिकारिक कार्रवाई टिप्पणियाँ दर्ज करें।",
+    "assignStatus": "स्थिति चुनें",
+    "officialResolutionNotes": "आधिकारिक समाधान और क्षेत्रीय टिप्पणियाँ",
+    "notesPlaceholder": "कार्य आदेश आईडी, भेजी गई टीम, या समापन टिप्पणी दर्ज करें...",
+    "commitDossierUpdate": "डोजियर अपडेट सहेजें →",
+    "committingToLedger": "नगर लेजर में सहेजा जा रहा है..."
+  },
+  "explainAi": {
+    "header": "एआई व्याख्या · SAM-3 विज़न वर्कफ़्लो",
+    "close": "मॉडल बंद करें",
+    "target": "लक्ष्य:",
+    "maskTab": "SAM-3 मास्क",
+    "originalTab": "मूल फोटो",
+    "splitTab": "साथ-साथ",
+    "executing": "SAM-3 न्यूरल सेगमेंटेशन पाइपलाइन चल रही है...",
+    "executingDesc": "सीमांकन मास्क, कंटूर पहचान और मॉडल तर्क तैयार किया जा रहा है।",
+    "unavailable": "व्याख्या पाइपलाइन अनुपलब्ध",
+    "retry": "पुनः प्रयास करें",
+    "maskOverlay": "SAM-3 सेगमेंटेशन ओवरले",
+    "noMask": "इंजन द्वारा कोई सेगमेंटेशन मास्क नहीं बना",
+    "originalEvidence": "मूल फील्ड साक्ष्य",
+    "originalPhoto": "मूल फील्ड फोटो",
+    "noSegData": "कोई सेगमेंटेशन डेटा नहीं",
+    "segmentation": "SAM-3 सेगमेंटेशन",
+    "detectedContours": "पहचाने गए नागरिक कंटूर और वस्तुएं",
+    "conf": "विश्वास: {{pct}}%",
+    "reasoningReport": "न्यूरल अनुमान और तर्क रिपोर्ट",
+    "noExplanation": "न्यूरल मॉडल द्वारा कोई व्याख्या पाठ प्रदान नहीं किया गया।",
+    "modelLabel": "मॉडल:",
+    "dismiss": "रिपोर्ट बंद करें",
+    "loadError": "SAM-3 न्यूरल व्याख्या बनाने में विफल।",
+    "connectError": "इमेज विश्लेषण इंजन से कनेक्ट करने में असमर्थ।"
+  },
+  "geometry": {
+    "title": "ज्यामितीय आयाम प्रोफ़ाइल",
+    "statusPrefix": "स्थिति: {{status}}",
+    "estimation": "ज्यामितीय अनुमान",
+    "footprint": "सतह का क्षेत्र",
+    "area": "अनुमानित क्षेत्रफल",
+    "depth": "अनुमानित गहराई",
+    "confidence": "विश्वास मीट्रिक",
+    "footnote": "* आयाम कंप्यूटर-विज़न सेगमेंटेशन और मानक डामर संदर्भ के माध्यम से गणना किए गए।",
+    "computing": "ज्यामितीय आयाम और सीमाएं गणना की जा रही हैं...",
+    "pendingMsg": "इस सड़क क्षति के लिए ज्यामितीय माप लंबित या अगणित है।",
+    "errorPrefix": "ज्यामिति गणना त्रुटि: {{error}}",
+    "running": "अनुमान चल रहा है...",
+    "execute": "ज्यामिति अनुमान चलाएं",
+    "missingInfo": "ज्यामिति अनुमान के लिए शिकायत आईडी और फोटो आवश्यक है।",
+    "recalculated": "गड्ढे के ज्यामितीय आयाम पुनः गणना किए गए",
+    "failed": "ज्यामिति अनुमान विफल रहा।",
+    "skipped": "ज्यामिति अनुमान छोड़ दिया गया।",
+    "commError": "ज्यामिति सेवा संचार त्रुटि।",
+    "cmUnit": "सेमी",
+    "cm2Unit": "सेमी²"
+  },
+  "mobileAdmin": {
+    "portalTitle": "प्रशासन डैशबोर्ड",
+    "adminConsole": "प्रशासन कंसोल",
+    "enhancedTitle": "संचालन कमान",
+    "modernTitle": "आधुनिक प्रशासन",
+    "overview": "अवलोकन",
+    "recentComplaints": "हाल की शिकायतें",
+    "manageCitizens": "नागरिक प्रबंधन",
+    "viewPriorityQueue": "प्राथमिकता कतार",
+    "openMap": "शिकायत मानचित्र",
+    "updateStatus": "स्थिति अपडेट करें",
+    "statusUpdated": "स्थिति सफलतापूर्वक अपडेट की गई",
+    "saveNotes": "नोट्स सहेजें",
+    "citizenProfile": "नागरिक प्रोफ़ाइल",
+    "totalComplaints": "कुल शिकायतें",
+    "activeComplaints": "सक्रिय",
+    "resolvedComplaints": "हल की गईं"
   }
 }

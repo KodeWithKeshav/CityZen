@@ -10,10 +10,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
 
 const BottomNavigationBar = ({ state, descriptors, navigation }) => {
+  const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const focusedOptions = descriptors[state.routes[state.index].key].options;
 
@@ -56,11 +58,11 @@ const BottomNavigationBar = ({ state, descriptors, navigation }) => {
 
   const getLabel = (routeName) => {
     switch (routeName) {
-      case 'Home': return 'Home';
-      case 'ComplaintMap': return 'Map';
-      case 'SubmitComplaint': return 'Report';
-      case 'Notifications': return 'Alerts';
-      case 'Profile': return 'Profile';
+      case 'Home': return t('mobileNav.home', 'Home');
+      case 'ComplaintMap': return t('mobileNav.map', 'Map');
+      case 'SubmitComplaint': return t('mobileNav.report', 'Report');
+      case 'Notifications': return t('mobileNav.alerts', 'Alerts');
+      case 'Profile': return t('mobileNav.profile', 'Profile');
       default: return routeName;
     }
   };

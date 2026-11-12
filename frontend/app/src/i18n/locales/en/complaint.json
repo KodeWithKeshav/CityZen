@@ -8,18 +8,48 @@
     "stepOf": "STEP {{current}} OF {{total}}"
   },
   "categories": {
-    "pothole": { "label": "POTHOLE", "desc": "Asphalt rupture, crater, or severe road decay" },
-    "fallen_tree": { "label": "FALLEN TREE", "desc": "Foliage or timber obstructing thoroughfare" },
-    "garbage_dumping": { "label": "GARBAGE DUMPING", "desc": "Illegal municipal or commercial waste deposit" },
-    "stray_cattle": { "label": "STRAY CATTLE", "desc": "Livestock impeding transit or vehicular corridors" },
-    "fallen_electric_pole": { "label": "FALLEN ELECTRIC POLE", "desc": "Damaged pole, exposed wiring, or transformer failure" },
-    "concrete_structure_damage": { "label": "STRUCTURAL DAMAGE", "desc": "Fissures, bridge wear, or pavement subsidence" },
-    "road_waterlogging": { "label": "ROAD WATERLOGGING", "desc": "Stagnant monsoon or burst main runoff" }
+    "pothole": {
+      "label": "POTHOLE",
+      "desc": "Asphalt rupture, crater, or severe road decay"
+    },
+    "fallen_tree": {
+      "label": "FALLEN TREE",
+      "desc": "Foliage or timber obstructing thoroughfare"
+    },
+    "garbage_dumping": {
+      "label": "GARBAGE DUMPING",
+      "desc": "Illegal municipal or commercial waste deposit"
+    },
+    "stray_cattle": {
+      "label": "STRAY CATTLE",
+      "desc": "Livestock impeding transit or vehicular corridors"
+    },
+    "fallen_electric_pole": {
+      "label": "FALLEN ELECTRIC POLE",
+      "desc": "Damaged pole, exposed wiring, or transformer failure"
+    },
+    "concrete_structure_damage": {
+      "label": "STRUCTURAL DAMAGE",
+      "desc": "Fissures, bridge wear, or pavement subsidence"
+    },
+    "road_waterlogging": {
+      "label": "ROAD WATERLOGGING",
+      "desc": "Stagnant monsoon or burst main runoff"
+    }
   },
   "privacyLevels": {
-    "exact": { "label": "EXACT GPS", "desc": "±5–10m survey coordinate precision" },
-    "street": { "label": "STREET LEVEL", "desc": "±25m corridor precision" },
-    "area": { "label": "NEIGHBORHOOD", "desc": "±150m ward radius approximation" }
+    "exact": {
+      "label": "EXACT GPS",
+      "desc": "±5–10m survey coordinate precision"
+    },
+    "street": {
+      "label": "STREET LEVEL",
+      "desc": "±25m corridor precision"
+    },
+    "area": {
+      "label": "NEIGHBORHOOD",
+      "desc": "±150m ward radius approximation"
+    }
   },
   "languages": {
     "en": "English",
@@ -66,5 +96,114 @@
     "micError": "Could not activate microphone",
     "uploadError": "Could not reach the transcription service.",
     "failed": "Speech recognition failed. Please try again or type your complaint."
+  },
+  "mobileSubmit": {
+    "allowExactLocation": "Allow Exact Location",
+    "allowLocation": "Allow Location",
+    "cameraPermDesc": "Please allow camera access to take a photo of the civic issue.",
+    "categoryLabel": "Category",
+    "complaintDetails": "Complaint Details",
+    "complaintIdLabel": "Complaint ID",
+    "connectionErrorTitle": "Connection Error",
+    "contentMismatchDesc": "This description does not appear to match the selected issue type. Please edit the description, or use the suggested category button above, before submitting.",
+    "contentMismatchTitle": "Description Does Not Match the Issue",
+    "descMismatchDesc": "The description does not appear to match the selected issue type. Please edit your description.",
+    "descMismatchTitle": "Description Does Not Match Issue Type",
+    "done": "Done",
+    "endpointNotFoundDesc": "API endpoint not found. Please update the app.",
+    "enterDescription": "Please enter a description of the issue",
+    "enterTitle": "Please enter a title for the complaint",
+    "getLocation": "Get Location",
+    "goToPhotoStep": "Go to Photo Step",
+    "highPriorityDesc": "Your complaint has been marked as {{level}} priority due to proximity to critical infrastructure. It will receive immediate attention.",
+    "highPriorityTitle": "High Priority Complaint Detected",
+    "invalidDataDesc": "Invalid data submitted. Please check all fields.",
+    "issueTypeChangedDesc": "Since the issue type changed, your photo needs to be re-checked. Please go back to the Photo step and add a photo that matches the new issue type.",
+    "issueTypeChangedTitle": "Issue Type Changed",
+    "later": "Later",
+    "locationAccuracyLabel": "Location Accuracy",
+    "locationCapturedDesc": "Accuracy: ±{{radius}}m ({{precision}})\nPrivacy Level: {{privacyLevel}}\nYour complaint will be prioritized based on nearby infrastructure.",
+    "locationCapturedTitle": "Location Captured Successfully!",
+    "locationErrorDesc": "Unable to capture location. You can try again or submit without location (lower priority).",
+    "locationErrorTitle": "Location Error",
+    "locationNormalDesc": "We'll capture your location to help prioritize your complaint and route it to the correct municipal office. Your privacy is protected with street-level accuracy.",
+    "locationRequiredContinueDesc": "Location is required for priority assessment. Would you like to capture your location now?",
+    "locationRequiredTitle": "Location Required",
+    "locationUrgentDesc": "For {{category}} complaints, we need your exact location to prioritize emergency response. This helps us route your complaint to the nearest response team.",
+    "networkFailedDesc": "Cannot connect to server. Please check your internet connection.",
+    "nextSteps": "Next Steps",
+    "photoMismatchDesc": "The photo does not match the selected issue type. Please go back and add a matching photo, or remove it.",
+    "photoMismatchTitle": "Photo Does Not Match Issue Type",
+    "photoNotValidatedDesc": "Your photo has not been validated against the selected issue type. Please go back to the Photo step to re-validate it, or remove it.",
+    "photoNotValidatedTitle": "Photo Not Validated",
+    "photoPermDesc": "Please allow gallery access to select a photo.",
+    "pickImageFailed": "Failed to pick image",
+    "priorityAnalysis": "Priority Analysis",
+    "priorityLevelLabel": "Priority Level",
+    "selectCategoryError": "Please select a complaint category",
+    "serverErrorDesc": "Server error. Please try again later.",
+    "serverErrorTitle": "Server Error",
+    "serviceErrorTitle": "Service Error",
+    "skipLocation": "Skip Location",
+    "statusLabel": "Status",
+    "submitConnFallback": "Please check your connection and try again.",
+    "submitFailedTitle": "Submission Failed",
+    "submittedLabel": "Submitted",
+    "successSubtitle": "Your civic report has been registered and routed for action.",
+    "successTitle": "Complaint Submitted!",
+    "switchCategoryTo": "Switch category to \"{{category}}\"",
+    "takePhotoFailed": "Failed to take photo",
+    "timeoutDesc": "The request timed out. Please check your connection and try again.",
+    "titleLabel": "Title",
+    "understood": "Understood",
+    "validationErrorDesc": "Failed to validate image. Please check your connection and try again.",
+    "validationErrorTitle": "Validation Error",
+    "viewOnMap": "View on Map",
+    "votesLabel": "Votes",
+    "validIssueDetectedTitle": "Valid Civic Issue Detected",
+    "confidenceScoreLabel": "Confidence Score: {{score}}%",
+    "imageValidationFailedTitle": "Image Validation Failed",
+    "imageValidationFailedDesc": "Confidence Score: {{score}}%\nThe selected image does not appear to show a valid civic issue. Please select a different image.",
+    "imageValidationSubmitAnywayDesc": "Confidence Score: {{score}}%\n\nThe selected image does not appear to show a valid civic issue. You can still submit anyway for urgent issues.",
+    "changeImage": "Change Image",
+    "submitAnyway": "Submit Anyway",
+    "validationFailedFallback": "Validation failed.",
+    "tryAgain": "Try Again",
+    "keepAnyway": "Keep Anyway",
+    "skipValidation": "Skip Validation",
+    "selectIssueImageError": "Please select an image of the civic issue",
+    "expectedResponseLabel": "Expected Response",
+    "processingFallback": "Processing",
+    "reasoningLabel": "Reasoning",
+    "viewDetails": "View Details",
+    "provideFeedback": "Provide Feedback",
+    "totalScoreLabel": "Total Score",
+    "locationAnalysisHeader": "LOCATION ANALYSIS",
+    "scoreLabel": "Score",
+    "facilitiesNearbyLabel": "Facilities Nearby",
+    "privacyLabel": "Privacy",
+    "imageAnalysisHeader": "IMAGE ANALYSIS",
+    "validatingCivicIssue": "Validating civic issue...",
+    "civicIssueFallback": "Civic Issue",
+    "validIssueClassification": "Valid civic issue detected (Classification: {{classification}})",
+    "submitCivicComplaintTitle": "Submit Civic Complaint",
+    "submitCivicComplaintSubtitle": "Report civic issues with AI-powered priority scoring",
+    "complaintCategoryRequired": "Complaint Category *",
+    "locationOptionalFieldLabel": "Location",
+    "locationOptionalPlaceholder": "Location or address of the issue (optional)",
+    "locationPriorityAssessmentRequired": "Location Priority Assessment *",
+    "locationAutoCaptureHint": "Location is automatically captured when you select a complaint category",
+    "capturingLocationStatus": "Capturing your location...",
+    "accuracyInline": "Accuracy: ±{{radius}}m ({{precision}})",
+    "privacyInline": "Privacy: {{description}}",
+    "recaptureLocation": "Recapture Location",
+    "captureLocationNow": "Capture Location Now",
+    "locationPriorityAnalysisTitle": "Location Priority Analysis",
+    "priorityLevelInline": "Priority Level: {{level}} ({{score}}%)",
+    "issuePhotoRequired": "Issue Photo *",
+    "issuePhotoHint": "Upload a clear photo showing the civic issue. Our AI will verify it's a valid civic problem.",
+    "takePhoto": "Take Photo",
+    "chooseFromGallery": "Choose from Gallery",
+    "submitComplaintBtn": "Submit Complaint"
   }
 }

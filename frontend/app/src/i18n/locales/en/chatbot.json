@@ -24,6 +24,44 @@
     "greeting": "Hello! I'm your CityZen Assistant. I can help you with:\n\n• How to submit complaints\n• Understanding civic issues\n• App features and navigation\n• Troubleshooting problems\n• Learning about voting and priorities\n\nWhat would you like to know?",
     "thinking": "Thinking...",
     "alwaysHereToHelp": "Always here to help",
-    "inputPlaceholder": "Ask me about the app or civic issues..."
+    "inputPlaceholder": "Ask me about the app or civic issues...",
+    "micPermissionDesc": "Please allow microphone access to record your complaint.",
+    "permissionRequired": "Permission Required",
+    "speechErrorDesc": "There was an error processing your speech. Please try again or type your description.",
+    "speechErrorTitle": "Speech Recognition Error",
+    "speechStartError": "Failed to start speech recognition: {{message}}",
+    "fallbackMessage": "I'm having trouble connecting right now. You can still submit complaints from the home screen, view the civic feed, or explore the complaint map.",
+    "confidence": "{{pct}}% confidence",
+    "quickQuestions": "Quick Questions:",
+    "suggestions": {
+      "howToSubmit": "How do I submit a complaint?",
+      "whatIssues": "What civic issues can I report?",
+      "howVotingWorks": "How does voting work?",
+      "appFeatures": "What features does the app have?",
+      "troubleshooting": "I'm having app issues",
+      "emergency": "Emergency complaint process"
+    }
+  },
+  "floating": {
+    "welcome": "👋 Hi! I'm your CityZen AI Assistant. Ask me anything about reporting civic issues, navigating the app, or tracking your complaints!",
+    "title": "CityZen AI",
+    "subtitle": "Civic Intelligence Assistant",
+    "clearChat": "Clear chat",
+    "goTo": "Go to",
+    "takeMeThere": "Take me there",
+    "aiGenerated": "✦ AI generated",
+    "aiNav": "✦ AI + Navigation",
+    "askAnything": "Ask anything…",
+    "fallbackError": "I couldn't process that. Please try again.",
+    "connectionError": "⚠️ Unable to reach the AI. Please check your connection and try again.",
+    "tooltip": "CityZen AI Assistant",
+    "navigateTo": "Navigate to",
+    "goNow": "Go now"
+  },
+  "sources": {
+    "knowledge_base": "Knowledge Base",
+    "knowledge_base_fallback": "KB Fallback",
+    "groq": "Groq AI",
+    "groq_tool": "AI + Navigate"
   }
 }

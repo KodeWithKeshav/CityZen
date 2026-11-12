@@ -42,12 +42,33 @@ router.put('/:id/status', async (req, res) => {
     }
     
     const supabase = req.app.get('supabase');
-    
+
+    const { data: existingComplaint, error: fetchError } = await supabase
+      .from('complaints')
+      .select('id, status')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !existingComplaint) {
+      if (fetchError?.code === '22P02') {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid complaint ID format'
+        });
+      }
+      return res.status(404).json({
+        success: false,
+        error: 'Complaint not found'
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+
     // Update complaint status
     const updateData = {
       status,
-      updated_at: new Date().toISOString(),
-      resolved_at: status === 'resolved' ? new Date().toISOString() : null
+      updated_at: nowIso,
+      resolved_at: status === 'resolved' ? nowIso : null
     };
 
     if (notes !== undefined) {
@@ -93,7 +114,23 @@ router.put('/:id/status', async (req, res) => {
     }
     
     console.log(`✅ Complaint ${id} status updated to ${status}`);
-    
+
+    // Log status change to complaint_updates so citizen/admin timelines stay in sync
+    const { error: updateLogError } = await supabase
+      .from('complaint_updates')
+      .insert({
+        complaint_id: id,
+        updated_by_id: isValidUuid(req.user?.id) ? req.user.id : null,
+        old_status: existingComplaint.status || null,
+        new_status: status,
+        update_notes: (typeof notes === 'string' && notes.trim()) ? notes.trim() : `Status changed to ${status}`,
+        created_at: nowIso
+      });
+
+    if (updateLogError) {
+      console.warn('⚠️ Failed to log status update to complaint_updates:', updateLogError.message);
+    }
+
     // Return updated complaint
     res.json({
       success: true,

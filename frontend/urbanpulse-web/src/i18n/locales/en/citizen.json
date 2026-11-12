@@ -8,13 +8,27 @@
     "statTotalImpact": "TOTAL IMPACT",
     "quickActions": "QUICK ACTIONS",
     "actions": {
-      "newReport": { "sub": "Submit environmental concern" },
-      "feed": { "sub": "Browse all complaints" },
-      "map": { "sub": "View area status" },
-      "reports": { "sub": "Track your submissions" },
-      "chatbot": { "sub": "Get help from AI" },
-      "feedback": { "sub": "Rate our service" },
-      "transparency": { "sub": "Government metrics" }
+      "newReport": {
+        "sub": "Submit environmental concern"
+      },
+      "feed": {
+        "sub": "Browse all complaints"
+      },
+      "map": {
+        "sub": "View area status"
+      },
+      "reports": {
+        "sub": "Track your submissions"
+      },
+      "chatbot": {
+        "sub": "Get help from AI"
+      },
+      "feedback": {
+        "sub": "Rate our service"
+      },
+      "transparency": {
+        "sub": "Government metrics"
+      }
     }
   },
   "feedback": {
@@ -31,7 +45,14 @@
     "title": "Municipal Feedback Protocol",
     "subtitle": "Provide structured appraisals regarding platform operations, response cadence, and field team conduct.",
     "scoreLabel": "OVERALL SERVICE SATISFACTION SCORE *",
-    "ratingLabels": ["", "1/5 — INADEQUATE", "2/5 — DEFICIENT", "3/5 — ACCEPTABLE", "4/5 — SATISFACTORY", "5/5 — EXEMPLARY"],
+    "ratingLabels": [
+      "",
+      "1/5 — INADEQUATE",
+      "2/5 — DEFICIENT",
+      "3/5 — ACCEPTABLE",
+      "4/5 — SATISFACTORY",
+      "5/5 — EXEMPLARY"
+    ],
     "focusVector": "FOCUS VECTOR",
     "selectDomain": "SELECT AUDIT DOMAIN (OPTIONAL)",
     "domainUsability": "INTERFACE NAVIGATION & ACCESSIBILITY",
@@ -42,7 +63,12 @@
     "remarksPlaceholder": "Detail your observations regarding system usability, dispatcher clarity, or resolution speed...",
     "charsCount": "{{count}}/500 CHARACTERS",
     "recording": "RECORDING EVALUATION...",
-    "submit": "SUBMIT EVALUATION LEDGER →"
+    "submit": "SUBMIT EVALUATION LEDGER →",
+    "complaintRequired": "Please select an incident report to evaluate",
+    "relatedDossier": "RELATED INCIDENT DOSSIER *",
+    "selectReport": "SELECT AN INCIDENT REPORT",
+    "incidentReportFallback": "Incident Report",
+    "complaintIdPlaceholder": "Enter Complaint ID (file a report first if none exist)"
   },
   "personalReports": {
     "loadFailed": "Failed to load your reports",
@@ -69,10 +95,22 @@
     "title": "Transparency & Governance Ledger",
     "subtitle": "Real-time municipal performance metrics, resolution velocity, and public expenditure oversight.",
     "stats": {
-      "totalDispatches": { "label": "TOTAL LOGGED DISPATCHES", "sub": "Cumulative intake" },
-      "resolvedAudited": { "label": "RESOLVED & AUDITED", "sub": "Verified completed" },
-      "pendingAction": { "label": "PENDING ACTION", "sub": "In triage queue" },
-      "resolutionRate": { "label": "RESOLUTION RATE", "sub": "Efficiency baseline" }
+      "totalDispatches": {
+        "label": "TOTAL LOGGED DISPATCHES",
+        "sub": "Cumulative intake"
+      },
+      "resolvedAudited": {
+        "label": "RESOLVED & AUDITED",
+        "sub": "Verified completed"
+      },
+      "pendingAction": {
+        "label": "PENDING ACTION",
+        "sub": "In triage queue"
+      },
+      "resolutionRate": {
+        "label": "RESOLUTION RATE",
+        "sub": "Efficiency baseline"
+      }
     },
     "statusDistribution": "DISPATCH STATUS DISTRIBUTION",
     "proportionalAudit": "PROPORTIONAL AUDIT",
@@ -121,5 +159,82 @@
     "noIncidentsDesc": "No complaints match the selected filter criteria or geographic radius.",
     "resetFilters": "RESET FILTERS",
     "fileReportPlain": "FILE REPORT"
+  },
+  "complaintDetail": {
+    "loadFailed": "Failed to load incident dispatch detail",
+    "voteRemoved": "Vote removed",
+    "voteLogged": "Civic concurrence vote logged",
+    "votingUnavailable": "Voting unavailable",
+    "linkCopied": "Incident link copied to clipboard",
+    "notFoundTitle": "Record Not Found",
+    "notFoundDesc": "The requested dispatch record could not be retrieved from the municipal registry.",
+    "returnToLedger": "Return to Ledger",
+    "backToLedger": "BACK TO INCIDENT LEDGER",
+    "share": "SHARE",
+    "concurred": "CONCURRED",
+    "concur": "CONCUR",
+    "recordId": "RECORD ID: #{{id}}",
+    "defaultTitle": "Civic Infrastructure Incident",
+    "registeredBy": "REGISTERED BY",
+    "category": "CATEGORY",
+    "unassigned": "Unassigned",
+    "severityLevel": "SEVERITY LEVEL",
+    "priorityScore": "PRIORITY SCORE",
+    "recordTimestamp": "RECORD TIMESTAMP",
+    "undated": "UNDATED",
+    "geoReference": "GEOSPATIAL REFERENCE",
+    "noAddress": "Municipal Zone Address Not Specified",
+    "gps": "GPS: {{lat}}, {{lon}}",
+    "statementHeader": "CITIZEN STATEMENT & FIELD NOTES",
+    "photoEvidence": "PHOTOGRAPHIC EVIDENCE ATTACHED",
+    "explainAi": "EXPLAIN AI (SAM-3)",
+    "neuralAnalysisTitle": "Automated Neural Analysis & Verification",
+    "sentiment": "SENTIMENT",
+    "urgencyRating": "URGENCY RATING",
+    "detectedClass": "DETECTED CLASS",
+    "corroborated": "CORROBORATED",
+    "affirmative": "AFFIRMATIVE",
+    "suspicious": "SUSPICIOUS",
+    "synthesis": "SYNTHESIS:",
+    "timelineTitle": "Remediation Sequence & Dispatch Timeline",
+    "timelineEmpty": "Initial dispatch logged. Queue assignment pending dispatcher review.",
+    "priorityVectorTitle": "Algorithmic Priority Vector Analysis",
+    "ahpWeighting": "AHP MULTI-CRITERIA WEIGHTING",
+    "infraImpact": "INFRASTRUCTURE IMPACT",
+    "emergencyRoutes": "Emergency access routes",
+    "modelConfidence": "MODEL CONFIDENCE",
+    "visualVerification": "Visual verification",
+    "severityUrgency": "SEVERITY / URGENCY",
+    "sentimentModel": "Citizen sentiment model",
+    "communityVotes": "COMMUNITY VOTES",
+    "votesCount": "{{count}} VOTES",
+    "crowdVerification": "Civic crowd verification"
+  },
+  "complaintMap": {
+    "loadFailed": "Failed to load spatial map telemetry",
+    "telemetryLabel": "GEOSPATIAL INCIDENT TELEMETRY",
+    "title": "Spatial Density Map",
+    "trackingDesc": "Tracking {{count}} localized civic incidents. Click any coordinate on the map to audit surrounding 2km zone.",
+    "heatmapMode": "HEATMAP DENSITY",
+    "pinsMode": "PIN VECTORS",
+    "totalTelemetry": "TOTAL TELEMETRY",
+    "resolvedIncidents": "RESOLVED INCIDENTS",
+    "resolutionEfficiency": "RESOLUTION EFFICIENCY",
+    "statusLabel": "Status:",
+    "timeLabel": "Time:",
+    "timeAll": "All Time",
+    "time30": "30D",
+    "time90": "90D",
+    "time365": "1Y",
+    "initializing": "INITIALIZING SPATIAL RASTER...",
+    "scoreBadge": "{{label}} (SCORE: {{score}})",
+    "localCoordinate": "Local coordinate",
+    "explainAi": "EXPLAIN AI (SAM-3)",
+    "dossierArrow": "DOSSIER →",
+    "auditPerimeter": "Audit Perimeter",
+    "zoneCount": "{{count}} incident(s) within 2.0 km radius",
+    "noZoneIncidents": "NO CONCURRENT INCIDENTS LOCATED IN THIS VICINITY.",
+    "coordinateRegistered": "Coordinate registered",
+    "viewDetails": "VIEW DETAILS"
   }
 }

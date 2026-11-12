@@ -100,6 +100,11 @@ export const apiClient = {
   chatbot: {
     message: `${API_BASE_URL}/api/chatbot/message`,
   },
+  // Dynamic translation endpoints
+  translate: {
+    batch: `${API_BASE_URL}/api/translate/batch`,
+    text: `${API_BASE_URL}/api/translate/text`,
+  },
   // Heatmap endpoints
   heatMap: {
     data: `${API_BASE_URL}/api/heat-map/data`,
@@ -117,9 +122,10 @@ export const makeApiCall = async (url, options = {}) => {
 
     const token = await AsyncStorage.getItem('authToken');
 
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
     const defaultOptions = {
       headers: {
-        'Content-Type': 'application/json',
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...(token && { 'Authorization': `Bearer ${token}` }),
       },
     };

@@ -161,11 +161,12 @@ export const getVoteStatus = async (complaintId, apiClient, makeApiCall = null) 
       // Try to get authenticated vote status first
       try {
         const response = await makeApiCall(
-          `${apiClient.baseUrl}/api/complaints/${complaintId}/vote-status`
+          `${apiClient.baseUrl}/api/complaints/vote/status?complaintIds=${encodeURIComponent(complaintId)}`
         );
-        
-        if (response.success) {
-          return response.data;
+
+        if (response.success && response.data) {
+          const hasVoted = Boolean(response.data[complaintId]);
+          return { hasVoted, userVoted: hasVoted };
         }
       } catch (authError) {
         console.log('⚠️ Authenticated vote status check failed, trying guest status');

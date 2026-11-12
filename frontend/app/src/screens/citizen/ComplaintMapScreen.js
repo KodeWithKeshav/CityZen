@@ -17,10 +17,17 @@ import MapView, { Marker, Circle } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { useTranslation } from 'react-i18next';
 import { API_BASE_URL } from '../../../config/supabase';
+import { useTranslatedList } from '../../context/TranslationContext';
+import { formatLocalizedDate } from '../../utils/dateLocale';
+import { getCategoryLabel, getStatusLabel } from '../../utils/priorityUtils';
 
 const ComplaintMapScreen = ({ navigation, route }) => {
+  const { t, i18n } = useTranslation(['citizen', 'common', 'complaint']);
   const [complaints, setComplaints] = useState([]);
+  const translatedComplaints = useTranslatedList(complaints, ['title', 'description', 'location_address']);
+  const displayComplaints = translatedComplaints.length > 0 ? translatedComplaints : complaints;
   const [loading, setLoading] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [showComplaintModal, setShowComplaintModal] = useState(false);
@@ -52,9 +59,9 @@ const ComplaintMapScreen = ({ navigation, route }) => {
       if (status !== 'granted') {
         console.log('❌ Location permission denied');
         Alert.alert(
-          'Location Permission Required',
-          'Please enable location access to see complaints near you.',
-          [{ text: 'OK' }]
+          t('citizen:mobileMap.locationPermTitle'),
+          t('citizen:mobileMap.locationPermDesc'),
+          [{ text: t('common:mobileNav.ok') }]
         );
         setLocationLoading(false);
         return;
@@ -80,9 +87,9 @@ const ComplaintMapScreen = ({ navigation, route }) => {
     } catch (error) {
       console.error('❌ Error getting location:', error);
       Alert.alert(
-        'Location Error', 
-        'Could not get your location. Showing default area.',
-        [{ text: 'OK' }]
+        t('citizen:mobilePrivacy.locationError'), 
+        t('citizen:mobileMap.defaultAreaFallback'),
+        [{ text: t('common:mobileNav.ok') }]
       );
     } finally {
       setLocationLoading(false);
@@ -130,32 +137,32 @@ const ComplaintMapScreen = ({ navigation, route }) => {
       // Exact match
       if (cities[queryLower]) {
         const city = cities[queryLower];
-        results.push({
-          id: `city_${queryLower}`,
-          latitude: city.lat,
-          longitude: city.lng,
-          title: city.name,
-          subtitle: 'Major City',
-          type: 'city'
-        });
-        console.log('✅ Found exact city match:', city.name);
-      } else {
-        // Partial match
-        const partialMatches = Object.keys(cities).filter(cityKey => 
-          cityKey.includes(queryLower) || queryLower.includes(cityKey.split(' ')[0])
-        );
-        
-        if (partialMatches.length > 0) {
-          const cityKey = partialMatches[0];
-          const city = cities[cityKey];
           results.push({
-            id: `city_${cityKey}`,
+            id: `city_${queryLower}`,
             latitude: city.lat,
             longitude: city.lng,
             title: city.name,
-            subtitle: 'Major City',
+            subtitle: t('citizen:mobileMap.majorCity'),
             type: 'city'
           });
+          console.log('✅ Found exact city match:', city.name);
+        } else {
+          // Partial match
+          const partialMatches = Object.keys(cities).filter(cityKey => 
+            cityKey.includes(queryLower) || queryLower.includes(cityKey.split(' ')[0])
+          );
+          
+          if (partialMatches.length > 0) {
+            const cityKey = partialMatches[0];
+            const city = cities[cityKey];
+            results.push({
+              id: `city_${cityKey}`,
+              latitude: city.lat,
+              longitude: city.lng,
+              title: city.name,
+              subtitle: t('citizen:mobileMap.majorCity'),
+              type: 'city'
+            });
           console.log('✅ Found partial city match:', city.name);
         }
       }
@@ -201,7 +208,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
                 const country = place.address?.country || nameParts[nameParts.length - 1]?.trim();
                 
                 const title = state && state !== mainName ? `${mainName}, ${state}` : mainName;
-                const subtitle = `${country || 'Location'} • Global Search`;
+                const subtitle = `${country || t('citizen:mobileDetail.location')} • ${t('citizen:mobileMap.globalSearch')}`;
                 
                 // Avoid duplicates from predefined cities
                 const isDuplicate = results.some(r => 
@@ -231,8 +238,8 @@ const ComplaintMapScreen = ({ navigation, route }) => {
       }
 
       // 3. Search in complaints
-      if (complaints && complaints.length > 0) {
-        const matchingComplaints = complaints.filter(complaint => 
+      if (displayComplaints && displayComplaints.length > 0) {
+        const matchingComplaints = displayComplaints.filter(complaint => 
           complaint.title?.toLowerCase().includes(queryLower) ||
           complaint.description?.toLowerCase().includes(queryLower) ||
           complaint.category?.toLowerCase().includes(queryLower)
@@ -247,7 +254,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
             latitude: lat,
             longitude: lng,
             title: complaint.title,
-            subtitle: `${complaint.category} • Complaint`,
+            subtitle: `${getCategoryLabel(complaint.category, t)} • ${t('citizen:mobileMap.complaintLabel')}`,
             complaint: complaint,
             type: 'complaint'
           });
@@ -276,9 +283,9 @@ const ComplaintMapScreen = ({ navigation, route }) => {
         if (results.length === 1 && (results[0].type === 'city' || results[0].title.toLowerCase().includes(queryLower))) {
           console.log('🎯 Only one result found, auto-selecting:', results[0].title);
           Alert.alert(
-            'Location Found!', 
-            `Moving to ${results[0].title}...`, 
-            [{ text: 'OK' }], 
+            t('citizen:mobileMap.locationFoundTitle'), 
+            t('citizen:mobileMap.movingTo', { place: results[0].title }), 
+            [{ text: t('common:mobileNav.ok') }], 
             { cancelable: true }
           );
           setTimeout(() => {
@@ -290,9 +297,9 @@ const ComplaintMapScreen = ({ navigation, route }) => {
           if (topResult.title && topResult.title.toLowerCase().includes(queryLower)) {
             console.log('🎯 Top result matches query, auto-selecting:', topResult.title);
             Alert.alert(
-              'Location Found!', 
-              `Moving to ${topResult.title}...`, 
-              [{ text: 'OK' }], 
+              t('citizen:mobileMap.locationFoundTitle'), 
+              t('citizen:mobileMap.movingTo', { place: topResult.title }), 
+              [{ text: t('common:mobileNav.ok') }], 
               { cancelable: true }
             );
             setTimeout(() => {
@@ -304,13 +311,13 @@ const ComplaintMapScreen = ({ navigation, route }) => {
         console.log('❌ No results found, showing empty state');
         setSearchResults([]);
         setShowSearchResults(false);
-        Alert.alert('No Results', `No results found for "${query}". Try searching for any city name worldwide or complaint keywords.`);
+        Alert.alert(t('citizen:mobileMap.noResultsTitle'), t('citizen:mobileMap.noResultsDesc', { query }));
       }
 
     } catch (error) {
       console.error('❌ Search error:', error);
       setSearchResults([]);
-      Alert.alert('Search Error', 'Search failed. Please try again.');
+      Alert.alert(t('citizen:mobileMap.searchErrorTitle'), t('citizen:mobileMap.searchErrorDesc'));
     } finally {
       setSearchLoading(false);
       console.log('✅ Search completed');
@@ -379,12 +386,12 @@ const ComplaintMapScreen = ({ navigation, route }) => {
       
       if (data.success && data.complaints) {
         console.log('✅ Fetched complaints:', data.complaints.length);
-        console.log('📊 Status breakdown:', data.complaints.map(c => ({ id: c.id?.substring(0,8), status: c.status })));
+        console.log('📊 Status breakdown:', data.complaints.map(c => ({ id: String(c.id || '').substring(0, 8), status: c.status })));
         setComplaints(data.complaints);
       }
     } catch (error) {
       console.error('❌ Error fetching complaints:', error);
-      Alert.alert('Error', 'Failed to load complaints');
+      Alert.alert(t('common:mobileNav.error'), t('citizen:mobileMap.loadFailed'));
     } finally {
       setLoading(false);
     }
@@ -419,7 +426,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
     
     if (!searchQuery || !searchQuery.trim()) {
       console.log('❌ Empty search query, showing alert');
-      Alert.alert('Search Required', 'Please enter a city name or complaint keyword.');
+      Alert.alert(t('citizen:mobileMap.searchRequiredTitle'), t('citizen:mobileMap.searchRequiredDesc'));
       return;
     }
     
@@ -434,7 +441,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
     const resolved = complaints.filter(c => c.status?.toLowerCase() === 'completed' || c.status?.toLowerCase() === 'resolved').length;
     
     console.log(`📊 Statistics calculated - Total: ${complaints.length}, Pending: ${pending}, Progress: ${inProgress}, Resolved: ${resolved}`);
-    console.log('🔍 All complaint statuses:', complaints.map(c => ({ id: c.id?.substring(0,8), status: c.status })));
+    console.log('🔍 All complaint statuses:', complaints.map(c => ({ id: String(c.id || '').substring(0, 8), status: c.status })));
     
     return { pending, inProgress, resolved };
   })();
@@ -507,7 +514,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
     // Group complaints by proximity
     const processed = new Set();
     
-    complaints.forEach((complaint, index) => {
+    displayComplaints.forEach((complaint, index) => {
       if (processed.has(index)) return;
       
       const lat = parseFloat(complaint.location_latitude);
@@ -519,7 +526,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
       processed.add(index);
       
       // Find nearby complaints
-      complaints.forEach((other, otherIndex) => {
+      displayComplaints.forEach((other, otherIndex) => {
         if (processed.has(otherIndex) || index === otherIndex) return;
         
         const otherLat = parseFloat(other.location_latitude);
@@ -586,7 +593,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
             // Show complaints in this cluster
             setSelectedComplaint({
               id: cluster.id,
-              title: `${density} Complaint${density > 1 ? 's' : ''} in this area`,
+              title: t('citizen:mobileMap.clusterTitle', { count: density }),
               description: cluster.complaints.map(c => `• ${c.title}`).join('\n'),
               status: 'cluster',
               complaints: cluster.complaints,
@@ -602,7 +609,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
 
   // Render traditional markers
   const renderMarkers = () => {
-    return complaints.map((complaint, index) => {
+    return displayComplaints.map((complaint, index) => {
       const lat = parseFloat(complaint.location_latitude);
       const lng = parseFloat(complaint.location_longitude);
       
@@ -631,8 +638,6 @@ const ComplaintMapScreen = ({ navigation, route }) => {
         >
           <View style={styles.modernPinContainer}>
             <View style={[styles.modernPinHead, { backgroundColor: getStatusColor(complaint.status) }]}>
-              {/* Debug: Log marker status and color */}
-              {console.log(`🔍 Marker ID: ${complaint.id?.substring(0,8)}, Status: "${complaint.status}", Color: ${getStatusColor(complaint.status)}`)}
               <Ionicons 
                 name={getCategoryIcon(complaint.category)} 
                 size={16} 
@@ -649,6 +654,10 @@ const ComplaintMapScreen = ({ navigation, route }) => {
   // Complaint Details Modal
   const ComplaintDetailsModal = () => {
     if (!selectedComplaint) return null;
+    const activeComplaint =
+      selectedComplaint.status === 'cluster'
+        ? selectedComplaint
+        : displayComplaints.find(c => c.id === selectedComplaint.id) || selectedComplaint;
 
     return (
       <Modal
@@ -663,7 +672,11 @@ const ComplaintMapScreen = ({ navigation, route }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{selectedComplaint.title}</Text>
+              <Text style={styles.modalTitle}>
+                {activeComplaint.status === 'cluster'
+                  ? t('citizen:mobileMap.clusterTitle', { count: activeComplaint.complaints?.length || 0 })
+                  : activeComplaint.title}
+              </Text>
               <TouchableOpacity 
                 onPress={() => {
                   setShowComplaintModal(false);
@@ -676,23 +689,23 @@ const ComplaintMapScreen = ({ navigation, route }) => {
             </View>
 
             <ScrollView style={styles.modalScroll}>
-              {selectedComplaint.status === 'cluster' ? (
+              {activeComplaint.status === 'cluster' ? (
                 // Cluster view
                 <>
                   <View style={styles.statusSection}>
                     <View style={[styles.statusBadge, { backgroundColor: '#1A1A1A' }]}>
-                      <Text style={styles.statusText}>CLUSTER VIEW</Text>
+                      <Text style={styles.statusText}>{t('citizen:mobileMap.clusterView')}</Text>
                     </View>
                   </View>
 
                   <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Area Summary</Text>
-                    <Text style={styles.description}>{selectedComplaint.description}</Text>
+                    <Text style={styles.sectionTitle}>{t('citizen:mobileMap.areaSummary')}</Text>
+                    <Text style={styles.description}>{activeComplaint.description}</Text>
                   </View>
 
                   <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Individual Complaints</Text>
-                    {selectedComplaint.complaints?.map((complaint, index) => (
+                    <Text style={styles.sectionTitle}>{t('citizen:mobileMap.individualComplaints')}</Text>
+                    {activeComplaint.complaints?.map((complaint, index) => (
                       <TouchableOpacity 
                         key={complaint.id}
                         style={styles.clusterItem}
@@ -705,8 +718,10 @@ const ComplaintMapScreen = ({ navigation, route }) => {
                         </View>
                         <View style={styles.clusterInfo}>
                           <Text style={styles.clusterTitle}>{complaint.title}</Text>
-                          <Text style={styles.clusterStatus}>{(complaint.status || 'pending').replace('_', ' ')}</Text>
-                          <Text style={styles.clusterCategory}>{complaint.category}</Text>
+                          <Text style={styles.clusterStatus}>{getStatusLabel(complaint.status, t)}</Text>
+                          <Text style={styles.clusterCategory}>
+                            {complaint.category ? getCategoryLabel(complaint.category, t) : t('common:mobileNav.general')}
+                          </Text>
                         </View>
                       </TouchableOpacity>
                     ))}
@@ -716,37 +731,51 @@ const ComplaintMapScreen = ({ navigation, route }) => {
                 // Individual complaint view
                 <>
                   <View style={styles.statusSection}>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedComplaint.status) }]}>
-                      <Text style={styles.statusText}>{(selectedComplaint.status || 'pending').toUpperCase()}</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(activeComplaint.status) }]}>
+                      <Text style={styles.statusText}>{getStatusLabel(activeComplaint.status, t).toUpperCase()}</Text>
                     </View>
                   </View>
 
                   <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Description</Text>
-                    <Text style={styles.description}>{selectedComplaint.description}</Text>
+                    <Text style={styles.sectionTitle}>{t('citizen:mobileDetail.description')}</Text>
+                    <Text style={styles.description}>{activeComplaint.description}</Text>
                   </View>
 
                   <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Details</Text>
-                    <Text style={styles.detailText}>Category: {selectedComplaint.category}</Text>
+                    <Text style={styles.sectionTitle}>{t('citizen:mobileMap.detailsHeading')}</Text>
                     <Text style={styles.detailText}>
-                      Location: {selectedComplaint.location_latitude}, {selectedComplaint.location_longitude}
+                      {t('citizen:mobileReports.categoryLabel', {
+                        category: activeComplaint.category
+                          ? getCategoryLabel(activeComplaint.category, t)
+                          : t('common:mobileNav.general'),
+                      })}
                     </Text>
                     <Text style={styles.detailText}>
-                      Priority: {Math.round((selectedComplaint.priority_score || 0) * 100)}%
+                      {t('citizen:mobileReports.locationLabel', {
+                        location: `${activeComplaint.location_latitude}, ${activeComplaint.location_longitude}`,
+                      })}
                     </Text>
                     <Text style={styles.detailText}>
-                      Created: {selectedComplaint.created_at ? new Date(selectedComplaint.created_at).toLocaleDateString() : 'N/A'}
+                      {t('citizen:mobileReports.priorityLabel', {
+                        priority: `${Math.round((activeComplaint.priority_score || 0) * 100)}%`,
+                      })}
+                    </Text>
+                    <Text style={styles.detailText}>
+                      {t('citizen:mobileMap.createdLabel', {
+                        date: activeComplaint.created_at
+                          ? formatLocalizedDate(activeComplaint.created_at, {}, i18n.language)
+                          : t('common:mobileNav.na'),
+                      })}
                     </Text>
                   </View>
                 </>
               )}
 
-              {selectedComplaint.image_urls && selectedComplaint.image_urls.length > 0 && (
+              {Array.isArray(activeComplaint.image_urls) && activeComplaint.image_urls.length > 0 && (
                 <View style={styles.detailSection}>
-                  <Text style={styles.sectionTitle}>Images</Text>
+                  <Text style={styles.sectionTitle}>{t('citizen:mobileMap.images')}</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {selectedComplaint.image_urls.map((imageUrl, index) => (
+                    {activeComplaint.image_urls.map((imageUrl, index) => (
                       <Image 
                         key={index}
                         source={{ uri: imageUrl }} 
@@ -776,7 +805,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Complaint Map</Text>
+          <Text style={styles.headerTitle}>{t('citizen:mobileMap.title')}</Text>
           <View style={styles.headerButtons}>
             <TouchableOpacity 
               onPress={getUserLocation} 
@@ -797,7 +826,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
           <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search any city worldwide, complaints..."
+            placeholder={t('citizen:mobileMap.searchPlaceholder')}
             placeholderTextColor="#999"
             value={searchQuery}
             onChangeText={(text) => {
@@ -904,7 +933,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
           ) : (
             <View style={styles.noResultsContainer}>
               <Text style={styles.noResultsText}>
-                {searchLoading ? 'Searching...' : 'No results found'}
+                {searchLoading ? t('citizen:mobileMap.searching') : t('citizen:mobileMap.noSearchResults')}
               </Text>
             </View>
           )}
@@ -917,7 +946,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#1A1A1A" />
             <Text style={styles.loadingText}>
-              {locationLoading ? 'Getting your location...' : 'Loading complaints...'}
+              {locationLoading ? t('citizen:mobileFeed.gettingLocation') : t('citizen:mobileMap.loadingComplaints')}
             </Text>
           </View>
         ) : (
@@ -967,7 +996,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
             color={showHeatmap ? '#fff' : '#666'} 
           />
           <Text style={[styles.toggleText, showHeatmap && styles.toggleTextActive]}>
-            Heatmap
+            {t('citizen:mobileMap.heatmap')}
           </Text>
         </TouchableOpacity>
         
@@ -981,7 +1010,7 @@ const ComplaintMapScreen = ({ navigation, route }) => {
             color={!showHeatmap ? '#fff' : '#666'} 
           />
           <Text style={[styles.toggleText, !showHeatmap && styles.toggleTextActive]}>
-            Markers
+            {t('citizen:mobileMap.markers')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -989,12 +1018,17 @@ const ComplaintMapScreen = ({ navigation, route }) => {
       {/* Stats */}
       <View style={styles.statsContainer}>
         <Text style={styles.statsText}>
-          {complaints.length} Complaints {showHeatmap ? 'in Density View' : 'as Markers'} {userLocation ? '• Your Location Found' : ''}
+          {showHeatmap
+            ? t('citizen:mobileMap.statsDensity', { count: complaints.length })
+            : t('citizen:mobileMap.statsMarkers', { count: complaints.length })}
+          {userLocation ? ` • ${t('citizen:mobileMap.locationFoundSuffix')}` : ''}
         </Text>
         <Text style={styles.statsText}>
-          {statsData.pending} Pending • 
-          {statsData.inProgress} Progress • 
-          {statsData.resolved} Resolved
+          {t('citizen:mobileMap.statsBreakdown', {
+            pending: statsData.pending,
+            inProgress: statsData.inProgress,
+            resolved: statsData.resolved,
+          })}
         </Text>
       </View>
 

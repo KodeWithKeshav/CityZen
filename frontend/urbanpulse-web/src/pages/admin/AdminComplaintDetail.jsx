@@ -1,25 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
 import { HiArrowLeft, HiSave, HiExclamationCircle, HiShieldCheck, HiLocationMarker, HiSparkles } from 'react-icons/hi'
-import { format } from 'date-fns'
-import { getPriorityTier } from '../../utils/priorityUtils'
+import { formatLocalizedDateTime } from '../../utils/dateLocale'
+import { getPriorityTier, getCategoryLabel } from '../../utils/priorityUtils'
+import { useTranslatedObject } from '../../context/TranslationContext'
 import ExplainAiModal from '../../components/ExplainAiModal'
 import GeometryEstimateCard from '../../components/GeometryEstimateCard'
 
 const STATUSES = ['pending', 'in_progress', 'resolved', 'rejected']
 
-const STATUS_CONFIG = {
-  pending: { label: 'PENDING', bg: 'bg-amber-50 text-amber-900 border-amber-300' },
-  in_progress: { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-900 border-blue-300' },
-  'in-progress': { label: 'IN PROGRESS', bg: 'bg-blue-50 text-blue-900 border-blue-300' },
-  resolved: { label: 'RESOLVED', bg: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
-  rejected: { label: 'REJECTED', bg: 'bg-rose-50 text-rose-900 border-rose-300' },
-}
-
 export default function AdminComplaintDetail() {
+  const { t, i18n } = useTranslation(['admin', 'citizen', 'complaint', 'common'])
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -29,6 +24,23 @@ export default function AdminComplaintDetail() {
   const [status, setStatus] = useState('pending')
   const [adminNote, setAdminNote] = useState('')
   const [showAiExplainModal, setShowAiExplainModal] = useState(false)
+
+  const STATUS_CONFIG = {
+    pending: { label: t('status.pending'), bg: 'bg-amber-50 text-amber-900 border-amber-300' },
+    in_progress: { label: t('status.inProgress'), bg: 'bg-blue-50 text-blue-900 border-blue-300' },
+    'in-progress': { label: t('status.inProgress'), bg: 'bg-blue-50 text-blue-900 border-blue-300' },
+    resolved: { label: t('status.resolved'), bg: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
+    rejected: { label: t('status.rejected'), bg: 'bg-rose-50 text-rose-900 border-rose-300' },
+  }
+
+  const translatedComplaint = useTranslatedObject(complaint, [
+    'title',
+    'complaintTitle',
+    'description',
+    'location_address',
+    'content_flag_reason',
+    'citizenName',
+  ])
 
   useEffect(() => {
     let cancelled = false
@@ -44,13 +56,14 @@ export default function AdminComplaintDetail() {
             ...res.data,
             createdAt: res.data.createdAt || res.data.created_at,
             complaintTitle: res.data.complaintTitle || res.data.title,
+            location_address: res.data.location_address || res.data.location?.address,
             citizenName:
               res.data.users?.full_name ||
               res.data.user?.full_name ||
               res.data.citizenName ||
               res.data.user_name ||
               res.data.full_name ||
-              'Verified Citizen',
+              t('verifiedCitizen'),
             priorityScore: res.data.priorityScore ?? res.data.priority_score,
             imageUrl: res.data.imageUrl || (Array.isArray(res.data.image_urls) ? res.data.image_urls[0] : undefined),
           }
@@ -58,11 +71,11 @@ export default function AdminComplaintDetail() {
           setStatus(STATUSES.includes(rawStatus) ? rawStatus : 'pending')
           setAdminNote(mapped.adminNote || mapped.resolution_notes || '')
         } else {
-          toast.error(res?.message || res?.error || 'Failed to load incident dispatch dossier')
+          toast.error(res?.message || res?.error || t('complaintDossier.loadFailed'))
         }
       } catch (err) {
         if (!cancelled) {
-          toast.error(err.message || 'Failed to load incident dispatch dossier')
+          toast.error(err.message || t('complaintDossier.loadFailed'))
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -74,7 +87,7 @@ export default function AdminComplaintDetail() {
 
   const handleUpdate = async () => {
     if (!status) {
-      toast.error('Please select a status')
+      toast.error(t('complaintDossier.selectStatus'))
       return
     }
     setUpdating(true)
@@ -84,7 +97,7 @@ export default function AdminComplaintDetail() {
         body: JSON.stringify({ status, notes: adminNote, adminId: user?.id }),
       })
       if (res?.success) {
-        toast.success('Incident status and notes updated in municipal ledger')
+        toast.success(t('complaintDossier.statusUpdated'))
         setComplaint(prev => ({
           ...prev,
           ...(res.data || {}),
@@ -93,10 +106,10 @@ export default function AdminComplaintDetail() {
           resolution_notes: adminNote,
         }))
       } else {
-        toast.error(res?.error || res?.message || 'Ledger update failed')
+        toast.error(res?.error || res?.message || t('complaintDossier.updateFailed'))
       }
     } catch (err) {
-      toast.error(err.message || 'Ledger update failed')
+      toast.error(err.message || t('complaintDossier.updateFailed'))
     } finally {
       setUpdating(false)
     }
@@ -104,96 +117,98 @@ export default function AdminComplaintDetail() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-4 font-mono text-xs text-neutral-500 py-12">
+      <div className="max-w-4xl mx-auto space-y-4 font-mono text-xs text-neutral-500 p-4 sm:p-6 lg:p-8 py-12">
         <div className="h-6 w-32 bg-neutral-200 animate-pulse" />
-        <div className="border border-neutral-200 p-8 h-48 bg-white animate-pulse" />
+        <div className="border border-neutral-200 p-6 sm:p-8 h-48 bg-white animate-pulse" />
       </div>
     )
   }
 
   if (!complaint) {
     return (
-      <div className="max-w-xl mx-auto border border-neutral-300 bg-white p-12 text-center my-12">
-        <HiExclamationCircle className="w-12 h-12 text-neutral-400 mx-auto mb-3" />
-        <h2 className="font-serif text-xl font-bold text-neutral-900 uppercase">
-          Incident Record Not Found
-        </h2>
-        <p className="text-xs text-neutral-500 font-sans mt-1">
-          Dossier #{id} does not exist in the municipal registry.
-        </p>
-        <button
-          onClick={() => navigate(-1)}
-          className="mt-6 px-4 py-2 bg-black text-white font-mono text-xs uppercase"
-        >
-          Return to Registry
-        </button>
+      <div className="max-w-xl mx-auto p-4 sm:p-6 lg:p-8 my-6 sm:my-12">
+        <div className="border border-neutral-300 bg-white p-8 sm:p-12 text-center">
+          <HiExclamationCircle className="w-12 h-12 text-neutral-400 mx-auto mb-3" />
+          <h2 className="font-serif text-xl font-bold text-neutral-900 uppercase">
+            {t('complaintDossier.notFoundTitle')}
+          </h2>
+          <p className="text-xs text-neutral-500 font-sans mt-1 break-all">
+            {t('complaintDossier.notFoundDesc', { id })}
+          </p>
+          <button
+            onClick={() => navigate(-1)}
+            className="mt-6 px-4 py-2 bg-black text-white font-mono text-xs uppercase"
+          >
+            {t('complaintDossier.returnToRegistry')}
+          </button>
+        </div>
       </div>
     )
   }
 
-  const statusKey = (complaint.status || 'pending').toLowerCase()
+  const activeComplaint = translatedComplaint || complaint
+  const statusKey = (activeComplaint.status || 'pending').toLowerCase()
   const currentStatusInfo = STATUS_CONFIG[statusKey] || {
-    label: (complaint.status || 'PENDING').toUpperCase(),
+    label: (activeComplaint.status || t('status.pending')).toUpperCase(),
     bg: 'bg-neutral-100 text-neutral-800 border-neutral-300'
   }
-  const pTier = getPriorityTier(complaint)
-  const parsedCreatedAt = complaint.createdAt ? new Date(complaint.createdAt) : null
-  const createdAtStr = parsedCreatedAt && !Number.isNaN(parsedCreatedAt.getTime())
-    ? format(parsedCreatedAt, 'yyyy-MM-dd HH:mm')
-    : '—'
-  const gpsLat = complaint.location_latitude ?? complaint.location?.latitude ?? complaint.location?.lat
-  const gpsLng = complaint.location_longitude ?? complaint.location?.longitude ?? complaint.location?.lng
-  const authScoreNum = Number(complaint.text_authenticity_score)
+  const pTier = getPriorityTier(activeComplaint, t)
+  const createdAtStr = formatLocalizedDateTime(activeComplaint.createdAt, i18n.language) || '—'
+  const gpsLat = activeComplaint.location_latitude ?? activeComplaint.location?.latitude ?? activeComplaint.location?.lat
+  const gpsLng = activeComplaint.location_longitude ?? activeComplaint.location?.longitude ?? activeComplaint.location?.lng
+  const authScoreNum = Number(activeComplaint.text_authenticity_score)
   const hasAuthenticityScore =
-    complaint.text_authenticity_score !== null &&
-    complaint.text_authenticity_score !== undefined &&
-    complaint.text_authenticity_score !== '' &&
+    activeComplaint.text_authenticity_score !== null &&
+    activeComplaint.text_authenticity_score !== undefined &&
+    activeComplaint.text_authenticity_score !== '' &&
     !Number.isNaN(authScoreNum)
+  const categoryLabel = getCategoryLabel(activeComplaint.category || activeComplaint.issueType, t) || t('complaintDossier.civicIncident')
+  const displayTitle = activeComplaint.title || activeComplaint.complaintTitle || t('complaintDossier.civicIncident')
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
+    <div className="max-w-4xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 pb-12">
       {/* Back button */}
       <button
         onClick={() => navigate(-1)}
         className="flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-neutral-700 hover:text-black border-b border-transparent hover:border-black transition-all pb-0.5"
       >
         <HiArrowLeft className="w-4 h-4" />
-        <span>BACK TO INCIDENT REGISTRY</span>
+        <span>{t('complaintDossier.backToRegistry')}</span>
       </button>
 
       {/* Main Dossier Header */}
       <div className="border border-neutral-200 bg-white">
-        <div className="p-6 border-b border-neutral-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-neutral-50">
-          <div>
-            <div className="font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
-              DISPATCH AUDIT DOSSIER · RECORD #{id}
+        <div className="p-4 sm:p-6 border-b border-neutral-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-neutral-50">
+          <div className="min-w-0">
+            <div className="font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1 break-all">
+              {t('complaintDossier.dossierHeader', { id })}
             </div>
-            <h1 className="font-serif text-2xl font-bold text-neutral-900 uppercase">
-              {complaint.title || complaint.complaintTitle || 'Civic Incident'}
+            <h1 className="font-serif text-xl sm:text-2xl font-bold text-neutral-900 uppercase">
+              {displayTitle}
             </h1>
           </div>
-          <span className={`px-3 py-1 border font-mono text-xs uppercase tracking-wider font-bold ${currentStatusInfo.bg}`}>
+          <span className={`self-start sm:self-center flex-shrink-0 px-3 py-1 border font-mono text-xs uppercase tracking-wider font-bold ${currentStatusInfo.bg}`}>
             {currentStatusInfo.label}
           </span>
         </div>
 
         {/* Metadata Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 border-b border-neutral-200 divide-x divide-neutral-200 font-mono text-xs">
-          <div className="p-4">
-            <span className="text-neutral-500 uppercase text-[10px] block mb-1">REPORTING CITIZEN</span>
-            <span className="font-bold text-neutral-900">{complaint.citizenName || complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || 'Verified Citizen'}</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 border-b border-neutral-200 gap-px bg-neutral-200 font-mono text-xs">
+          <div className="p-4 bg-white">
+            <span className="text-neutral-500 uppercase text-[10px] block mb-1">{t('complaintDossier.reportingCitizen')}</span>
+            <span className="font-bold text-neutral-900">{activeComplaint.citizenName || activeComplaint.users?.full_name || activeComplaint.user?.full_name || activeComplaint.user_name || t('verifiedCitizen')}</span>
           </div>
-          <div className="p-4">
-            <span className="text-neutral-500 uppercase text-[10px] block mb-1">CLASSIFICATION</span>
+          <div className="p-4 bg-white">
+            <span className="text-neutral-500 uppercase text-[10px] block mb-1">{t('complaintDossier.classification')}</span>
             <span className="font-bold text-neutral-900 uppercase">
-              {(complaint.category || complaint.issueType || 'General').replace(/_/g, ' ')}
+              {categoryLabel}
             </span>
           </div>
-          <div className="p-4">
-            <span className="text-neutral-500 uppercase text-[10px] block mb-1">PRIORITY SCORE</span>
+          <div className="p-4 bg-white">
+            <span className="text-neutral-500 uppercase text-[10px] block mb-1">{t('complaintDossier.priorityScore')}</span>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-bold text-neutral-900 text-sm">
-                {pTier.displayScore !== '—' ? `${pTier.displayScore} / 100` : 'N/A'}
+                {pTier.displayScore !== '—' ? `${pTier.displayScore} / 100` : t('common:priority.na')}
               </span>
               {pTier.score !== null && (
                 <span className={`px-1.5 py-0.5 text-[9px] uppercase tracking-wider font-semibold ${pTier.badgeClass}`}>
@@ -202,50 +217,50 @@ export default function AdminComplaintDetail() {
               )}
             </div>
           </div>
-          <div className="p-4 border-t border-neutral-200">
-            <span className="text-neutral-500 uppercase text-[10px] block mb-1">RECORDED TIMESTAMP</span>
+          <div className="p-4 bg-white">
+            <span className="text-neutral-500 uppercase text-[10px] block mb-1">{t('complaintDossier.recordedTimestamp')}</span>
             <span className="font-bold text-neutral-900">
               {createdAtStr}
             </span>
           </div>
-          <div className="p-4 border-t border-neutral-200">
-            <span className="text-neutral-500 uppercase text-[10px] block mb-1">SEVERITY TIER</span>
+          <div className="p-4 bg-white">
+            <span className="text-neutral-500 uppercase text-[10px] block mb-1">{t('complaintDossier.severityTier')}</span>
             <span className="font-bold text-neutral-900 uppercase">
-              {complaint.priority || (pTier.score !== null ? pTier.level : 'MEDIUM')}
+              {pTier.score !== null ? pTier.label : t('common:priority.medium')}
             </span>
           </div>
-          <div className="p-4 border-t border-neutral-200">
-            <span className="text-neutral-500 uppercase text-[10px] block mb-1">CITIZEN CONCURRENCES</span>
+          <div className="p-4 bg-white">
+            <span className="text-neutral-500 uppercase text-[10px] block mb-1">{t('complaintDossier.citizenConcurrences')}</span>
             <span className="font-bold text-neutral-900">
-              {complaint.vote_count ?? complaint.upvotes ?? complaint.votes ?? 0} VOTES
+              {t('complaintDossier.votesCount', { count: activeComplaint.vote_count ?? activeComplaint.upvotes ?? activeComplaint.votes ?? 0 })}
             </span>
           </div>
         </div>
 
         {/* Narrative & Location */}
-        <div className="p-6 space-y-5">
+        <div className="p-4 sm:p-6 space-y-5">
           <div>
             <span className="font-mono text-xs uppercase tracking-wider text-neutral-500 block mb-2">
-              RECORDED CITIZEN NARRATIVE
+              {t('complaintDossier.recordedNarrative')}
             </span>
             <div className="border border-neutral-200 p-4 font-sans text-sm leading-relaxed text-neutral-800 bg-neutral-50/50">
-              {complaint.description}
+              {activeComplaint.description}
             </div>
           </div>
 
-          {(complaint.location_address || complaint.location || (gpsLat != null && gpsLng != null)) && (
+          {(activeComplaint.location_address || activeComplaint.location || (gpsLat != null && gpsLng != null)) && (
             <div className="border border-neutral-200 p-4 bg-neutral-50 flex items-start gap-3">
               <HiLocationMarker className="w-5 h-5 text-neutral-700 flex-shrink-0 mt-0.5" />
               <div className="font-mono text-xs">
                 <span className="text-neutral-500 uppercase text-[10px] block mb-0.5">
-                  GEOGRAPHIC COORDINATE REFERENCE
+                  {t('complaintDossier.geoReference')}
                 </span>
                 <span className="font-bold text-neutral-900">
-                  {complaint.location_address || complaint.location?.address || 'Coordinates Logged'}
+                  {activeComplaint.location_address || activeComplaint.location?.address || t('complaintDossier.coordsLogged')}
                 </span>
                 {gpsLat != null && gpsLng != null && (
                   <span className="text-neutral-500 block mt-1">
-                    GPS: {gpsLat}, {gpsLng}
+                    {t('complaintDossier.gps', { lat: gpsLat, lon: gpsLng })}
                   </span>
                 )}
               </div>
@@ -253,11 +268,11 @@ export default function AdminComplaintDetail() {
           )}
 
           {/* Photo Evidence */}
-          {complaint.imageUrl && (
+          {activeComplaint.imageUrl && (
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <span className="font-mono text-xs uppercase tracking-wider text-neutral-500">
-                  VERIFIED FIELD PHOTOGRAPH
+                  {t('complaintDossier.verifiedPhoto')}
                 </span>
                 <button
                   type="button"
@@ -265,14 +280,14 @@ export default function AdminComplaintDetail() {
                   className="inline-flex items-center gap-1.5 px-3 py-1 bg-neutral-900 text-white hover:bg-neutral-800 border border-black font-mono text-[11px] uppercase tracking-wider font-bold transition-colors cursor-pointer"
                 >
                   <HiSparkles className="w-3.5 h-3.5 text-neutral-300" />
-                  EXPLAIN AI (SAM-3)
+                  {t('complaintDossier.explainAi')}
                 </button>
               </div>
               <div className="border border-neutral-200 bg-neutral-950 p-2 max-w-lg">
                 <img
-                  src={complaint.imageUrl}
-                  alt="Field evidence"
-                  className="w-full h-64 object-contain"
+                  src={activeComplaint.imageUrl}
+                  alt={displayTitle}
+                  className="w-full h-56 sm:h-64 object-contain"
                   onError={e => { e.target.style.display = 'none' }}
                 />
               </div>
@@ -283,29 +298,29 @@ export default function AdminComplaintDetail() {
 
       {/* Geometry Estimation */}
       <GeometryEstimateCard
-        complaint={complaint}
+        complaint={activeComplaint}
         onGeometryUpdated={(updatedGeom) => {
           setComplaint(prev => ({ ...prev, ...updatedGeom }))
         }}
       />
 
       {/* Neural AI Verification Summary */}
-      {complaint.aiAnalysis && (
-        <div className="border border-neutral-200 bg-white p-6 space-y-4">
+      {activeComplaint.aiAnalysis && (
+        <div className="border border-neutral-200 bg-white p-4 sm:p-6 space-y-4">
           <div className="flex items-center gap-2 border-b border-neutral-200 pb-3 font-serif font-bold text-sm uppercase text-neutral-900">
             <HiShieldCheck className="w-5 h-5" />
-            <span>Automated Neural Validation Dossier</span>
+            <span>{t('complaintDossier.neuralValidation')}</span>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-xs">
-            {Object.entries(complaint.aiAnalysis)
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 font-mono text-xs">
+            {Object.entries(activeComplaint.aiAnalysis)
               .filter(([k, v]) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
               .map(([k, v]) => (
                 <div key={k} className="border border-neutral-200 p-3 bg-neutral-50">
                   <span className="text-[10px] text-neutral-500 uppercase block">
                     {k.replace(/([A-Z])/g, ' $1')}
                   </span>
-                  <span className="font-bold text-neutral-900 uppercase">
+                  <span className="font-bold text-neutral-900 uppercase break-words">
                     {String(v)}
                   </span>
                 </div>
@@ -316,57 +331,57 @@ export default function AdminComplaintDetail() {
 
       {/* Authenticity Check (rule-based + multilingual model blend) */}
       {hasAuthenticityScore && (
-        <div className={`border bg-white p-6 space-y-3 ${complaint.content_flagged ? 'border-rose-300' : 'border-neutral-200'}`}>
-          <div className="flex items-center justify-between border-b border-neutral-200 pb-3">
+        <div className={`border bg-white p-4 sm:p-6 space-y-3 ${activeComplaint.content_flagged ? 'border-rose-300' : 'border-neutral-200'}`}>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3">
             <div className="flex items-center gap-2 font-serif font-bold text-sm uppercase text-neutral-900">
               <HiShieldCheck className="w-5 h-5" />
-              <span>Description Authenticity Check</span>
+              <span>{t('complaintDossier.authenticityCheck')}</span>
             </div>
-            {complaint.content_flagged && (
+            {activeComplaint.content_flagged && (
               <span className="px-2 py-0.5 border border-rose-300 bg-rose-50 text-rose-900 font-mono text-[10px] uppercase tracking-wider font-bold">
-                Flagged for Review
+                {t('complaintDossier.flaggedForReview')}
               </span>
             )}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 font-mono text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
             <div className="border border-neutral-200 p-3 bg-neutral-50">
-              <span className="text-[10px] text-neutral-500 uppercase block">Authenticity Score</span>
+              <span className="text-[10px] text-neutral-500 uppercase block">{t('complaintDossier.authenticityScore')}</span>
               <span className="font-bold text-neutral-900">
                 {(authScoreNum <= 1 ? authScoreNum * 100 : authScoreNum).toFixed(0)} / 100
               </span>
             </div>
             <div className="border border-neutral-200 p-3 bg-neutral-50">
-              <span className="text-[10px] text-neutral-500 uppercase block">Verification Status</span>
-              <span className="font-bold text-neutral-900 uppercase">{(complaint.verification_status || 'unverified').replace(/_/g, ' ')}</span>
+              <span className="text-[10px] text-neutral-500 uppercase block">{t('complaintDossier.verificationStatus')}</span>
+              <span className="font-bold text-neutral-900 uppercase">{(activeComplaint.verification_status || 'unverified').replace(/_/g, ' ')}</span>
             </div>
             <div className="border border-neutral-200 p-3 bg-neutral-50">
-              <span className="text-[10px] text-neutral-500 uppercase block">Captured Language</span>
-              <span className="font-bold text-neutral-900 uppercase">{complaint.language || 'en'}</span>
+              <span className="text-[10px] text-neutral-500 uppercase block">{t('complaintDossier.capturedLanguage')}</span>
+              <span className="font-bold text-neutral-900 uppercase">{activeComplaint.language || 'en'}</span>
             </div>
           </div>
-          {complaint.content_flag_reason && (
+          {activeComplaint.content_flag_reason && (
             <div className="border border-neutral-200 p-3 bg-neutral-50 font-sans text-xs text-neutral-700">
-              {complaint.content_flag_reason}
+              {activeComplaint.content_flag_reason}
             </div>
           )}
         </div>
       )}
 
       {/* Admin Action Box: Status Update & Field Dispatch Notes */}
-      <div className="border border-black bg-white p-6 md:p-8 space-y-6">
+      <div className="border border-black bg-white p-4 sm:p-6 md:p-8 space-y-6">
         <div className="border-b border-neutral-200 pb-3">
           <h3 className="font-serif text-lg font-bold uppercase text-neutral-900">
-            Dispatcher Protocol: State Mutation
+            {t('complaintDossier.dispatcherProtocolTitle')}
           </h3>
           <p className="text-xs font-mono text-neutral-500 mt-0.5">
-            Modify incident lifecycle state and record official municipal action notes.
+            {t('complaintDossier.dispatcherProtocolDesc')}
           </p>
         </div>
 
         <div className="space-y-4">
           <div>
             <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700 mb-2">
-              ASSIGN STATUS
+              {t('complaintDossier.assignStatus')}
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {STATUSES.map(s => {
@@ -376,13 +391,12 @@ export default function AdminComplaintDetail() {
                     key={s}
                     type="button"
                     onClick={() => setStatus(s)}
-                    className={`py-2.5 px-3 border font-mono text-xs uppercase tracking-wider transition-colors ${
-                      isSelected
-                        ? 'bg-neutral-900 text-white border-black font-bold'
-                        : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
-                    }`}
+                    className={`py-2.5 px-3 border font-mono text-xs uppercase tracking-wider transition-colors ${isSelected
+                      ? 'bg-neutral-900 text-white border-black font-bold'
+                      : 'border-neutral-300 text-neutral-700 hover:border-black bg-white'
+                      }`}
                   >
-                    {s.replace(/_/g, ' ')}
+                    {t(`common:statusFilters.${s}`, s.replace(/_/g, ' '))}
                   </button>
                 )
               })}
@@ -391,12 +405,12 @@ export default function AdminComplaintDetail() {
 
           <div>
             <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700 mb-1">
-              OFFICIAL RESOLUTION &amp; FIELD NOTES
+              {t('complaintDossier.officialResolutionNotes')}
             </label>
             <textarea
               value={adminNote}
               onChange={e => setAdminNote(e.target.value)}
-              placeholder="Record municipal work order ID, field crew dispatched, timeline update, or closure remarks..."
+              placeholder={t('complaintDossier.notesPlaceholder')}
               className="w-full px-3 py-2 border border-neutral-300 rounded-none text-xs font-mono focus:outline-none focus:border-black h-28 resize-none"
             />
           </div>
@@ -409,12 +423,12 @@ export default function AdminComplaintDetail() {
             {updating ? (
               <>
                 <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>COMMITTING TO MUNICIPAL LEDGER...</span>
+                <span>{t('complaintDossier.committingToLedger')}</span>
               </>
             ) : (
               <>
                 <HiSave className="w-4 h-4" />
-                <span>COMMIT DOSSIER UPDATE →</span>
+                <span>{t('complaintDossier.commitDossierUpdate')}</span>
               </>
             )}
           </button>
@@ -425,9 +439,9 @@ export default function AdminComplaintDetail() {
       <ExplainAiModal
         isOpen={showAiExplainModal}
         onClose={() => setShowAiExplainModal(false)}
-        imageUrl={complaint.imageUrl}
-        title={complaint.title || complaint.complaintTitle}
-        category={complaint.category || complaint.issueType}
+        imageUrl={activeComplaint.imageUrl}
+        title={displayTitle}
+        category={activeComplaint.category || activeComplaint.issueType}
       />
     </div>
   )

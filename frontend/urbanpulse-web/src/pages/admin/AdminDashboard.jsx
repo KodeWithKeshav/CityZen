@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
@@ -10,13 +10,14 @@ import {
   Title, Tooltip, Legend, ArcElement
 } from 'chart.js'
 import { HiRefresh, HiArrowRight } from 'react-icons/hi'
-import { format } from 'date-fns'
+import { formatLocalizedDateTime } from '../../utils/dateLocale'
 import { getPriorityTier } from '../../utils/priorityUtils'
+import { useTranslatedList, useTranslatedText } from '../../context/TranslationContext'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
 
 export default function AdminDashboard() {
-  const { t } = useTranslation('admin')
+  const { t, i18n } = useTranslation(['admin', 'common'])
   const { user } = useAuth()
   const navigate = useNavigate()
   const [data, setData] = useState(null)
@@ -79,7 +80,7 @@ export default function AdminDashboard() {
           complaintsArr.filter(c => (c.status || '').toLowerCase() === 'rejected').length
         )
       }
-    } catch (err) {
+    } catch {
       toast.error(t('dashboard.loadFailed'))
     } finally {
       setLoading(false)
@@ -140,28 +141,44 @@ export default function AdminDashboard() {
     Array.isArray(dashboardRecent) && dashboardRecent.length > 0
       ? dashboardRecent
       : recentList
+  const normalizedRecent = useMemo(
+    () =>
+      recentComplaints.slice(0, 5).map(c => ({
+        ...c,
+        citizenName: c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || c.full_name || '',
+      })),
+    [recentComplaints]
+  )
+  const visibleRecentComplaints = useTranslatedList(normalizedRecent, [
+    'title',
+    'complaintTitle',
+    'description',
+    'citizenName',
+  ])
+  const translatedAdminName = useTranslatedText(user?.fullName || user?.full_name || user?.name || '')
+  const translatedDepartment = useTranslatedText(user?.department || '')
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
             <span>{t('dashboard.breadcrumbMunicipal')}</span>
             <span>/</span>
             <span>{t('dashboard.breadcrumbOversight')}</span>
             <span>/</span>
             <span className="text-black font-semibold">{t('dashboard.breadcrumbConsole')}</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 uppercase">
             {t('dashboard.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans">
-            {t('dashboard.authenticatedAdmin')} <strong className="text-black uppercase">{user?.fullName || user?.full_name || user?.name || t('dashboard.chiefDispatcher')}</strong> ({user?.department || t('dashboard.civicInfraDept')})
+            {t('dashboard.authenticatedAdmin')} <strong className="text-black uppercase">{translatedAdminName || user?.fullName || user?.full_name || user?.name || t('dashboard.chiefDispatcher')}</strong> ({translatedDepartment || user?.department || t('dashboard.civicInfraDept')})
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={onRefresh}
             disabled={refreshing}
@@ -180,7 +197,7 @@ export default function AdminDashboard() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 font-mono text-xs text-neutral-400">
+        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 font-mono text-xs text-neutral-400">
           {[1, 2, 3, 4, 5, 6].map(i => (
             <div key={i} className="border border-neutral-200 p-4 h-24 bg-white animate-pulse" />
           ))}
@@ -188,7 +205,7 @@ export default function AdminDashboard() {
       ) : (
         <>
           {/* Top Metrics Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 min-[400px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {stats.map(s => (
               <div key={s.label} className="border border-neutral-200 bg-white p-4 font-mono">
                 <span className="text-[9px] text-neutral-500 uppercase tracking-wider block mb-1 truncate" title={s.label}>
@@ -205,10 +222,10 @@ export default function AdminDashboard() {
           </div>
 
           {/* Middle Operational Section: Distribution & Recent Incidents */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Status Donut */}
-            <div className="border border-neutral-200 bg-white p-6 font-mono">
-              <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4 text-xs">
+            <div className="border border-neutral-200 bg-white p-4 sm:p-6 font-mono">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3 mb-4 text-xs">
                 <span className="font-bold uppercase tracking-wider text-neutral-900">
                   {t('dashboard.statusAllocation')}
                 </span>
@@ -239,13 +256,13 @@ export default function AdminDashboard() {
             </div>
 
             {/* Recent Incidents Table / Stream */}
-            <div className="border border-neutral-200 bg-white p-6 lg:col-span-2">
-              <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
-                <div>
+            <div className="border border-neutral-200 bg-white p-4 sm:p-6 lg:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
+                <div className="flex flex-wrap items-center gap-x-2">
                   <span className="font-bold uppercase tracking-wider text-neutral-900">
                     {t('dashboard.recentIntakeDossiers')}
                   </span>
-                  <span className="text-neutral-500 ml-2">{t('dashboard.mostRecentSubmissions')}</span>
+                  <span className="text-neutral-500">{t('dashboard.mostRecentSubmissions')}</span>
                 </div>
                 <button
                   onClick={() => navigate('/admin/complaints')}
@@ -261,26 +278,23 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="divide-y divide-neutral-100">
-                  {recentComplaints.slice(0, 5).map(c => {
+                  {visibleRecentComplaints.map(c => {
                     const statusKey = (c.status || 'pending').toLowerCase()
                     const statusInfo = STATUS_CONFIG[statusKey] || {
                       label: (c.status || t('status.pending')).toUpperCase(),
                       bg: 'bg-neutral-100 text-neutral-800 border-neutral-300'
                     }
                     const rawDate = c.createdAt || c.created_at
-                    const parsedDate = rawDate ? new Date(rawDate) : null
-                    const timeStr = parsedDate && !Number.isNaN(parsedDate.getTime())
-                      ? format(parsedDate, 'yyyy-MM-dd HH:mm')
-                      : '—'
+                    const timeStr = formatLocalizedDateTime(rawDate, i18n.language) || '—'
 
                     return (
                       <div
                         key={c._id || c.id}
                         onClick={() => navigate(`/admin/complaints/${c._id || c.id}`)}
-                        className="py-3 flex items-center justify-between gap-3 hover:bg-neutral-50 px-2 cursor-pointer transition-colors"
+                        className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 hover:bg-neutral-50 px-2 cursor-pointer transition-colors"
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-0.5">
+                          <div className="flex flex-wrap items-center gap-2 mb-0.5">
                             <span className="font-mono text-xs text-neutral-400">
                               #{String(c._id || c.id || '').slice(-6).toUpperCase()}
                             </span>
@@ -288,7 +302,7 @@ export default function AdminDashboard() {
                               {statusInfo.label}
                             </span>
                             {(() => {
-                              const pTier = getPriorityTier(c)
+                              const pTier = getPriorityTier(c, t)
                               if (pTier.score === null) return null
                               return (
                                 <span className={`px-1.5 py-0.5 border font-mono text-[9px] uppercase tracking-wider ${pTier.badgeClass}`}>
@@ -302,7 +316,7 @@ export default function AdminDashboard() {
                           </h4>
                         </div>
 
-                        <div className="font-mono text-xs text-neutral-500 text-right flex-shrink-0">
+                        <div className="font-mono text-xs text-neutral-500 text-left sm:text-right flex-shrink-0">
                           <div>{c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || c.full_name || t('verifiedCitizen')}</div>
                           <div className="text-[10px] text-neutral-400">{timeStr}</div>
                         </div>

@@ -8,7 +8,6 @@ import {
   Alert,
   ActivityIndicator,
   Image,
-  TextInput,
   SafeAreaView,
   Platform,
   Modal,
@@ -22,17 +21,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useTranslation } from 'react-i18next';
 import { API_BASE_URL, makeApiCall, apiClient } from '../../../config/supabase';
-import { supabase } from '../../../config/supabase';
-import LocationPrivacySelector from '../../components/LocationPrivacySelector';
 import LocationService from '../../services/LocationService';
 import SarvamSpeechService from '../../services/SarvamSpeechService';
 import CustomTextInput from '../../components/CustomTextInput';
 import InfrastructureService from '../../services/InfrastructureService';
 import { startTiltCapture, stopTiltCapture } from '../../services/DeviceTiltService';
 import { appendFileToFormData } from '../../utils/formDataHelper';
+import { formatLocalizedDateTime } from '../../utils/dateLocale';
+import { getPriorityTier, getStatusLabel, getCategoryLabel } from '../../utils/priorityUtils';
 
 const MultiStepSubmitComplaintScreen = ({ navigation }) => {
-  const { t } = useTranslation('complaint');
+  const { t, i18n } = useTranslation(['complaint', 'common', 'citizen']);
 
   // Overall flow state
   const [currentStep, setCurrentStep] = useState(1);
@@ -210,18 +209,18 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       const isUrgent = urgencyLevel === 'urgent';
 
       Alert.alert(
-        'Location Required',
+        t('complaint:mobileSubmit.locationRequiredTitle'),
         isUrgent
-          ? `For ${category} complaints, we need your exact location to prioritize emergency response. This helps us route your complaint to the nearest response team.`
-          : `We'll capture your location to help prioritize your complaint and route it to the correct municipal office. Your privacy is protected with street-level accuracy.`,
+          ? t('complaint:mobileSubmit.locationUrgentDesc', { category: getCategoryLabel(category, t) })
+          : t('complaint:mobileSubmit.locationNormalDesc'),
         [
           {
-            text: 'Cancel',
+            text: t('common:buttons.cancel'),
             style: 'cancel',
             onPress: () => setAutoCapturingLocation(false)
           },
           {
-            text: isUrgent ? 'Allow Exact Location' : 'Allow Location',
+            text: isUrgent ? t('complaint:mobileSubmit.allowExactLocation') : t('complaint:mobileSubmit.allowLocation'),
             onPress: () => proceedWithLocationCapture(recommendedPrivacy, category)
           }
         ]
@@ -249,21 +248,23 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
       // Show success message with location info
       Alert.alert(
-        'Location Captured Successfully!',
-        `Accuracy: ±${location.radiusM}m (${location.precision})\n` +
-        `Privacy Level: ${location.privacyLevel}\n` +
-        `Your complaint will be prioritized based on nearby infrastructure.`,
-        [{ text: 'Continue', style: 'default' }]
+        t('complaint:mobileSubmit.locationCapturedTitle'),
+        t('complaint:mobileSubmit.locationCapturedDesc', {
+          radius: location.radiusM,
+          precision: location.precision,
+          privacyLevel: location.privacyLevel,
+        }),
+        [{ text: t('common:buttons.continue'), style: 'default' }]
       );
 
     } catch (error) {
       console.error('Location capture error:', error);
       Alert.alert(
-        'Location Error',
-        'Unable to capture location. You can try again or submit without location (lower priority).',
+        t('complaint:mobileSubmit.locationErrorTitle'),
+        t('complaint:mobileSubmit.locationErrorDesc'),
         [
-          { text: 'Retry', onPress: () => proceedWithLocationCapture(privacyLevel, category) },
-          { text: 'Skip Location', style: 'destructive' }
+          { text: t('common:buttons.retry'), onPress: () => proceedWithLocationCapture(privacyLevel, category) },
+          { text: t('complaint:mobileSubmit.skipLocation'), style: 'destructive' }
         ]
       );
     } finally {
@@ -296,9 +297,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         // Show priority notification for high-priority complaints
         if (priorityResult.priorityLevel === 'CRITICAL') {
           Alert.alert(
-            'High Priority Complaint Detected',
-            `Your complaint has been marked as ${priorityResult.priorityLevel} priority due to proximity to critical infrastructure. It will receive immediate attention.`,
-            [{ text: 'Understood', style: 'default' }]
+            t('complaint:mobileSubmit.highPriorityTitle'),
+            t('complaint:mobileSubmit.highPriorityDesc', { level: priorityResult.priorityLevel }),
+            [{ text: t('complaint:mobileSubmit.understood'), style: 'default' }]
           );
         }
       } else {
@@ -364,9 +365,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         setIsRecording(false);
 
         Alert.alert(
-          'Speech Recognition Error',
-          `There was an error processing your speech. Please try again or type your description.`,
-          [{ text: 'OK' }]
+          t('chatbot:mobile.speechErrorTitle'),
+          t('chatbot:mobile.speechErrorDesc'),
+          [{ text: t('common:buttons.ok') }]
         );
       },
       onEnd: () => {
@@ -479,17 +480,17 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
     const handleContinue = () => {
       if (!complaintData.category) {
-        Alert.alert('Error', 'Please select a complaint category');
+        Alert.alert(t('common:mobileNav.error'), t('complaint:mobileSubmit.selectCategoryError'));
         return;
       }
 
       if (!complaintData.locationData) {
         Alert.alert(
-          'Location Required',
-          'Location is required for priority assessment. Would you like to capture your location now?',
+          t('complaint:mobileSubmit.locationRequiredTitle'),
+          t('complaint:mobileSubmit.locationRequiredContinueDesc'),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Get Location', onPress: () => autoCaptureLocation(complaintData.category) }
+            { text: t('common:buttons.cancel'), style: 'cancel' },
+            { text: t('complaint:mobileSubmit.getLocation'), onPress: () => autoCaptureLocation(complaintData.category) }
           ]
         );
         return;
@@ -648,7 +649,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
         if (permissionResult.granted === false) {
-          Alert.alert('Permission Required', 'Please allow access to your photo library to upload images.');
+          Alert.alert(t('chatbot:mobile.permissionRequired'), t('complaint:mobileSubmit.photoPermDesc'));
           return;
         }
 
@@ -671,7 +672,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         }
       } catch (error) {
         console.error('Image picker error:', error);
-        Alert.alert('Error', 'Failed to pick image');
+        Alert.alert(t('common:mobileNav.error'), t('complaint:mobileSubmit.pickImageFailed'));
       }
     };
 
@@ -686,7 +687,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
 
         if (permissionResult.granted === false) {
-          Alert.alert('Permission Required', 'Please allow access to your camera to take photos.');
+          Alert.alert(t('chatbot:mobile.permissionRequired'), t('complaint:mobileSubmit.cameraPermDesc'));
           return;
         }
 
@@ -708,7 +709,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         }
       } catch (error) {
         console.error('Camera error:', error);
-        Alert.alert('Error', 'Failed to take photo');
+        Alert.alert(t('common:mobileNav.error'), t('complaint:mobileSubmit.takePhotoFailed'));
         if (tiltSamplingStarted) await stopTiltCapture();
       }
     };
@@ -810,11 +811,11 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           }
         }));
         Alert.alert(
-          'Validation Error',
-          'Failed to validate image. Please check your connection and try again.',
+          t('complaint:mobileSubmit.validationErrorTitle'),
+          t('complaint:mobileSubmit.validationErrorDesc'),
           [
-            { text: 'Retry', onPress: () => validateImage(imageAsset) },
-            { text: 'Cancel', style: 'cancel' }
+            { text: t('common:buttons.retry'), onPress: () => validateImage(imageAsset) },
+            { text: t('common:buttons.cancel'), style: 'cancel' }
           ]
         );
       } finally {
@@ -969,7 +970,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         // Request audio recording permissions
         const { status } = await Audio.requestPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('Permission Required', 'Please allow microphone access to record your complaint.');
+          Alert.alert(t('chatbot:mobile.permissionRequired'), t('chatbot:mobile.micPermissionDesc'));
           return;
         }
 
@@ -981,7 +982,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         console.error('Speech recognition setup error:', err);
         setVoiceError(err.message);
         setIsRecording(false);
-        Alert.alert('Error', 'Failed to start speech recognition: ' + err.message);
+        Alert.alert(t('common:mobileNav.error'), t('chatbot:mobile.speechStartError', { message: err.message }));
       }
     };
 
@@ -1083,30 +1084,30 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       } catch (error) {
         console.error('❌ Submission error:', error);
 
-        let errorMessage = 'Please check your connection and try again.';
-        let errorTitle = 'Submission Failed';
+        let errorMessage = t('complaint:mobileSubmit.submitConnFallback');
+        let errorTitle = t('complaint:mobileSubmit.submitFailedTitle');
 
         if (error.code === 'IMAGE_CATEGORY_MISMATCH') {
-          errorTitle = 'Photo Does Not Match Issue Type';
-          errorMessage = error.message || 'The photo does not match the selected issue type. Please go back and add a matching photo, or remove it.';
+          errorTitle = t('complaint:mobileSubmit.photoMismatchTitle');
+          errorMessage = error.message || t('complaint:mobileSubmit.photoMismatchDesc');
         } else if (error.code === 'DESCRIPTION_CATEGORY_MISMATCH') {
-          errorTitle = 'Description Does Not Match Issue Type';
-          errorMessage = error.message || 'The description does not appear to match the selected issue type. Please edit your description.';
+          errorTitle = t('complaint:mobileSubmit.descMismatchTitle');
+          errorMessage = error.message || t('complaint:mobileSubmit.descMismatchDesc');
         } else if (error.name === 'AbortError') {
-          errorMessage = 'The request timed out. Please check your connection and try again.';
-          errorTitle = 'Connection Error';
+          errorMessage = t('complaint:mobileSubmit.timeoutDesc');
+          errorTitle = t('complaint:mobileSubmit.connectionErrorTitle');
         } else if (error.message?.includes('Network request failed')) {
-          errorMessage = 'Cannot connect to server. Please check your internet connection.';
-          errorTitle = 'Connection Error';
+          errorMessage = t('complaint:mobileSubmit.networkFailedDesc');
+          errorTitle = t('complaint:mobileSubmit.connectionErrorTitle');
         } else if (error.message?.includes('HTTP 404')) {
-          errorMessage = 'API endpoint not found. Please update the app.';
-          errorTitle = 'Service Error';
+          errorMessage = t('complaint:mobileSubmit.endpointNotFoundDesc');
+          errorTitle = t('complaint:mobileSubmit.serviceErrorTitle');
         } else if (error.message?.includes('HTTP 400')) {
-          errorMessage = error.message !== 'HTTP 400: Submission failed' ? error.message : 'Invalid data submitted. Please check all fields.';
-          errorTitle = 'Validation Error';
+          errorMessage = error.message !== 'HTTP 400: Submission failed' ? error.message : t('complaint:mobileSubmit.invalidDataDesc');
+          errorTitle = t('complaint:mobileSubmit.validationErrorTitle');
         } else if (error.message?.includes('HTTP 500')) {
-          errorMessage = 'Server error. Please try again later.';
-          errorTitle = 'Server Error';
+          errorMessage = t('complaint:mobileSubmit.serverErrorDesc');
+          errorTitle = t('complaint:mobileSubmit.serverErrorTitle');
         } else if (error.message) {
           errorMessage = error.message;
         }
@@ -1115,8 +1116,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           errorTitle,
           errorMessage,
           [
-            { text: 'Retry', onPress: () => submitComplaint() },
-            { text: 'Cancel', style: 'cancel' }
+            { text: t('common:buttons.retry'), onPress: () => submitComplaint() },
+            { text: t('common:buttons.cancel'), style: 'cancel' }
           ]
         );
       } finally {
@@ -1126,12 +1127,12 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
     const handleFinalSubmit = async () => {
       if (!complaintData.title.trim()) {
-        Alert.alert('Error', 'Please enter a complaint title');
+        Alert.alert(t('common:mobileNav.error'), t('complaint:mobileSubmit.enterTitle'));
         return;
       }
 
       if (!complaintData.description.trim()) {
-        Alert.alert('Error', 'Please enter a complaint description');
+        Alert.alert(t('common:mobileNav.error'), t('complaint:mobileSubmit.enterDescription'));
         return;
       }
 
@@ -1140,8 +1141,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       // submittable and gets queued for admin review instead.
       if (complaintData.contentAnalysis?.hardBlocked) {
         Alert.alert(
-          'Description Does Not Match the Issue',
-          'This description does not appear to match the selected issue type. Please edit the description, or use the suggested category button above, before submitting.'
+          t('complaint:mobileSubmit.contentMismatchTitle'),
+          t('complaint:mobileSubmit.contentMismatchDesc')
         );
         return;
       }
@@ -1153,11 +1154,11 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       // call fail on the server. No "Submit Anyway" bypass.
       if (complaintData.selectedImage && (!complaintData.imageValidation || complaintData.imageValidation.allowUpload !== true)) {
         Alert.alert(
-          'Photo Not Validated',
-          'Your photo has not been validated against the selected issue type. Please go back to the Photo step to re-validate it, or remove it.',
+          t('complaint:mobileSubmit.photoNotValidatedTitle'),
+          t('complaint:mobileSubmit.photoNotValidatedDesc'),
           [
-            { text: 'Go to Photo Step', onPress: () => setCurrentStep(2) },
-            { text: 'Cancel', style: 'cancel' }
+            { text: t('complaint:mobileSubmit.goToPhotoStep'), onPress: () => setCurrentStep(2) },
+            { text: t('common:buttons.cancel'), style: 'cancel' }
           ]
         );
         return;
@@ -1296,7 +1297,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                       Concern: {(complaintData.emotionScore.emotions.concern * 100).toFixed(0)}% |
                       Frustration: {(complaintData.emotionScore.emotions.frustration * 100).toFixed(0)}%
                     </Text>
-                    {complaintData.emotionScore.emotions.anger && (
+                    {Number(complaintData.emotionScore.emotions.anger) > 0 && (
                       <Text style={styles.emotionDetailText}>
                         Anger: {(complaintData.emotionScore.emotions.anger * 100).toFixed(0)}%
                       </Text>
@@ -1367,18 +1368,18 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
                       if (categoryChanged && hadPhoto) {
                         Alert.alert(
-                          'Issue Type Changed',
-                          'Since the issue type changed, your photo needs to be re-checked. Please go back to the Photo step and add a photo that matches the new issue type.',
+                          t('complaint:mobileSubmit.issueTypeChangedTitle'),
+                          t('complaint:mobileSubmit.issueTypeChangedDesc'),
                           [
-                            { text: 'Go to Photo Step', onPress: () => setCurrentStep(2) },
-                            { text: 'Later', style: 'cancel' }
+                            { text: t('complaint:mobileSubmit.goToPhotoStep'), onPress: () => setCurrentStep(2) },
+                            { text: t('complaint:mobileSubmit.later'), style: 'cancel' }
                           ]
                         );
                       }
                     }}
                   >
                     <Text style={styles.authenticitySuggestionButtonText}>
-                      Switch category to "{complaintCategories.find(cat => cat.value === complaintData.contentAnalysis.suggestedCategory)?.label}"
+                      {t('complaint:mobileSubmit.switchCategoryTo', { category: getCategoryLabel(complaintData.contentAnalysis.suggestedCategory, t) })}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -1536,17 +1537,17 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             <Text style={styles.detailsCardTitle}>Existing Complaint</Text>
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Title:</Text>
+              <Text style={styles.detailLabel}>{t('complaint:mobileSubmit.titleLabel')}</Text>
               <Text style={styles.detailValue}>{submissionResult.complaint.title}</Text>
             </View>
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Status:</Text>
-              <Text style={styles.detailValue}>{submissionResult.complaint.status || 'Pending'}</Text>
+              <Text style={styles.detailLabel}>{t('complaint:mobileSubmit.statusLabel')}</Text>
+              <Text style={styles.detailValue}>{getStatusLabel(submissionResult.complaint.status || 'pending', t)}</Text>
             </View>
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Votes:</Text>
+              <Text style={styles.detailLabel}>{t('complaint:mobileSubmit.votesLabel')}</Text>
               <Text style={styles.detailValue}>{submissionResult.voteCount ?? 0}</Text>
             </View>
           </View>
@@ -1568,11 +1569,11 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               }
             >
               <Ionicons name="map" size={20} color="#fff" />
-              <Text style={styles.mapButtonText}>View on Map</Text>
+              <Text style={styles.mapButtonText}>{t('complaint:mobileSubmit.viewOnMap')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.doneButton} onPress={() => navigation.goBack()}>
-              <Text style={styles.doneButtonText}>Done</Text>
+              <Text style={styles.doneButtonText}>{t('complaint:mobileSubmit.done')}</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAwareScrollView>
@@ -1606,27 +1607,27 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       >
         <View style={styles.successHeader}>
           <Ionicons name="checkmark-circle" size={80} color="#2E7D32" />
-          <Text style={styles.successTitle}>Complaint Successfully Submitted!</Text>
+          <Text style={styles.successTitle}>{t('complaint:mobileSubmit.successTitle')}</Text>
           <Text style={styles.successSubtitle}>
-            Your complaint has been received and will be processed according to its priority level.
+            {t('complaint:mobileSubmit.successSubtitle')}
           </Text>
         </View>
 
         <View style={styles.complaintDetailsCard}>
-          <Text style={styles.detailsCardTitle}>Complaint Details</Text>
+          <Text style={styles.detailsCardTitle}>{t('complaint:mobileSubmit.complaintDetails')}</Text>
 
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Complaint ID:</Text>
+            <Text style={styles.detailLabel}>{t('complaint:mobileSubmit.complaintIdLabel')}</Text>
             <Text style={styles.detailValue}>{submissionResult.complaint.id}</Text>
           </View>
 
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Title:</Text>
+            <Text style={styles.detailLabel}>{t('complaint:mobileSubmit.titleLabel')}</Text>
             <Text style={styles.detailValue}>{complaintData.title}</Text>
           </View>
 
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Category:</Text>
+            <Text style={styles.detailLabel}>{t('complaint:mobileSubmit.categoryLabel')}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons
                 name={complaintCategories.find(cat => cat.value === complaintData.category)?.icon || 'help-circle-outline'}
@@ -1641,34 +1642,34 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Status:</Text>
-            <Text style={styles.detailValue}>{submissionResult.complaint.status || 'Pending'}</Text>
+            <Text style={styles.detailLabel}>{t('complaint:mobileSubmit.statusLabel')}</Text>
+            <Text style={styles.detailValue}>{getStatusLabel(submissionResult.complaint.status || 'pending', t)}</Text>
           </View>
 
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Priority Level:</Text>
+            <Text style={styles.detailLabel}>{t('complaint:mobileSubmit.priorityLevelLabel')}</Text>
             <Text style={[styles.detailValue, styles.priorityText]}>
-              {submissionResult.priorityAnalysis?.priorityLevel || 'MEDIUM'}
+              {getPriorityTier({ priority: submissionResult.priorityAnalysis?.priorityLevel }, t).label}
               ({Math.round((submissionResult.priorityAnalysis?.totalScore || 0) * 100)}%)
             </Text>
           </View>
 
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Location Accuracy:</Text>
+            <Text style={styles.detailLabel}>{t('complaint:mobileSubmit.locationAccuracyLabel')}</Text>
             <Text style={styles.detailValue}>
               ±{complaintData.locationData?.radiusM ?? 0}m ({complaintData.locationData?.precision || 'street'})
             </Text>
           </View>
 
           <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Submitted:</Text>
-            <Text style={styles.detailValue}>{new Date().toLocaleString()}</Text>
+            <Text style={styles.detailLabel}>{t('complaint:mobileSubmit.submittedLabel')}</Text>
+            <Text style={styles.detailValue}>{formatLocalizedDateTime(new Date().toISOString(), i18n.language)}</Text>
           </View>
         </View>
 
         {submissionResult.priorityAnalysis && (
           <View style={styles.priorityAnalysisCard}>
-            <Text style={styles.detailsCardTitle}>Priority Analysis</Text>
+            <Text style={styles.detailsCardTitle}>{t('complaint:mobileSubmit.priorityAnalysis')}</Text>
             <Text style={styles.reasoningText}>
               {submissionResult.priorityAnalysis.reasoning}
             </Text>
@@ -1676,7 +1677,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         )}
 
         <View style={styles.nextStepsCard}>
-          <Text style={styles.detailsCardTitle}>Next Steps</Text>
+          <Text style={styles.detailsCardTitle}>{t('complaint:mobileSubmit.nextSteps')}</Text>
           {submissionResult.nextSteps?.map((step, index) => (
             <Text key={index} style={styles.nextStepText}>
               {index + 1}. {step}
@@ -1687,7 +1688,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         <View style={styles.successActions}>
           <TouchableOpacity style={styles.mapButton} onPress={viewOnMap}>
             <Ionicons name="map" size={20} color="#fff" />
-            <Text style={styles.mapButtonText}>View on Map</Text>
+            <Text style={styles.mapButtonText}>{t('complaint:mobileSubmit.viewOnMap')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1776,7 +1777,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
                                 <Text style={styles.infrastructureItemDistance}>{infra.distance}m away</Text>
                               </View>
                               <Text style={styles.infrastructureItemName}>{infra.name}</Text>
-                              {infra.vicinity && (
+                              {Boolean(infra.vicinity) && (
                                 <Text style={styles.infrastructureItemVicinity}>{infra.vicinity}</Text>
                               )}
                             </View>

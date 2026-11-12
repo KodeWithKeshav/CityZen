@@ -90,10 +90,10 @@ export default function CitizenSignup() {
       </div>
 
       {/* ─── Right: Form ─── */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 lg:p-16">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 lg:p-16">
         <div className="w-full max-w-md fade-in">
           {/* Mobile brand */}
-          <div className="lg:hidden mb-8">
+          <div className="lg:hidden mb-6 sm:mb-8">
             <div className="flex items-center gap-2.5 mb-1">
               <img src="/logo.png" alt="CityZen" className="w-8 h-8 object-contain border border-black/10" />
               <h1 className="font-epilogue text-2xl font-bold text-on-surface">CITYZEN</h1>
@@ -102,12 +102,12 @@ export default function CitizenSignup() {
           </div>
 
           {/* Tab toggle */}
-          <div className="flex items-center justify-between border-b border-black/10 mb-8">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/10 mb-6 sm:mb-8">
             <div className="flex">
-              <Link to="/login" className="px-4 py-3 text-sm text-primary-400 hover:text-on-surface transition-colors">
+              <Link to="/login" className="px-3 sm:px-4 py-3 text-sm text-primary-400 hover:text-on-surface transition-colors whitespace-nowrap">
                 {t('citizenSignup.tabLogin')}
               </Link>
-              <div className="px-4 py-3 text-sm font-semibold text-on-surface border-b-2 border-black">
+              <div className="px-3 sm:px-4 py-3 text-sm font-semibold text-on-surface border-b-2 border-black whitespace-nowrap">
                 {t('citizenSignup.tabRegister')}
               </div>
             </div>

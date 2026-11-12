@@ -25,6 +25,86 @@
     "search": "Search..."
   },
   "language": {
-    "label": "Language"
+    "label": "Language",
+    "translating": "Translating..."
+  },
+  "priority": {
+    "critical": "CRITICAL",
+    "elevated": "ELEVATED",
+    "moderate": "MODERATE",
+    "routine": "ROUTINE",
+    "na": "N/A",
+    "low": "LOW",
+    "medium": "MEDIUM",
+    "high": "HIGH"
+  },
+  "statusFilters": {
+    "all": "ALL",
+    "pending": "PENDING",
+    "in_progress": "IN PROGRESS",
+    "resolved": "RESOLVED",
+    "rejected": "REJECTED"
+  },
+  "popovers": {
+    "updatesTitle": "Updates",
+    "updatesDesc": "Track status changes and updates on your submitted complaints.",
+    "notificationsTitle": "Notifications",
+    "notificationsDesc": "Review high-priority civic reports in the triage queue.",
+    "helpTitle": "Admin Console Help",
+    "helpPriorityDesc": "Triage incidents by AI severity index.",
+    "helpComplaintsDesc": "Filter, inspect, and update dispatch status.",
+    "helpMapDesc": "Inspect spatial density across wards.",
+    "account": "Account",
+    "close": "Close",
+    "openNav": "Open navigation",
+    "closeNav": "Close navigation"
+  },
+  "bulletins": {
+    "b1Title": "Municipal Water Main Maintenance Scheduled for Ward 7",
+    "b1Source": "Municipal Works Dept",
+    "b1Time": "2 hours ago",
+    "b1Tag": "INFRASTRUCTURE",
+    "b2Title": "Monsoon Preparedness: Storm Drain Desilting in Progress",
+    "b2Source": "City Corporation",
+    "b2Time": "5 hours ago",
+    "b2Tag": "DRAINAGE",
+    "b3Title": "Road Surface Restoration on South Avenue Commencing Monday",
+    "b3Source": "Urban Roads Bureau",
+    "b3Time": "Yesterday",
+    "b3Tag": "ROADWORK"
+  },
+  "mobileNav": {
+    "home": "Home",
+    "map": "Map",
+    "report": "Report",
+    "alerts": "Alerts",
+    "profile": "Profile",
+    "feed": "Feed",
+    "chatbot": "AI Chat",
+    "transparency": "Transparency",
+    "feedback": "Feedback",
+    "reports": "My Reports",
+    "back": "Back",
+    "ok": "OK",
+    "cancel": "Cancel",
+    "settings": "Settings",
+    "error": "Error",
+    "loading": "Loading...",
+    "retry": "Retry",
+    "save": "Save",
+    "refresh": "Refresh",
+    "search": "Search",
+    "all": "All",
+    "general": "General",
+    "na": "N/A",
+    "votes": "Votes",
+    "selectLanguage": "Select Language"
+  },
+  "weather": {
+    "title": "Local Weather",
+    "humidity": "Humidity",
+    "wind": "Wind",
+    "feelsLike": "Feels like",
+    "unavailable": "Weather unavailable"
   }
 }

@@ -20,6 +20,8 @@ import { Audio } from 'expo-av';
 import { makeApiCall, apiClient } from '../../../config/supabase';
 import SarvamSpeechService from '../../services/SarvamSpeechService';
 import i18n from '../../i18n';
+import { useTranslatedList } from '../../context/TranslationContext';
+import { formatLocalizedTime } from '../../utils/dateLocale';
 
 const { width, height } = Dimensions.get('window');
 
@@ -30,7 +32,7 @@ const LANGUAGE_TO_SARVAM_UI_CODE = {
 };
 
 const CivicChatbotScreen = ({ navigation }) => {
-  const { t } = useTranslation('chatbot');
+  const { t } = useTranslation(['chatbot', 'common', 'complaint']);
   const [speechService] = useState(new SarvamSpeechService());
   const [isRecording, setIsRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
@@ -41,6 +43,7 @@ const CivicChatbotScreen = ({ navigation }) => {
   const flatListRef = useRef(null);
   const insets = useSafeAreaInsets();
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const translatedMessages = useTranslatedList(messages, ['text']);
 
   // Initialize with welcome message
   useEffect(() => {
@@ -84,8 +87,8 @@ const CivicChatbotScreen = ({ navigation }) => {
         setIsRecording(false);
         setTranscribing(false);
         Alert.alert(
-          'Speech Recognition Error',
-          error.error?.message || 'There was an error processing your speech. Please try again or type your question.'
+          t('mobile.speechErrorTitle'),
+          error.error?.message || t('mobile.speechErrorDesc')
         );
       },
       onEnd: () => {
@@ -103,14 +106,14 @@ const CivicChatbotScreen = ({ navigation }) => {
     try {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please allow microphone access to use voice input.');
+        Alert.alert(t('mobile.permissionRequired'), t('mobile.micPermissionDesc'));
         return;
       }
       const sarvamUiCode = LANGUAGE_TO_SARVAM_UI_CODE[i18n.language] || 'en-US';
       await speechService.startSpeech(sarvamUiCode);
     } catch (err) {
       setIsRecording(false);
-      Alert.alert('Error', 'Failed to start speech recognition: ' + err.message);
+      Alert.alert(t('common:mobileNav.error'), t('mobile.speechStartError', { message: err.message }));
     }
   };
 
@@ -179,7 +182,7 @@ const CivicChatbotScreen = ({ navigation }) => {
       // Fallback response with helpful information
       const fallbackMessage = {
         id: (Date.now() + 1).toString(),
-        text: "I'm sorry, I'm having trouble connecting right now. Here are some quick tips:\n\n• To submit a complaint: Use the 'Submit Complaint' button on the main screen\n• To view issues: Check the 'Complaint Map' or 'Feed' tabs\n• To see your reports: Go to 'Personal Reports'\n• For urgent issues: Select 'Fire Hazard' or 'Electrical Danger' categories\n\nTry asking me again in a moment!",
+        text: t('mobile.fallbackMessage'),
         isBot: true,
         timestamp: new Date(),
         type: 'fallback'
@@ -270,9 +273,9 @@ const CivicChatbotScreen = ({ navigation }) => {
             {item.text}
           </Text>
           
-          {item.confidence && (
+          {Number(item.confidence) > 0 && (
             <Text style={styles.confidenceText}>
-              Confidence: {Math.round(item.confidence * 100)}%
+              {t('mobile.confidence', { pct: Math.round(item.confidence * 100) })}
             </Text>
           )}
           
@@ -280,10 +283,7 @@ const CivicChatbotScreen = ({ navigation }) => {
             styles.timestampText,
             isBot ? styles.botTimestamp : styles.userTimestamp
           ]}>
-            {item.timestamp.toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
+            {formatLocalizedTime(item.timestamp, i18n.language)}
           </Text>
         </View>
         
@@ -308,9 +308,9 @@ const CivicChatbotScreen = ({ navigation }) => {
         </View>
         <View style={[styles.messageBubble, styles.botMessageBubble, styles.typingBubble]}>
           <View style={styles.typingIndicator}>
-            <View style={[styles.typingDot, { animationDelay: '0ms' }]} />
-            <View style={[styles.typingDot, { animationDelay: '150ms' }]} />
-            <View style={[styles.typingDot, { animationDelay: '300ms' }]} />
+            <View style={styles.typingDot} />
+            <View style={styles.typingDot} />
+            <View style={styles.typingDot} />
           </View>
         </View>
       </View>
@@ -318,12 +318,12 @@ const CivicChatbotScreen = ({ navigation }) => {
   };
 
   const quickSuggestions = [
-    { text: "How to submit a complaint?", icon: "document-text" },
-    { text: "What civic issues can I report?", icon: "help-circle" },
-    { text: "How does voting work?", icon: "thumbs-up" },
-    { text: "App features overview", icon: "apps" },
-    { text: "Troubleshooting help", icon: "construct" },
-    { text: "Emergency reporting", icon: "warning" }
+    { text: t('mobile.suggestions.howToSubmit'), icon: "document-text" },
+    { text: t('mobile.suggestions.whatIssues'), icon: "help-circle" },
+    { text: t('mobile.suggestions.howVotingWorks'), icon: "thumbs-up" },
+    { text: t('mobile.suggestions.appFeatures'), icon: "apps" },
+    { text: t('mobile.suggestions.troubleshooting'), icon: "construct" },
+    { text: t('mobile.suggestions.emergency'), icon: "warning" }
   ];
 
   const handleQuickSuggestion = (suggestion) => {
@@ -360,7 +360,7 @@ const CivicChatbotScreen = ({ navigation }) => {
       {/* Messages List */}
       <FlatList
         ref={flatListRef}
-        data={messages}
+        data={translatedMessages}
         renderItem={renderMessage}
         keyExtractor={(item) => item.id}
         style={styles.messagesList}
@@ -372,7 +372,7 @@ const CivicChatbotScreen = ({ navigation }) => {
       {/* Quick Suggestions (shown when no messages) */}
       {messages.length <= 1 && (
         <View style={styles.suggestionsContainer}>
-          <Text style={styles.suggestionsTitle}>Quick Questions</Text>
+          <Text style={styles.suggestionsTitle}>{t('mobile.quickQuestions')}</Text>
           <View style={styles.suggestionsGrid}>
             {quickSuggestions.map((suggestion, index) => (
               <TouchableOpacity
@@ -393,7 +393,7 @@ const CivicChatbotScreen = ({ navigation }) => {
         <View style={styles.inputWrapper}>
           <TextInput
             style={styles.textInput}
-            placeholder={transcribing ? 'Transcribing...' : t('mobile.inputPlaceholder')}
+            placeholder={transcribing ? t('complaint:form.transcribing') : t('mobile.inputPlaceholder')}
             placeholderTextColor="#999"
             value={inputText}
             onChangeText={setInputText}

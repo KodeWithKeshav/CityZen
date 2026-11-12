@@ -11,9 +11,11 @@ import {
 } from 'react-native';
 import SimpleDropdown from '../../components/SimpleDropdown';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
 
 const SignupScreen = ({ navigation }) => {
+  const { t } = useTranslation(['auth', 'common']);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -40,22 +42,22 @@ const SignupScreen = ({ navigation }) => {
 
     // Validation
     if (!fullName || !email || !phoneNumber || !formData.password) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('citizenSignup.fillRequired', 'Please fill in all required fields'));
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('citizenSignup.passwordMismatch', 'Passwords do not match'));
       return;
     }
 
     if (formData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('citizenSignup.passwordTooShort', 'Password must be at least 6 characters long'));
       return;
     }
 
     if (phoneNumber.replace(/\D/g, '').length < 10) {
-      Alert.alert('Error', 'Please enter a valid phone number (at least 10 digits)');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('citizenSignup.fillRequired', 'Please enter a valid phone number'));
       return;
     }
 
@@ -80,7 +82,7 @@ const SignupScreen = ({ navigation }) => {
         await AsyncStorage.setItem('authToken', response.data.token);
         await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
 
-        Alert.alert('Success', 'Account created successfully!');
+        Alert.alert(t('common:mobileNav.ok', 'Success'), t('citizenSignup.accountCreated', 'Account created successfully!'));
         
         // Navigate based on user type
         if (response.data.user.userType === 'admin') {
@@ -90,7 +92,7 @@ const SignupScreen = ({ navigation }) => {
         }
       }
     } catch (error) {
-      Alert.alert('Error', error.message || 'Signup failed');
+      Alert.alert(t('common:mobileNav.error', 'Error'), error.message || t('citizenSignup.signupFailed', 'Signup failed'));
     } finally {
       setLoading(false);
     }
@@ -99,20 +101,20 @@ const SignupScreen = ({ navigation }) => {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Join CityZen Community</Text>
+        <Text style={styles.title}>{t('citizenSignup.createAccount', 'Create Account')}</Text>
+        <Text style={styles.subtitle}>{t('citizenSignup.tagline', 'Join CityZen Community')}</Text>
 
         <View style={styles.form}>
           <TextInput
             style={styles.input}
-            placeholder="Full Name *"
+            placeholder={t('citizenSignup.fullName', 'Full Name *')}
             value={formData.fullName}
             onChangeText={(value) => handleInputChange('fullName', value)}
           />
 
           <TextInput
             style={styles.input}
-            placeholder="Email *"
+            placeholder={t('citizenSignup.email', 'Email *')}
             value={formData.email}
             onChangeText={(value) => handleInputChange('email', value)}
             keyboardType="email-address"
@@ -121,27 +123,27 @@ const SignupScreen = ({ navigation }) => {
 
           <TextInput
             style={styles.input}
-            placeholder="Phone Number *"
+            placeholder={t('citizenSignup.phone', 'Phone Number *')}
             value={formData.phoneNumber}
             onChangeText={(value) => handleInputChange('phoneNumber', value)}
             keyboardType="phone-pad"
           />
 
           <View style={styles.pickerContainer}>
-            <Text style={styles.pickerLabel}>User Type *</Text>
+            <Text style={styles.pickerLabel}>{t('welcome.portalLabel', 'User Type *')}</Text>
             <SimpleDropdown
               value={formData.userType}
               onValueChange={(value) => handleInputChange('userType', value)}
               items={[
-                { label: 'Citizen', value: 'citizen' },
-                { label: 'Admin', value: 'admin' },
+                { label: t('welcome.citizenPortal.title', 'Citizen'), value: 'citizen' },
+                { label: t('welcome.adminPortal.title', 'Admin'), value: 'admin' },
               ]}
             />
           </View>
 
           <TextInput
             style={styles.input}
-            placeholder="Address (Optional)"
+            placeholder={t('citizenSignup.addressPlaceholder', 'Address (Optional)')}
             value={formData.address}
             onChangeText={(value) => handleInputChange('address', value)}
             multiline
@@ -150,7 +152,7 @@ const SignupScreen = ({ navigation }) => {
 
           <TextInput
             style={styles.input}
-            placeholder="Password *"
+            placeholder={t('citizenSignup.password', 'Password *')}
             value={formData.password}
             onChangeText={(value) => handleInputChange('password', value)}
             secureTextEntry
@@ -158,7 +160,7 @@ const SignupScreen = ({ navigation }) => {
 
           <TextInput
             style={styles.input}
-            placeholder="Confirm Password *"
+            placeholder={t('citizenSignup.confirmPassword', 'Confirm Password *')}
             value={formData.confirmPassword}
             onChangeText={(value) => handleInputChange('confirmPassword', value)}
             secureTextEntry
@@ -172,7 +174,7 @@ const SignupScreen = ({ navigation }) => {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Create Account</Text>
+              <Text style={styles.buttonText}>{t('citizenSignup.createAccount', 'Create Account')}</Text>
             )}
           </TouchableOpacity>
 
@@ -181,7 +183,7 @@ const SignupScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('Login')}
           >
             <Text style={styles.linkText}>
-              Already have an account? Login
+              {t('citizenSignup.alreadyHaveAccount', 'Already have an account?')} {t('citizenSignup.login', 'Login')}
             </Text>
           </TouchableOpacity>
         </View>

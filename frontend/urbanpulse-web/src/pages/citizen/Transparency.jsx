@@ -7,11 +7,12 @@ import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement,
   Title, Tooltip, Legend, ArcElement
 } from 'chart.js'
+import { getCategoryLabel } from '../../utils/priorityUtils'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
 
 export default function Transparency() {
-  const { t } = useTranslation(['citizen', 'admin'])
+  const { t } = useTranslation(['citizen', 'admin', 'complaint'])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -25,16 +26,7 @@ export default function Transparency() {
           throw new Error(res?.message || 'Failed to load transparency data')
         }
       } catch {
-        try {
-          const res = await makeApiCall(apiClient.admin.dashboard)
-          if (res?.success && res.data) {
-            setData(res.data)
-          } else {
-            toast.error(t('transparency.loadFailed'))
-          }
-        } catch (err) {
-          toast.error(t('transparency.loadFailed'))
-        }
+        toast.error(t('transparency.loadFailed'))
       } finally {
         setLoading(false)
       }
@@ -72,11 +64,11 @@ export default function Transparency() {
   let catLabels = []
   let catValues = []
   if (Array.isArray(data?.categoryStats) && data.categoryStats.length > 0) {
-    catLabels = data.categoryStats.map(c => (c.name || c.category || '').toUpperCase())
+    catLabels = data.categoryStats.map(c => getCategoryLabel(c.name || c.category || '', t).toUpperCase())
     catValues = data.categoryStats.map(c => c.total || 0)
   } else {
     const categoryData = data?.complaintsbyCategory || data?.byCategory || {}
-    catLabels = Object.keys(categoryData).map(l => l.replace(/_/g, ' ').toUpperCase())
+    catLabels = Object.keys(categoryData).map(l => getCategoryLabel(l, t).toUpperCase())
     catValues = Object.values(categoryData)
   }
 
@@ -91,17 +83,17 @@ export default function Transparency() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-6xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="border-b border-black pb-4">
-        <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
           <span>{t('transparency.breadcrumbPublic')}</span>
           <span>/</span>
           <span>{t('transparency.breadcrumbAudit')}</span>
           <span>/</span>
           <span className="text-black font-semibold">{t('transparency.breadcrumbAccountability')}</span>
         </div>
-        <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 uppercase">
           {t('transparency.title')}
         </h1>
         <p className="text-sm text-neutral-600 mt-1 font-sans">
@@ -110,18 +102,18 @@ export default function Transparency() {
       </div>
 
       {/* KPI Stats Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: t('transparency.stats.totalDispatches.label'), value: total, sub: t('transparency.stats.totalDispatches.sub') },
           { label: t('transparency.stats.resolvedAudited.label'), value: resolved, sub: t('transparency.stats.resolvedAudited.sub') },
           { label: t('transparency.stats.pendingAction.label'), value: pending, sub: t('transparency.stats.pendingAction.sub') },
           { label: t('transparency.stats.resolutionRate.label'), value: `${resolutionRate}%`, sub: t('transparency.stats.resolutionRate.sub') },
         ].map(s => (
-          <div key={s.label} className="border border-neutral-200 bg-white p-5 font-mono">
+          <div key={s.label} className="border border-neutral-200 bg-white p-4 sm:p-5 font-mono">
             <span className="text-[10px] text-neutral-500 uppercase tracking-wider block mb-1">
               {s.label}
             </span>
-            <div className="text-3xl font-bold text-neutral-900 tracking-tight">
+            <div className="text-2xl sm:text-3xl font-bold text-neutral-900 tracking-tight">
               {s.value}
             </div>
             <span className="text-[11px] text-neutral-400 block mt-1">
@@ -132,17 +124,17 @@ export default function Transparency() {
       </div>
 
       {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Status Breakdown */}
-        <div className="border border-neutral-200 bg-white p-6">
-          <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
+        <div className="border border-neutral-200 bg-white p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
             <span className="font-bold uppercase tracking-wider text-neutral-900">
               {t('transparency.statusDistribution')}
             </span>
             <span className="text-neutral-500">{t('transparency.proportionalAudit')}</span>
           </div>
           {total > 0 ? (
-            <div className="max-w-xs mx-auto p-4">
+            <div className="max-w-xs mx-auto p-2 sm:p-4">
               <Doughnut
                 data={doughnutData}
                 options={{
@@ -166,8 +158,8 @@ export default function Transparency() {
         </div>
 
         {/* Category Breakdown */}
-        <div className="border border-neutral-200 bg-white p-6">
-          <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
+        <div className="border border-neutral-200 bg-white p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
             <span className="font-bold uppercase tracking-wider text-neutral-900">
               {t('transparency.byTaxonomy')}
             </span>

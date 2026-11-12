@@ -14,17 +14,22 @@ import {
   Keyboard,
 } from 'react-native';
 import MapView, { Marker, Circle } from 'react-native-maps';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import { useTranslation } from 'react-i18next';
 import { API_BASE_URL, makeApiCall } from '../../../config/supabase';
+import { useTranslatedList, useTranslatedObject } from '../../context/TranslationContext';
+import { formatLocalizedDate } from '../../utils/dateLocale';
+import { getCategoryLabel, getStatusLabel } from '../../utils/priorityUtils';
 
 const AdminComplaintMapScreen = ({ navigation, route }) => {
+  const { t, i18n } = useTranslation(['admin', 'common', 'complaint', 'citizen']);
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [showComplaintModal, setShowComplaintModal] = useState(false);
-  const [userLocation, setUserLocation] = useState(null);
+  const [, setUserLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -42,7 +47,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   const [showHeatmap, setShowHeatmap] = useState(true); // Toggle for heatmap vs markers
   const [filterStatus, setFilterStatus] = useState('all'); // Admin filter
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [heatMapData, setHeatMapData] = useState([]);
+  const [, setHeatMapData] = useState([]);
   const [aiExplainLoading, setAiExplainLoading] = useState(false);
   const [aiExplainResult, setAiExplainResult] = useState(null);
   const [showAiExplainModal, setShowAiExplainModal] = useState(false);
@@ -50,6 +55,17 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   const [geometryRetryLoading, setGeometryRetryLoading] = useState(false);
   const mapRef = useRef(null);
   const regionChangeTimeoutRef = useRef(null);
+
+  const translatedComplaints = useTranslatedList(complaints, [
+    'title', 'description', 'location_address'
+  ]);
+  const translatedAiExplain = useTranslatedObject(aiExplainResult, ['explanationText']);
+
+  const displayComplaints = translatedComplaints.length > 0 ? translatedComplaints : complaints;
+  const displayAiExplain = translatedAiExplain || aiExplainResult;
+  const activeSelectedComplaint = selectedComplaint && selectedComplaint.status !== 'cluster'
+    ? (displayComplaints.find((c) => c.id === selectedComplaint.id) || selectedComplaint)
+    : selectedComplaint;
 
   // Fetch AI explanation (SAM3 segmentation map) for an image
   const fetchAiExplanation = async (imageUrl) => {
@@ -73,12 +89,12 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
       if (data.success) {
         setAiExplainResult(data);
       } else {
-        Alert.alert('Error', data.error || 'Failed to generate explanation');
+        Alert.alert(t('common:mobileNav.error'), data.error || t('admin:mobileAdmin.explainFailed'));
         closeAiExplainModal();
       }
     } catch (error) {
       console.error('AI explanation error:', error);
-      Alert.alert('Error', 'Failed to connect to explanation service');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.explainConnectFailed'));
       closeAiExplainModal();
     } finally {
       setAiExplainLoading(false);
@@ -135,11 +151,11 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
           prev.map((c) => (c.id === selectedComplaint.id ? { ...c, ...data.geometry } : c))
         );
       } else {
-        Alert.alert('Error', data.error || 'Geometry estimation failed');
+        Alert.alert(t('common:mobileNav.error'), data.error || t('admin:mobileAdmin.geometryFailed'));
       }
     } catch (error) {
       console.error('Geometry retry error:', error);
-      Alert.alert('Error', 'Failed to connect to geometry estimation service');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.geometryConnectFailed'));
     } finally {
       setGeometryRetryLoading(false);
     }
@@ -150,13 +166,13 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
     try {
       console.log(' Admin requesting location permissions...');
       const { status } = await Location.requestForegroundPermissionsAsync();
-      
+
       if (status !== 'granted') {
         console.log(' Location permission denied');
         Alert.alert(
-          'Location Permission Required',
-          'Please enable location access to see complaints near you.',
-          [{ text: 'OK' }]
+          t('citizen:mobileMap.locationPermTitle'),
+          t('admin:mobileAdmin.mapLocationPermDesc'),
+          [{ text: t('common:buttons.ok') }]
         );
         setLocationLoading(false);
         return;
@@ -178,13 +194,13 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
       console.log(' Admin location obtained:', userCoords);
       setUserLocation(location.coords);
       setRegion(userCoords);
-      
+
     } catch (error) {
       console.error(' Error getting admin location:', error);
       Alert.alert(
-        'Location Error', 
-        'Could not get your location. Showing default area.',
-        [{ text: 'OK' }]
+        t('complaint:mobileSubmit.locationErrorTitle'),
+        t('citizen:mobileMap.couldNotGetLocation'),
+        [{ text: t('common:buttons.ok') }]
       );
     } finally {
       setLocationLoading(false);
@@ -194,7 +210,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   // Admin-specific search function
   const searchLocation = async (query) => {
     console.log(' ADMIN SEARCH TRIGGERED - Query:', query);
-    
+
     if (!query || !query.trim()) {
       console.log(' Empty query, clearing results');
       setSearchResults([]);
@@ -204,7 +220,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
 
     setSearchLoading(true);
     setShowSearchResults(true);
-    
+
     try {
       const results = [];
       const queryLower = query.toLowerCase().trim();
@@ -232,26 +248,29 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
           latitude: city.lat,
           longitude: city.lng,
           title: city.name,
-          subtitle: 'Major City',
+          subtitle: t('citizen:mobileMap.majorCity'),
           type: 'city'
         });
         console.log(' Found exact city match:', city.name);
       }
 
       // 2. Admin-specific: Search in complaints with priority filter
-      if (complaints && complaints.length > 0) {
-        const matchingComplaints = complaints.filter(complaint => {
-          const matchesQuery = 
+      if (displayComplaints && displayComplaints.length > 0) {
+        const matchingComplaints = displayComplaints.filter((complaint, idx) => {
+          const raw = complaints[idx] || complaint;
+          const matchesQuery =
             complaint.title?.toLowerCase().includes(queryLower) ||
             complaint.description?.toLowerCase().includes(queryLower) ||
             complaint.category?.toLowerCase().includes(queryLower) ||
-            complaint.status?.toLowerCase().includes(queryLower);
-          
+            complaint.status?.toLowerCase().includes(queryLower) ||
+            raw.title?.toLowerCase().includes(queryLower) ||
+            raw.description?.toLowerCase().includes(queryLower);
+
           // Admin filter by status if selected
           if (filterStatus !== 'all') {
             return matchesQuery && complaint.status === filterStatus;
           }
-          
+
           return matchesQuery;
         });
 
@@ -265,7 +284,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
               latitude: parseFloat(complaint.location_latitude),
               longitude: parseFloat(complaint.location_longitude),
               title: complaint.title,
-              subtitle: `${complaint.category} • ${complaint.status} • Priority: ${Math.round(complaint.priority_score || 0)}`,
+              subtitle: `${getCategoryLabel(complaint.category, t)} • ${getStatusLabel(complaint.status, t)} • ${t('admin:mobileAdmin.priorityShort', { score: Math.round(complaint.priority_score || 0) })}`,
               complaint: complaint,
               type: 'complaint'
             });
@@ -283,9 +302,9 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
         if (results.length === 1 && results[0].type === 'complaint' && results[0].complaint?.priority_score > 70) {
           console.log(' High priority complaint found, auto-selecting:', results[0].title);
           Alert.alert(
-            'High Priority Complaint!', 
-            `Priority ${Math.round(results[0].complaint.priority_score)}: ${results[0].title}`, 
-            [{ text: 'View' }], 
+            t('admin:mobileAdmin.highPriorityAlertTitle'),
+            t('admin:mobileAdmin.highPriorityAlertBody', { score: Math.round(results[0].complaint.priority_score), title: results[0].title }),
+            [{ text: t('admin:mobileAdmin.viewBtn') }],
             { cancelable: true }
           );
           setTimeout(() => {
@@ -296,13 +315,13 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
         console.log(' No results found for admin search');
         setSearchResults([]);
         setShowSearchResults(false);
-        Alert.alert('No Results', `No results found for "${query}". Try searching for complaint keywords, status, or city names.`);
+        Alert.alert(t('admin:mobileAdmin.noResultsTitle'), t('admin:mobileAdmin.noResultsDesc', { query }));
       }
 
     } catch (error) {
       console.error(' Admin search error:', error);
       setSearchResults([]);
-      Alert.alert('Search Error', 'Search failed. Please try again.');
+      Alert.alert(t('admin:mobileAdmin.searchErrorTitle'), t('admin:mobileAdmin.searchErrorDesc'));
     } finally {
       setSearchLoading(false);
       console.log(' Admin search completed');
@@ -312,33 +331,33 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   // Handle search result selection
   const selectSearchResult = (result) => {
     console.log(' ADMIN SEARCH RESULT SELECTED:', result);
-    
+
     const newRegion = {
       latitude: result.latitude,
       longitude: result.longitude,
       latitudeDelta: 0.08,
       longitudeDelta: 0.08,
     };
-    
+
     console.log(' Admin moving to region:', newRegion);
-    
+
     setIsProgrammaticMove(true);
-    
+
     if (mapRef.current) {
       console.log(' Admin animating map to region');
       mapRef.current.animateToRegion(newRegion, 1000);
     }
-    
+
     setRegion(newRegion);
     setSearchQuery(result.title);
     setShowSearchResults(false);
     Keyboard.dismiss();
-    
+
     setTimeout(() => {
       setIsProgrammaticMove(false);
       console.log(' Admin animation completed');
     }, 1500);
-    
+
     // If it's a complaint result, show the complaint details
     if (result.complaint) {
       setTimeout(() => {
@@ -352,7 +371,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
     try {
       console.log('️ Admin fetching heat map data...');
       const data = await makeApiCall(`${API_BASE_URL}/api/heat-map/data?days=30`);
-      
+
       if (data.success && data.data && data.data.points) {
         console.log(' Admin heat map data received:', data.data.points.length, 'points');
         setHeatMapData(data.data.points);
@@ -367,14 +386,14 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
     try {
       console.log(' Admin fetching complaints from:', `${API_BASE_URL}/api/complaints/all`);
       const data = await makeApiCall(`${API_BASE_URL}/api/complaints/all`);
-      
+
       if (data.success && data.complaints) {
         console.log(' Admin fetched complaints:', data.complaints.length);
         setComplaints(data.complaints);
       }
     } catch (error) {
       console.error(' Error fetching admin complaints:', error);
-      Alert.alert('Error', 'Failed to load complaints');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.loadComplaintsFailed'));
     } finally {
       setLoading(false);
     }
@@ -386,9 +405,9 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
       await fetchComplaints();
       await fetchHeatMapData();
     };
-    
+
     initializeAdminMap();
-    
+
     return () => {
       if (searchTimeout) {
         clearTimeout(searchTimeout);
@@ -403,21 +422,21 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   const handleSearch = () => {
     console.log(' ADMIN MANUAL SEARCH TRIGGERED');
     console.log('Current searchQuery state:', searchQuery);
-    
+
     if (!searchQuery || !searchQuery.trim()) {
       console.log(' Empty search query, showing alert');
-      Alert.alert('Search Required', 'Please enter a city name, complaint keyword, or status.');
+      Alert.alert(t('admin:mobileAdmin.searchRequiredTitle'), t('admin:mobileAdmin.searchRequiredDesc'));
       return;
     }
-    
+
     console.log(' Admin calling searchLocation with:', searchQuery);
     searchLocation(searchQuery);
   };
 
   // Filter complaints by status
   const getFilteredComplaints = () => {
-    if (filterStatus === 'all') return complaints;
-    return complaints.filter(c => c.status === filterStatus);
+    if (filterStatus === 'all') return displayComplaints;
+    return displayComplaints.filter(c => c.status === filterStatus);
   };
 
   // Calculate admin statistics
@@ -427,9 +446,9 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
     const inProgress = filteredComplaints.filter(c => c.status?.toLowerCase() === 'in_progress').length;
     const resolved = filteredComplaints.filter(c => c.status?.toLowerCase() === 'completed' || c.status?.toLowerCase() === 'resolved').length;
     const highPriority = filteredComplaints.filter(c => (c.priority_score || 0) > 70).length;
-    
+
     console.log(` Admin Statistics - Total: ${filteredComplaints.length}, High Priority: ${highPriority}, Pending: ${pending}, Progress: ${inProgress}, Resolved: ${resolved}`);
-    
+
     return { pending, inProgress, resolved, highPriority, total: filteredComplaints.length };
   })();
 
@@ -508,42 +527,42 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
     const filteredComplaints = getFilteredComplaints();
     const clusters = [];
     const radius = 0.008; // Roughly 800m radius
-    
+
     const processed = new Set();
-    
+
     filteredComplaints.forEach((complaint, index) => {
       if (processed.has(index)) return;
-      
+
       const lat = parseFloat(complaint.location_latitude);
       const lng = parseFloat(complaint.location_longitude);
-      
+
       if (isNaN(lat) || isNaN(lng)) return;
-      
+
       const nearbyComplaints = [complaint];
       processed.add(index);
-      
+
       // Find nearby complaints
       filteredComplaints.forEach((other, otherIndex) => {
         if (processed.has(otherIndex) || index === otherIndex) return;
-        
+
         const otherLat = parseFloat(other.location_latitude);
         const otherLng = parseFloat(other.location_longitude);
-        
+
         if (isNaN(otherLat) || isNaN(otherLng)) return;
-        
+
         const distance = Math.sqrt(
           Math.pow(lat - otherLat, 2) + Math.pow(lng - otherLng, 2)
         );
-        
+
         if (distance <= radius) {
           nearbyComplaints.push(other);
           processed.add(otherIndex);
         }
       });
-      
+
       // Calculate average priority for admin clusters
       const avgPriority = nearbyComplaints.reduce((sum, c) => sum + (c.priority_score || 0), 0) / nearbyComplaints.length;
-      
+
       clusters.push({
         latitude: lat,
         longitude: lng,
@@ -553,20 +572,20 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
         id: `cluster_${index}`
       });
     });
-    
+
     return clusters;
   };
 
   // Render admin heatmap overlay circles
   const renderAdminHeatmapOverlays = () => {
     const clusters = createAdminDensityClusters();
-    
+
     return clusters.map((cluster) => {
       const density = cluster.density;
       const maxDensity = Math.max(...clusters.map(c => c.density));
       const intensity = density / maxDensity;
       const priority = cluster.avgPriority;
-      
+
       // Admin-specific color coding: Priority + Density
       const getAdminHeatmapColor = (intensity, priority) => {
         if (priority > 80) return 'rgba(211, 47, 47, 0.5)'; // Critical priority - dark red
@@ -577,9 +596,9 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
         if (intensity >= 0.2) return 'rgba(52, 152, 219, 0.4)'; // Low-medium - blue
         return 'rgba(46, 125, 50, 0.4)'; // Low density - green
       };
-      
+
       const radius = Math.max(100, intensity * 600 + (priority * 2)); // Priority affects radius
-      
+
       return (
         <Circle
           key={cluster.id}
@@ -594,9 +613,9 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
           onPress={() => {
             openComplaintModal({
               id: cluster.id,
-              title: `${density} Complaint${density > 1 ? 's' : ''} in this area`,
-              description: `Average Priority: ${Math.round(cluster.avgPriority)}\n\n` +
-                          cluster.complaints.map(c => `• ${c.title} (${c.status})`).join('\n'),
+              title: t('admin:mobileAdmin.clusterAreaTitle', { count: density }),
+              description: t('admin:mobileAdmin.clusterAvgPriority', { priority: Math.round(cluster.avgPriority) }) + '\n\n' +
+                cluster.complaints.map(c => `• ${c.title} (${getStatusLabel(c.status || 'pending', t)})`).join('\n'),
               status: 'cluster',
               complaints: cluster.complaints,
               avgPriority: cluster.avgPriority,
@@ -612,16 +631,16 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   // Render admin markers
   const renderAdminMarkers = () => {
     const filteredComplaints = getFilteredComplaints();
-    
+
     return filteredComplaints.map((complaint, index) => {
       const lat = parseFloat(complaint.location_latitude);
       const lng = parseFloat(complaint.location_longitude);
-      
+
       if (isNaN(lat) || isNaN(lng)) return null;
-      
+
       const priorityScore = complaint.priority_score || 0;
       const isHighPriority = priorityScore > 70;
-      
+
       return (
         <Marker
           key={complaint.id}
@@ -630,7 +649,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
             longitude: lng
           }}
           title={complaint.title}
-          description={`Priority: ${Math.round(priorityScore)} | Status: ${complaint.status}`}
+          description={`${t('admin:mobileAdmin.priorityShort', { score: Math.round(priorityScore) })} | ${t('admin:mobileAdmin.statusShort', { status: getStatusLabel(complaint.status || 'pending', t) })}`}
           onPress={() => {
             console.log(' Admin marker pressed:', complaint.title);
             setIsMarkerInteracting(true);
@@ -643,18 +662,18 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
         >
           <View style={styles.adminPinContainer}>
             <View style={[
-              styles.adminPinHead, 
-              { 
+              styles.adminPinHead,
+              {
                 backgroundColor: getStatusColor(complaint.status),
                 borderColor: isHighPriority ? '#FFD700' : 'white',
                 borderWidth: isHighPriority ? 3 : 2,
                 elevation: isHighPriority ? 12 : 8
               }
             ]}>
-              <Ionicons 
-                name={getCategoryIcon(complaint.category)} 
-                size={isHighPriority ? 18 : 16} 
-                color="white" 
+              <Ionicons
+                name={getCategoryIcon(complaint.category)}
+                size={isHighPriority ? 18 : 16}
+                color="white"
               />
               {isHighPriority && (
                 <View style={styles.priorityBadge}>
@@ -663,7 +682,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
               )}
             </View>
             <View style={[
-              styles.adminPinTail, 
+              styles.adminPinTail,
               { borderTopColor: getStatusColor(complaint.status) }
             ]} />
           </View>
@@ -683,12 +702,12 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
       <View style={styles.modalOverlay}>
         <View style={styles.filterModalContent}>
           <View style={styles.filterHeader}>
-            <Text style={styles.filterTitle}>Filter Complaints</Text>
+            <Text style={styles.filterTitle}>{t('admin:mobileAdmin.filterComplaints')}</Text>
             <TouchableOpacity onPress={() => setShowFilterModal(false)}>
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
           </View>
-          
+
           <ScrollView style={styles.filterOptions}>
             {['all', 'pending', 'in_progress', 'completed', 'resolved'].map((status) => (
               <TouchableOpacity
@@ -706,7 +725,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
                   styles.filterOptionText,
                   filterStatus === status && styles.filterOptionTextActive
                 ]}>
-                  {status === 'all' ? 'All Complaints' : status.toUpperCase().replace('_', ' ')}
+                  {status === 'all' ? t('admin:mobileAdmin.allComplaintsFilter') : getStatusLabel(status, t)}
                 </Text>
                 {filterStatus === status && (
                   <Ionicons name="checkmark" size={20} color="#fff" />
@@ -721,7 +740,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
 
   // Admin Complaint Details Modal
   const AdminComplaintDetailsModal = () => {
-    if (!selectedComplaint) return null;
+    if (!activeSelectedComplaint) return null;
 
     return (
       <Modal
@@ -736,8 +755,8 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{selectedComplaint.title}</Text>
-              <TouchableOpacity 
+              <Text style={styles.modalTitle}>{activeSelectedComplaint.title}</Text>
+              <TouchableOpacity
                 onPress={() => {
                   setShowComplaintModal(false);
                   setIsMarkerInteracting(false);
@@ -749,27 +768,27 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
             </View>
 
             <ScrollView style={styles.modalScroll}>
-              {selectedComplaint.status === 'cluster' ? (
+              {activeSelectedComplaint.status === 'cluster' ? (
                 // Admin cluster view
                 <>
                   <View style={styles.statusSection}>
                     <View style={[styles.statusBadge, { backgroundColor: '#1A1A1A' }]}>
-                      <Text style={styles.statusText}>ADMIN CLUSTER VIEW</Text>
+                      <Text style={styles.statusText}>{t('admin:mobileAdmin.adminClusterView')}</Text>
                     </View>
-                    <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(selectedComplaint.avgPriority) }]}>
-                      <Text style={styles.statusText}>AVG PRIORITY: {Math.round(selectedComplaint.avgPriority || 0)}</Text>
+                    <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(activeSelectedComplaint.avgPriority) }]}>
+                      <Text style={styles.statusText}>{t('admin:mobileAdmin.avgPriorityBadge', { score: Math.round(activeSelectedComplaint.avgPriority || 0) })}</Text>
                     </View>
                   </View>
 
                   <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Area Summary</Text>
-                    <Text style={styles.description}>{selectedComplaint.description}</Text>
+                    <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.areaSummary')}</Text>
+                    <Text style={styles.description}>{activeSelectedComplaint.description}</Text>
                   </View>
 
                   <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Individual Complaints</Text>
-                    {selectedComplaint.complaints?.map((complaint, index) => (
-                      <TouchableOpacity 
+                    <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.individualComplaints')}</Text>
+                    {activeSelectedComplaint.complaints?.map((complaint, index) => (
+                      <TouchableOpacity
                         key={complaint.id}
                         style={styles.adminClusterItem}
                         onPress={() => {
@@ -781,10 +800,10 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
                         </View>
                         <View style={styles.clusterInfo}>
                           <Text style={styles.clusterTitle}>{complaint.title}</Text>
-                          <Text style={styles.clusterStatus}>Status: {(complaint.status || 'pending').replace('_', ' ')}</Text>
-                          <Text style={styles.clusterCategory}>Category: {complaint.category}</Text>
+                          <Text style={styles.clusterStatus}>{t('admin:mobileAdmin.statusShort', { status: getStatusLabel(complaint.status || 'pending', t) })}</Text>
+                          <Text style={styles.clusterCategory}>{t('admin:mobileAdmin.categoryLine', { category: getCategoryLabel(complaint.category, t) })}</Text>
                           <Text style={[styles.clusterPriority, { color: getPriorityColor(complaint.priority_score) }]}>
-                            Priority: {Math.round(complaint.priority_score || 0)}
+                            {t('admin:mobileAdmin.priorityShort', { score: Math.round(complaint.priority_score || 0) })}
                           </Text>
                         </View>
                         <TouchableOpacity
@@ -801,70 +820,70 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
                 // Individual complaint view for admin
                 <>
                   <View style={styles.statusSection}>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedComplaint.status) }]}>
-                      <Text style={styles.statusText}>{(selectedComplaint.status || 'pending').toUpperCase()}</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(activeSelectedComplaint.status) }]}>
+                      <Text style={styles.statusText}>{getStatusLabel(activeSelectedComplaint.status || 'pending', t)}</Text>
                     </View>
-                    <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(selectedComplaint.priority_score) }]}>
-                      <Text style={styles.statusText}>PRIORITY: {Math.round(selectedComplaint.priority_score || 0)}</Text>
+                    <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(activeSelectedComplaint.priority_score) }]}>
+                      <Text style={styles.statusText}>{t('admin:mobileAdmin.priorityBadgeUpper', { score: Math.round(activeSelectedComplaint.priority_score || 0) })}</Text>
                     </View>
                   </View>
 
                   <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Description</Text>
-                    <Text style={styles.description}>{selectedComplaint.description}</Text>
+                    <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.descriptionTitle')}</Text>
+                    <Text style={styles.description}>{activeSelectedComplaint.description}</Text>
                   </View>
 
                   <View style={styles.detailSection}>
-                    <Text style={styles.sectionTitle}>Admin Details</Text>
-                    <Text style={styles.detailText}>ID: {selectedComplaint.id}</Text>
-                    <Text style={styles.detailText}>Category: {selectedComplaint.category}</Text>
+                    <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.adminDetailsTitle')}</Text>
+                    <Text style={styles.detailText}>{t('admin:mobileAdmin.idLine', { id: activeSelectedComplaint.id })}</Text>
+                    <Text style={styles.detailText}>{t('admin:mobileAdmin.categoryLine', { category: getCategoryLabel(activeSelectedComplaint.category, t) })}</Text>
                     <Text style={styles.detailText}>
-                      Location: {selectedComplaint.location_latitude}, {selectedComplaint.location_longitude}
+                      {t('admin:mobileAdmin.locationLine', { location: `${activeSelectedComplaint.location_latitude}, ${activeSelectedComplaint.location_longitude}` })}
                     </Text>
                     <Text style={styles.detailText}>
-                      Priority Score: {Math.round((selectedComplaint.priority_score || 0))}
+                      {t('admin:mobileAdmin.priorityScoreLine', { score: Math.round(activeSelectedComplaint.priority_score || 0) })}
                     </Text>
                     <Text style={styles.detailText}>
-                      Created: {selectedComplaint.created_at ? new Date(selectedComplaint.created_at).toLocaleDateString() : 'N/A'}
+                      {t('admin:mobileAdmin.createdAtLine', { date: activeSelectedComplaint.created_at ? formatLocalizedDate(activeSelectedComplaint.created_at, i18n.language) : t('admin:mobileAdmin.naLabel') })}
                     </Text>
-                    {selectedComplaint.assigned_to && (
+                    {activeSelectedComplaint.assigned_to && (
                       <Text style={styles.detailText}>
-                        Assigned to: {selectedComplaint.assigned_to}
+                        {t('admin:mobileAdmin.assignedToLine', { target: activeSelectedComplaint.assigned_to })}
                       </Text>
                     )}
                   </View>
 
                   {/* Admin Actions */}
                   <View style={styles.adminActionsSection}>
-                    <Text style={styles.sectionTitle}>Admin Actions</Text>
+                    <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.adminActionsTitle')}</Text>
                     <View style={styles.adminActionsRow}>
                       <TouchableOpacity
                         style={[styles.actionButton, { backgroundColor: '#1A1A1A' }]}
-                        onPress={() => navigation.navigate('ComplaintDetails', { complaintId: selectedComplaint.id })}
+                        onPress={() => navigation.navigate('ComplaintDetails', { complaintId: activeSelectedComplaint.id })}
                       >
                         <Ionicons name="create" size={20} color="white" />
-                        <Text style={styles.actionButtonText}>Edit</Text>
+                        <Text style={styles.actionButtonText}>{t('admin:mobileAdmin.editBtn')}</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.actionButton, { backgroundColor: '#4CAF50' }]}
                         onPress={() => navigation.navigate('PriorityQueue')}
                       >
                         <Ionicons name="list" size={20} color="white" />
-                        <Text style={styles.actionButtonText}>Queue</Text>
+                        <Text style={styles.actionButtonText}>{t('admin:mobileAdmin.queueBtn')}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
                 </>
               )}
 
-              {selectedComplaint.image_urls && selectedComplaint.image_urls.length > 0 && (
+              {Array.isArray(activeSelectedComplaint.image_urls) && activeSelectedComplaint.image_urls.length > 0 && (
                 <View style={styles.detailSection}>
-                  <Text style={styles.sectionTitle}>Images</Text>
+                  <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.imagesTitle')}</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {selectedComplaint.image_urls.map((imageUrl, index) => (
+                    {activeSelectedComplaint.image_urls.map((imageUrl, index) => (
                       <View key={index} style={{ marginRight: 15 }}>
-                        <Image 
-                          source={{ uri: imageUrl }} 
+                        <Image
+                          source={{ uri: imageUrl }}
                           style={styles.complaintImage}
                           resizeMode="cover"
                         />
@@ -873,7 +892,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
                           onPress={() => fetchAiExplanation(imageUrl)}
                         >
                           <Ionicons name="scan-outline" size={16} color="#fff" />
-                          <Text style={styles.explainButtonText}>Explain AI</Text>
+                          <Text style={styles.explainButtonText}>{t('admin:mobileAdmin.explainAi')}</Text>
                         </TouchableOpacity>
                       </View>
                     ))}
@@ -898,7 +917,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { width: '90%' }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>AI Image Explanation</Text>
+            <Text style={styles.modalTitle}>{t('admin:mobileAdmin.aiImageExplanation')}</Text>
             <TouchableOpacity onPress={closeAiExplainModal}>
               <Ionicons name="close" size={24} color="#666" />
             </TouchableOpacity>
@@ -907,28 +926,27 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
             {aiExplainLoading ? (
               <View style={{ padding: 20, alignItems: 'center' }}>
                 <ActivityIndicator size="large" color="#1A1A1A" />
-                <Text style={{ marginTop: 10 }}>Generating SAM3 segmentation map...</Text>
+                <Text style={{ marginTop: 10 }}>{t('admin:mobileAdmin.generatingSam3')}</Text>
               </View>
-            ) : aiExplainResult ? (
+            ) : displayAiExplain ? (
               <View style={{ padding: 10 }}>
-                <Text style={styles.explanationText}>{aiExplainResult.explanationText}</Text>
-                {aiExplainResult.annotatedImage?.value && (
+                <Text style={styles.explanationText}>{displayAiExplain.explanationText}</Text>
+                {displayAiExplain.annotatedImage?.value && (
                   <Image
-                    source={{ uri: `data:image/jpeg;base64,${aiExplainResult.annotatedImage.value}` }}
+                    source={{ uri: `data:image/jpeg;base64,${displayAiExplain.annotatedImage.value}` }}
                     style={{ width: '100%', height: 250, borderRadius: 8, marginTop: 15, resizeMode: 'contain' }}
                   />
                 )}
 
-                {(selectedComplaint?.geometry_status === 'completed' || (selectedComplaint?.estimated_width_cm != null && selectedComplaint?.estimated_length_cm != null)) && (
+                {(activeSelectedComplaint?.geometry_status === 'completed' || (activeSelectedComplaint?.estimated_width_cm != null && activeSelectedComplaint?.estimated_length_cm != null)) && (
                   <View style={styles.geometryPanel}>
-                    <Text style={styles.geometryTitle}>Estimated Size (AI estimate)</Text>
+                    <Text style={styles.geometryTitle}>{t('admin:mobileAdmin.estimatedSizeTitle')}</Text>
                     <Text style={styles.geometryRow}>
-                      Width × Length: {selectedComplaint.estimated_width_cm} × {selectedComplaint.estimated_length_cm} cm
+                      {t('admin:mobileAdmin.widthLengthRow', { w: activeSelectedComplaint.estimated_width_cm, l: activeSelectedComplaint.estimated_length_cm })}
                     </Text>
-                    <Text style={styles.geometryRow}>Area: {selectedComplaint.estimated_area_cm2} cm²</Text>
+                    <Text style={styles.geometryRow}>{t('admin:mobileAdmin.areaRow', { area: activeSelectedComplaint.estimated_area_cm2 })}</Text>
                     <Text style={styles.geometryDisclaimer}>
-                      Confidence {Math.round((selectedComplaint.geometry_confidence || 0) * 100)}% — estimated from a single
-                      photo using an assumed camera height/angle, not a measured value.
+                      {t('admin:mobileAdmin.geometryDisclaimer', { confidence: Math.round((activeSelectedComplaint.geometry_confidence || 0) * 100) })}
                     </Text>
                     <TouchableOpacity
                       style={[styles.geometryRetryButton, { backgroundColor: '#34495e', marginTop: 10 }]}
@@ -938,20 +956,20 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
                       {geometryRetryLoading ? (
                         <ActivityIndicator size="small" color="#fff" />
                       ) : (
-                        <Text style={styles.explainButtonText}>Recalculate Size</Text>
+                        <Text style={styles.explainButtonText}>{t('admin:mobileAdmin.recalculateSize')}</Text>
                       )}
                     </TouchableOpacity>
                   </View>
                 )}
-                {selectedComplaint?.geometry_status === 'pending' && (
+                {activeSelectedComplaint?.geometry_status === 'pending' && (
                   <View style={styles.geometryPanel}>
                     <ActivityIndicator size="small" color="#1A1A1A" />
-                    <Text style={[styles.geometryRow, { marginTop: 6 }]}>Estimating size…</Text>
+                    <Text style={[styles.geometryRow, { marginTop: 6 }]}>{t('admin:mobileAdmin.estimatingSize')}</Text>
                   </View>
                 )}
-                {selectedComplaint?.geometry_status === 'failed' && (
+                {activeSelectedComplaint?.geometry_status === 'failed' && (
                   <View style={styles.geometryPanel}>
-                    <Text style={styles.geometryRow}>Size estimate failed{selectedComplaint.geometry_error ? `: ${selectedComplaint.geometry_error}` : '.'}</Text>
+                    <Text style={styles.geometryRow}>{t('admin:mobileAdmin.sizeEstimateFailed')}{activeSelectedComplaint.geometry_error ? `: ${activeSelectedComplaint.geometry_error}` : '.'}</Text>
                     <TouchableOpacity
                       style={styles.geometryRetryButton}
                       disabled={geometryRetryLoading}
@@ -960,34 +978,34 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
                       {geometryRetryLoading ? (
                         <ActivityIndicator size="small" color="#fff" />
                       ) : (
-                        <Text style={styles.explainButtonText}>Retry size estimate</Text>
+                        <Text style={styles.explainButtonText}>{t('admin:mobileAdmin.retrySizeEstimate')}</Text>
                       )}
                     </TouchableOpacity>
                   </View>
                 )}
-                {selectedComplaint?.geometry_status !== 'completed' &&
-                  selectedComplaint?.geometry_status !== 'pending' &&
-                  selectedComplaint?.geometry_status !== 'failed' &&
-                  selectedComplaint?.estimated_width_cm == null &&
-                  selectedComplaint?.category?.toLowerCase()?.includes('pothole') && (
-                  <View style={styles.geometryPanel}>
-                    <Text style={styles.geometryRow}>No geometric size estimate yet computed for this pothole.</Text>
-                    <TouchableOpacity
-                      style={styles.geometryRetryButton}
-                      disabled={geometryRetryLoading}
-                      onPress={() => retryGeometry(selectedImageForAiExplain)}
-                    >
-                      {geometryRetryLoading ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : (
-                        <Text style={styles.explainButtonText}>Estimate Pothole Geometry</Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                )}
+                {activeSelectedComplaint?.geometry_status !== 'completed' &&
+                  activeSelectedComplaint?.geometry_status !== 'pending' &&
+                  activeSelectedComplaint?.geometry_status !== 'failed' &&
+                  activeSelectedComplaint?.estimated_width_cm == null &&
+                  activeSelectedComplaint?.category?.toLowerCase()?.includes('pothole') && (
+                    <View style={styles.geometryPanel}>
+                      <Text style={styles.geometryRow}>{t('admin:mobileAdmin.noGeometryYet')}</Text>
+                      <TouchableOpacity
+                        style={styles.geometryRetryButton}
+                        disabled={geometryRetryLoading}
+                        onPress={() => retryGeometry(selectedImageForAiExplain)}
+                      >
+                        {geometryRetryLoading ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Text style={styles.explainButtonText}>{t('admin:mobileAdmin.estimatePotholeGeometry')}</Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
               </View>
             ) : (
-              <Text style={{ padding: 20 }}>No explanation generated.</Text>
+              <Text style={{ padding: 20 }}>{t('admin:mobileAdmin.noExplanationGenerated')}</Text>
             )}
           </ScrollView>
         </View>
@@ -998,7 +1016,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1A1A1A" />
-      
+
       <LinearGradient
         colors={['#1A1A1A', '#1A1A1A']}
         style={styles.header}
@@ -1007,16 +1025,16 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Admin Complaint Map</Text>
+          <Text style={styles.headerTitle}>{t('admin:mobileAdmin.adminMapTitle')}</Text>
           <View style={styles.headerButtons}>
-            <TouchableOpacity 
-              onPress={() => setShowFilterModal(true)} 
+            <TouchableOpacity
+              onPress={() => setShowFilterModal(true)}
               style={styles.filterButton}
             >
               <Ionicons name="filter" size={20} color="white" />
             </TouchableOpacity>
-            <TouchableOpacity 
-              onPress={getUserLocation} 
+            <TouchableOpacity
+              onPress={getUserLocation}
               style={styles.locationButton}
             >
               <Ionicons name="location" size={20} color="white" />
@@ -1037,17 +1055,17 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
           <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Admin search: complaints, status, priority, cities..."
+            placeholder={t('admin:mobileAdmin.adminMapSearchPlaceholder')}
             placeholderTextColor="#999"
             value={searchQuery}
             onChangeText={(text) => {
               console.log(' Admin text input changed:', text);
               setSearchQuery(text);
-              
+
               if (searchTimeout) {
                 clearTimeout(searchTimeout);
               }
-              
+
               if (text.trim().length === 0) {
                 setSearchResults([]);
                 setShowSearchResults(false);
@@ -1064,15 +1082,15 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
             autoCorrect={false}
             autoCapitalize="words"
           />
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={handleSearch}
             style={styles.searchButton}
           >
             <Ionicons name="search-circle" size={24} color="#1A1A1A" />
           </TouchableOpacity>
-          
+
           {searchQuery.length > 0 && (
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 console.log('️ Admin clearing search');
                 setSearchQuery('');
@@ -1085,7 +1103,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           )}
         </View>
-        
+
         {searchLoading && (
           <ActivityIndicator size="small" color="#1A1A1A" style={styles.searchLoader} />
         )}
@@ -1095,51 +1113,51 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
       {showSearchResults && (
         <View style={styles.searchResultsContainer}>
           {searchResults.length > 0 ? (
-          <ScrollView style={styles.searchResultsList}>
-            {searchResults.map((result) => {
-              let iconName, iconColor;
-              switch (result.type) {
-                case 'complaint':
-                  iconName = 'flag';
-                  iconColor = result.complaint?.priority_score > 70 ? '#F44336' : '#FF9800';
-                  break;
-                case 'city':
-                  iconName = 'business';
-                  iconColor = '#1A1A1A';
-                  break;
-                default:
-                  iconName = 'location';
-                  iconColor = '#1A1A1A';
-              }
+            <ScrollView style={styles.searchResultsList}>
+              {searchResults.map((result) => {
+                let iconName, iconColor;
+                switch (result.type) {
+                  case 'complaint':
+                    iconName = 'flag';
+                    iconColor = result.complaint?.priority_score > 70 ? '#F44336' : '#FF9800';
+                    break;
+                  case 'city':
+                    iconName = 'business';
+                    iconColor = '#1A1A1A';
+                    break;
+                  default:
+                    iconName = 'location';
+                    iconColor = '#1A1A1A';
+                }
 
-              return (
-                <TouchableOpacity
-                  key={result.id}
-                  style={styles.searchResultItem}
-                  onPress={() => selectSearchResult(result)}
-                >
-                  <Ionicons 
-                    name={iconName} 
-                    size={20} 
-                    color={iconColor} 
-                  />
-                  <View style={styles.searchResultText}>
-                    <Text style={styles.searchResultTitle}>{result.title}</Text>
-                    <Text style={styles.searchResultSubtitle}>{result.subtitle}</Text>
-                  </View>
-                  {result.complaint?.priority_score > 70 && (
-                    <View style={styles.highPriorityIndicator}>
-                      <Text style={styles.highPriorityText}>HIGH</Text>
+                return (
+                  <TouchableOpacity
+                    key={result.id}
+                    style={styles.searchResultItem}
+                    onPress={() => selectSearchResult(result)}
+                  >
+                    <Ionicons
+                      name={iconName}
+                      size={20}
+                      color={iconColor}
+                    />
+                    <View style={styles.searchResultText}>
+                      <Text style={styles.searchResultTitle}>{result.title}</Text>
+                      <Text style={styles.searchResultSubtitle}>{result.subtitle}</Text>
                     </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+                    {result.complaint?.priority_score > 70 && (
+                      <View style={styles.highPriorityIndicator}>
+                        <Text style={styles.highPriorityText}>{t('admin:mobileAdmin.highShort')}</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           ) : (
             <View style={styles.noResultsContainer}>
               <Text style={styles.noResultsText}>
-                {searchLoading ? 'Searching...' : 'No results found'}
+                {searchLoading ? t('admin:mobileAdmin.searching') : t('admin:mobileAdmin.noResultsTitle')}
               </Text>
             </View>
           )}
@@ -1152,7 +1170,7 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#1A1A1A" />
             <Text style={styles.loadingText}>
-              {locationLoading ? 'Getting admin location...' : 'Loading complaints...'}
+              {locationLoading ? t('admin:mobileAdmin.gettingAdminLocation') : t('admin:mobileAdmin.loadingComplaints')}
             </Text>
           </View>
         ) : (
@@ -1194,27 +1212,27 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
           style={[styles.toggleButton, showHeatmap && styles.toggleButtonActive]}
           onPress={() => setShowHeatmap(true)}
         >
-          <Ionicons 
-            name="analytics" 
-            size={20} 
-            color={showHeatmap ? '#fff' : '#666'} 
+          <Ionicons
+            name="analytics"
+            size={20}
+            color={showHeatmap ? '#fff' : '#666'}
           />
           <Text style={[styles.toggleText, showHeatmap && styles.toggleTextActive]}>
-            Heatmap
+            {t('admin:mobileAdmin.heatmap')}
           </Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity
           style={[styles.toggleButton, !showHeatmap && styles.toggleButtonActive]}
           onPress={() => setShowHeatmap(false)}
         >
-          <Ionicons 
-            name="location" 
-            size={20} 
-            color={!showHeatmap ? '#fff' : '#666'} 
+          <Ionicons
+            name="location"
+            size={20}
+            color={!showHeatmap ? '#fff' : '#666'}
           />
           <Text style={[styles.toggleText, !showHeatmap && styles.toggleTextActive]}>
-            Markers
+            {t('admin:mobileAdmin.markers')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -1222,16 +1240,20 @@ const AdminComplaintMapScreen = ({ navigation, route }) => {
       {/* Admin Stats */}
       <View style={styles.adminStatsContainer}>
         <Text style={styles.adminStatsTitle}>
-          Admin Dashboard • Filter: {filterStatus === 'all' ? 'All' : filterStatus.toUpperCase()}
+          {t('admin:mobileAdmin.adminMapStatsTitle', { filter: filterStatus === 'all' ? t('common:mobileNav.all') : getStatusLabel(filterStatus, t) })}
         </Text>
         <Text style={styles.statsText}>
-          {statsData.total} Complaints {showHeatmap ? 'in Priority Heatmap' : 'as Markers'} 
-          {statsData.highPriority > 0 && ` • ${statsData.highPriority} High Priority`}
+          {showHeatmap
+            ? t('admin:mobileAdmin.complaintsHeatmapCount', { count: statsData.total })
+            : t('admin:mobileAdmin.complaintsMarkersCount', { count: statsData.total })}
+          {statsData.highPriority > 0 && ` • ${t('admin:mobileAdmin.highPriorityCount', { count: statsData.highPriority })}`}
         </Text>
         <Text style={styles.adminStatsText}>
-          {statsData.pending} Pending • 
-          {statsData.inProgress} Progress • 
-          {statsData.resolved} Resolved
+          {t('admin:mobileAdmin.mapStatusSummary', {
+            pending: statsData.pending,
+            inProgress: statsData.inProgress,
+            resolved: statsData.resolved,
+          })}
         </Text>
       </View>
 
@@ -1460,6 +1482,12 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginVertical: 2,
+  },
+  adminStatsText: {
+    fontSize: 13,
+    color: '#555',
+    textAlign: 'center',
+    marginTop: 2,
   },
   modalOverlay: {
     flex: 1,

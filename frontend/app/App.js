@@ -6,7 +6,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 import { View, Image, Text, StyleSheet, LogBox } from 'react-native';
 import './src/i18n';
+import i18n from './src/i18n';
 import LanguageSwitcherFAB from './src/components/LanguageSwitcherFAB';
+import { TranslationProvider } from './src/context/TranslationContext';
 
 // Ignore benign non-fatal developer notices in Expo Go
 LogBox.ignoreLogs([
@@ -76,16 +78,17 @@ export default function App() {
           style={styles.splashLogo}
           resizeMode="contain"
         />
-        <Text style={styles.splashText}>CITYZEN</Text>
-        <Text style={styles.splashSubtext}>Institutional Civic Portal</Text>
+        <Text style={styles.splashText}>{i18n.t('auth:welcome.brand', 'CITYZEN')}</Text>
+        <Text style={styles.splashSubtext}>{i18n.t('auth:welcome.portalLabel', 'Institutional Civic Portal')}</Text>
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
-      <StatusBar style="auto" />
-      <Stack.Navigator
+    <TranslationProvider>
+      <NavigationContainer>
+        <StatusBar style="auto" />
+        <Stack.Navigator
         screenOptions={{
           headerShown: false,
           gestureEnabled: false
@@ -133,6 +136,7 @@ export default function App() {
       </Stack.Navigator>
       <LanguageSwitcherFAB />
     </NavigationContainer>
+    </TranslationProvider>
   );
 }
 

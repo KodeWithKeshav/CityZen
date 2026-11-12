@@ -8,8 +8,10 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 const FloatingChatbotButton = ({ onPress, style }) => {
+  const { t } = useTranslation('chatbot');
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const [showTooltip, setShowTooltip] = useState(true);
 
@@ -76,7 +78,7 @@ const FloatingChatbotButton = ({ onPress, style }) => {
       {/* Tooltip */}
       {showTooltip && (
         <View style={styles.tooltip}>
-          <Text style={styles.tooltipText}>Need help?</Text>
+          <Text style={styles.tooltipText}>{t('floating.tooltip', 'CityZen AI Assistant')}</Text>
           <View style={styles.tooltipArrow} />
         </View>
       )}

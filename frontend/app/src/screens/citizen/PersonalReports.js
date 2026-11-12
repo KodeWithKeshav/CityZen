@@ -14,17 +14,31 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
+import { useTranslatedList, useTranslatedObject } from '../../context/TranslationContext';
+import { formatLocalizedDate, formatLocalizedTime } from '../../utils/dateLocale';
+import { getCategoryLabel, getPriorityTier, getStatusLabel } from '../../utils/priorityUtils';
 
 const { width } = Dimensions.get('window');
 
 const PersonalReports = ({ navigation }) => {
+  const { t, i18n } = useTranslation(['citizen', 'common', 'complaint']);
   const [reports, setReports] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [showTrackingModal, setShowTrackingModal] = useState(false);
+
+  const translatedReports = useTranslatedList(reports, ['title', 'description', 'location_address']);
+  const translatedSelected = useTranslatedObject(selectedReport, ['title', 'description', 'location_address']);
+  const translatedStages = useTranslatedList(selectedReport?.trackingStages || [], [
+    'name',
+    'description',
+    'officer',
+    'contractor',
+  ]);
 
   useEffect(() => {
     loadPersonalReports();
@@ -39,11 +53,11 @@ const PersonalReports = ({ navigation }) => {
         setReports(response.data?.complaints || []);
         setStats(response.data?.stats || {});
       } else {
-        Alert.alert('Error', response.message || 'Failed to load your reports');
+        Alert.alert(t('common:mobileNav.error'), response.message || t('citizen:personalReports.loadFailed'));
       }
     } catch (error) {
       console.error('Load personal reports error:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      Alert.alert(t('common:mobileNav.error'), t('citizen:mobileReports.connectError'));
     } finally {
       setLoading(false);
     }
@@ -57,12 +71,12 @@ const PersonalReports = ({ navigation }) => {
 
   const handleLogout = async () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      t('citizen:mobileReports.logoutTitle'),
+      t('citizen:mobileReports.logoutConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:mobileNav.cancel'), style: 'cancel' },
         {
-          text: 'Logout',
+          text: t('citizen:mobileReports.logoutTitle'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -72,7 +86,7 @@ const PersonalReports = ({ navigation }) => {
               navigation.replace('Welcome');
             } catch (error) {
               console.error('Logout error:', error);
-              Alert.alert('Error', 'Failed to logout properly');
+              Alert.alert(t('common:mobileNav.error'), t('citizen:mobileReports.logoutFailed'));
             }
           }
         }
@@ -137,36 +151,42 @@ const PersonalReports = ({ navigation }) => {
             </Text>
             {isActive && (
               <View style={styles.activeChip}>
-                <Text style={styles.activeChipText}>Active</Text>
+                <Text style={styles.activeChipText}>{t('citizen:mobileReports.activeBadge')}</Text>
               </View>
             )}
             {isCompleted && stage.date && (
               <Text style={styles.stageDate}>
-                {new Date(stage.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                {formatLocalizedDate(stage.date, { day: 'numeric', month: 'short' }, i18n.language)}
               </Text>
             )}
           </View>
 
           <Text style={styles.stageDescription}>{stage.description}</Text>
 
-          {(stage.officer || stage.contractor || stage.estimatedCost) && (
+          {Boolean(stage.officer || stage.contractor || stage.estimatedCost) && (
             <View style={styles.stageMetaGroup}>
-              {stage.officer && (
+              {Boolean(stage.officer) && (
                 <View style={styles.stageMetaRow}>
                   <Ionicons name="person-circle-outline" size={12} color="#6B7280" />
-                  <Text style={styles.stageAssignment}>Officer: {stage.officer}</Text>
+                  <Text style={styles.stageAssignment}>
+                    {t('citizen:mobileReports.officer', { name: stage.officer })}
+                  </Text>
                 </View>
               )}
-              {stage.contractor && (
+              {Boolean(stage.contractor) && (
                 <View style={styles.stageMetaRow}>
                   <Ionicons name="construct-outline" size={12} color="#6B7280" />
-                  <Text style={styles.stageAssignment}>Contractor: {stage.contractor}</Text>
+                  <Text style={styles.stageAssignment}>
+                    {t('citizen:mobileReports.contractor', { name: stage.contractor })}
+                  </Text>
                 </View>
               )}
-              {stage.estimatedCost && (
+              {Boolean(stage.estimatedCost) && (
                 <View style={styles.stageMetaRow}>
                   <Ionicons name="cash-outline" size={12} color="#6B7280" />
-                  <Text style={styles.stageAssignment}>Est. Cost: ₹{stage.estimatedCost}</Text>
+                  <Text style={styles.stageAssignment}>
+                    {t('citizen:mobileReports.estCost', { cost: stage.estimatedCost })}
+                  </Text>
                 </View>
               )}
             </View>
@@ -188,13 +208,7 @@ const PersonalReports = ({ navigation }) => {
     };
 
     const getStatusText = (status) => {
-      const statusMap = {
-        'pending': 'PENDING',
-        'in_progress': 'IN PROGRESS',
-        'resolved': 'RESOLVED',
-        'cancelled': 'CANCELLED'
-      };
-      return statusMap[status] || (status ? status.toUpperCase() : 'UNKNOWN');
+      return getStatusLabel(status, t).toUpperCase();
     };
 
     return (
@@ -205,7 +219,7 @@ const PersonalReports = ({ navigation }) => {
       >
         <View style={styles.reportHeader}>
           <Text style={styles.reportTitle} numberOfLines={2}>
-            {report.title}
+            {report.title || t('citizen:personalReports.untitledIncident')}
           </Text>
           <View style={[
             styles.statusBadge, 
@@ -230,13 +244,13 @@ const PersonalReports = ({ navigation }) => {
         
         <View style={styles.reportMeta}>
           <Text style={styles.reportDate}>
-            Submitted: {new Date(report.created_at).toLocaleDateString()}
+            {t('citizen:mobileReports.submittedOn', { date: formatLocalizedDate(report.created_at, {}, i18n.language) })}
           </Text>
           <Text style={styles.reportLocation}>
-            {report.location_address || 'Location not specified'}
+            {report.location_address || t('citizen:mobileReports.locationNotSpecified')}
           </Text>
           <Text style={styles.reportCategory}>
-            {report.category || 'General'}
+            {report.category ? getCategoryLabel(report.category, t) : t('common:mobileNav.general')}
           </Text>
 
         </View>
@@ -244,7 +258,9 @@ const PersonalReports = ({ navigation }) => {
         <View style={styles.progressIndicator}>
           <View style={styles.progressLabelRow}>
             <Ionicons name="layers-outline" size={12} color="#6B7280" />
-            <Text style={styles.progressText}>Stage {report.currentStage || 1} of 5</Text>
+            <Text style={styles.progressText}>
+              {t('citizen:mobileReports.stageOf', { current: report.currentStage || 1 })}
+            </Text>
           </View>
           <View style={styles.progressBar}>
             <View style={[
@@ -259,7 +275,7 @@ const PersonalReports = ({ navigation }) => {
         
         <View style={styles.trackingButton}>
           <Ionicons name="eye-outline" size={16} color="#374151" />
-          <Text style={styles.trackingButtonText}>View Tracking Details</Text>
+          <Text style={styles.trackingButtonText}>{t('citizen:mobileReports.viewTracking')}</Text>
         </View>
       </TouchableOpacity>
     );
@@ -268,7 +284,7 @@ const PersonalReports = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading your reports...</Text>
+        <Text style={styles.loadingText}>{t('citizen:mobileReports.loading')}</Text>
       </View>
     );
   }
@@ -290,7 +306,7 @@ const PersonalReports = ({ navigation }) => {
             <Ionicons name="arrow-back" size={24} color="#374151" />
           </TouchableOpacity>
           
-          <Text style={styles.headerTitle}>My Reports</Text>
+          <Text style={styles.headerTitle}>{t('citizen:mobileReports.myReports')}</Text>
           
           <TouchableOpacity
             style={styles.logoutButton}
@@ -305,41 +321,41 @@ const PersonalReports = ({ navigation }) => {
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{stats.totalComplaints || 0}</Text>
-          <Text style={styles.statLabel}>Total</Text>
+          <Text style={styles.statLabel}>{t('citizen:mobileReports.total')}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.resolved || 0}</Text>
-          <Text style={styles.statLabel}>Resolved</Text>
+          <Text style={styles.statLabel}>{t('common:statusFilters.resolved')}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.inProgress || 0}</Text>
-          <Text style={styles.statLabel}>In Progress</Text>
+          <Text style={styles.statLabel}>{t('common:statusFilters.in_progress')}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.pending || 0}</Text>
-          <Text style={styles.statLabel}>Pending</Text>
+          <Text style={styles.statLabel}>{t('common:statusFilters.pending')}</Text>
         </View>
       </View>
 
       {/* Reports List */}
       <View style={styles.reportsSection}>
-        <Text style={styles.sectionTitle}>Your Complaint Reports</Text>
-        {reports.length === 0 ? (
+        <Text style={styles.sectionTitle}>{t('citizen:mobileReports.yourReports')}</Text>
+        {translatedReports.length === 0 ? (
           <View style={styles.noReports}>
             <Ionicons name="document-outline" size={60} color="#bdc3c7" />
-            <Text style={styles.noReportsText}>No reports found</Text>
+            <Text style={styles.noReportsText}>{t('citizen:mobileReports.noReports')}</Text>
             <Text style={styles.noReportsSubtext}>
-              Submit your first complaint to see it here
+              {t('citizen:mobileReports.noReportsSub')}
             </Text>
             <TouchableOpacity
               style={styles.submitButton}
               onPress={() => navigation.navigate('SubmitComplaint')}
             >
-              <Text style={styles.submitButtonText}>Submit Complaint</Text>
+              <Text style={styles.submitButtonText}>{t('citizen:mobileReports.submitComplaint')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          reports.map(report => renderReportCard(report))
+          translatedReports.map(report => renderReportCard(report))
         )}
       </View>
 
@@ -351,7 +367,7 @@ const PersonalReports = ({ navigation }) => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Complaint Tracking</Text>
+            <Text style={styles.modalTitle}>{t('citizen:mobileReports.complaintTracking')}</Text>
             <TouchableOpacity
               onPress={() => setShowTrackingModal(false)}
               style={styles.closeButton}
@@ -360,49 +376,60 @@ const PersonalReports = ({ navigation }) => {
             </TouchableOpacity>
           </View>
           
-          {selectedReport && (
+          {translatedSelected && (
             <ScrollView style={styles.modalContent}>
               {/* Report Info */}
               <View style={styles.reportInfo}>
                 <Text style={styles.reportModalTitle}>
-                  {selectedReport.title}
+                  {translatedSelected.title || t('citizen:personalReports.untitledIncident')}
                 </Text>
                 <Text style={styles.reportModalDescription}>
-                  {selectedReport.description}
+                  {translatedSelected.description}
                 </Text>
                 
-                {selectedReport.image_url && (
+                {translatedSelected.image_url && (
                   <Image 
-                    source={{ uri: selectedReport.image_url }} 
+                    source={{ uri: translatedSelected.image_url }} 
                     style={styles.reportModalImage}
                   />
                 )}
                 
                 <View style={styles.reportModalMeta}>
                   <Text style={styles.modalMetaText}>
-                    Submitted: {new Date(selectedReport.created_at).toLocaleDateString()} at {new Date(selectedReport.created_at).toLocaleTimeString()}
+                    {t('citizen:mobileReports.submittedAt', {
+                      date: formatLocalizedDate(translatedSelected.created_at, {}, i18n.language),
+                      time: formatLocalizedTime(translatedSelected.created_at, i18n.language),
+                    })}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    Location: {selectedReport.location_address || 'Not specified'}
+                    {t('citizen:mobileReports.locationLabel', {
+                      location: translatedSelected.location_address || t('citizen:mobileReports.locationNotSpecified'),
+                    })}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    Category: {selectedReport.category || 'General'}
+                    {t('citizen:mobileReports.categoryLabel', {
+                      category: translatedSelected.category
+                        ? getCategoryLabel(translatedSelected.category, t)
+                        : t('common:mobileNav.general'),
+                    })}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    Priority: {selectedReport.priority || 'Medium'}
+                    {t('citizen:mobileReports.priorityLabel', {
+                      priority: getPriorityTier({ priority: translatedSelected.priority }, t).label,
+                    })}
                   </Text>
                 </View>
               </View>
               
               {/* Amazon-style Tracking */}
               <View style={styles.trackingContainer}>
-                <Text style={styles.trackingTitle}>Progress Tracking</Text>
-                {selectedReport.trackingStages?.map((stage, index) => 
+                <Text style={styles.trackingTitle}>{t('citizen:mobileReports.progressTracking')}</Text>
+                {translatedStages.map((stage, index) => 
                   renderTrackingStage(
                     stage, 
-                    index + 1 === selectedReport.currentStage,
+                    index + 1 === translatedSelected.currentStage,
                     stage.status === 'completed',
-                    index === selectedReport.trackingStages.length - 1
+                    index === translatedStages.length - 1
                   )
                 )}
               </View>

@@ -12,11 +12,16 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
+import { useTranslatedList, useTranslatedText } from '../../context/TranslationContext';
+import { formatLocalizedDate, formatLocalizedRelativeTime } from '../../utils/dateLocale';
+import { getCategoryLabel, getStatusLabel } from '../../utils/priorityUtils';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const EnhancedAdminDashboard = ({ navigation }) => {
+  const { t, i18n } = useTranslation(['admin', 'common', 'complaint']);
   const [userData, setUserData] = useState(null);
   const [dashboardData, setDashboardData] = useState({
     overview: {},
@@ -28,6 +33,10 @@ const EnhancedAdminDashboard = ({ navigation }) => {
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const translatedHotspots = useTranslatedList(dashboardData.locationHotspots || [], ['area_name']);
+  const translatedActivity = useTranslatedList(dashboardData.recentActivity || [], ['event_title']);
+  const translatedAdminName = useTranslatedText(userData?.fullName || userData?.full_name || '');
 
   useEffect(() => {
     loadUserData();
@@ -49,7 +58,7 @@ const EnhancedAdminDashboard = ({ navigation }) => {
     try {
       setLoading(true);
       const response = await makeApiCall(`${apiClient.baseUrl}/api/admin-enhanced/dashboard/overview`);
-      
+
       if (response.success) {
         // Handle the actual API response structure
         setDashboardData({
@@ -61,11 +70,11 @@ const EnhancedAdminDashboard = ({ navigation }) => {
           costAnalysis: response.data.costAnalysis || {}
         });
       } else {
-        Alert.alert('Error', 'Failed to load dashboard data');
+        Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.loadDashboardFailed'));
       }
     } catch (error) {
       console.error('Dashboard load error:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.connectError'));
     } finally {
       setLoading(false);
     }
@@ -104,21 +113,23 @@ const EnhancedAdminDashboard = ({ navigation }) => {
       <View style={styles.loadingContainer}>
         <LinearGradient colors={['#1A1A1A', '#1A1A1A']} style={styles.loadingGradient}>
           <Ionicons name="analytics" size={50} color="#fff" />
-          <Text style={styles.loadingText}>Loading Dashboard...</Text>
+          <Text style={styles.loadingText}>{t('admin:mobileAdmin.loadingDashboard')}</Text>
         </LinearGradient>
       </View>
     );
   }
 
   const { overview } = dashboardData;
+  const displayHotspots = translatedHotspots.length > 0 ? translatedHotspots : (dashboardData.locationHotspots || []);
+  const displayActivity = translatedActivity.length > 0 ? translatedActivity : (dashboardData.recentActivity || []);
 
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#1A1A1A', '#1A1A1A']} style={styles.header}>
         <View style={styles.headerContent}>
           <View>
-            <Text style={styles.greeting}>Welcome back,</Text>
-            <Text style={styles.adminName}>{userData?.fullName || userData?.full_name || 'Admin'}</Text>
+            <Text style={styles.greeting}>{t('admin:mobileAdmin.welcomeBack')}</Text>
+            <Text style={styles.adminName}>{translatedAdminName || userData?.fullName || userData?.full_name || t('admin:mobileAdmin.adminDefault')}</Text>
           </View>
           <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
             <Ionicons name="log-out-outline" size={24} color="#fff" />
@@ -134,44 +145,44 @@ const EnhancedAdminDashboard = ({ navigation }) => {
       >
         {/* Overview Stats */}
         <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>Overview</Text>
+          <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.overview')}</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
               <Ionicons name="document-text-outline" size={24} color="#1A1A1A" />
               <Text style={styles.statNumber}>{overview.totalComplaints || 0}</Text>
-              <Text style={styles.statLabel}>Total Complaints</Text>
+              <Text style={styles.statLabel}>{t('admin:mobileAdmin.totalComplaints')}</Text>
             </View>
-            
+
             <View style={styles.statCard}>
               <Ionicons name="hourglass-outline" size={24} color="#1A1A1A" />
               <Text style={styles.statNumber}>{overview.pendingComplaints || 0}</Text>
-              <Text style={styles.statLabel}>Pending</Text>
+              <Text style={styles.statLabel}>{t('common:statusFilters.pending')}</Text>
             </View>
-            
+
             <View style={styles.statCard}>
               <Ionicons name="construct-outline" size={24} color="#1A1A1A" />
               <Text style={styles.statNumber}>{overview.inProgressComplaints || 0}</Text>
-              <Text style={styles.statLabel}>In Progress</Text>
+              <Text style={styles.statLabel}>{t('common:statusFilters.in_progress')}</Text>
             </View>
-            
+
             <View style={styles.statCard}>
               <Ionicons name="checkmark-circle-outline" size={24} color="#1A1A1A" />
               <Text style={styles.statNumber}>{overview.resolvedComplaints || 0}</Text>
-              <Text style={styles.statLabel}>Resolved</Text>
+              <Text style={styles.statLabel}>{t('admin:mobileAdmin.resolvedComplaints')}</Text>
             </View>
           </View>
 
           <View style={styles.performanceStats}>
             <View style={styles.performanceStat}>
-              <Text style={styles.performanceLabel}>Resolution Rate</Text>
+              <Text style={styles.performanceLabel}>{t('citizen:mobileTransparency.resolutionRate')}</Text>
               <Text style={styles.performanceValue}>{overview.resolutionRate || 0}%</Text>
             </View>
             <View style={styles.performanceStat}>
-              <Text style={styles.performanceLabel}>Avg Resolution Time</Text>
+              <Text style={styles.performanceLabel}>{t('admin:mobileAdmin.avgResolutionTime')}</Text>
               <Text style={styles.performanceValue}>{overview.avgResolutionTime || 0}h</Text>
             </View>
             <View style={styles.performanceStat}>
-              <Text style={styles.performanceLabel}>Active Citizens</Text>
+              <Text style={styles.performanceLabel}>{t('admin:mobileAdmin.activeCitizens')}</Text>
               <Text style={styles.performanceValue}>{overview.activeUsers || 0}</Text>
             </View>
           </View>
@@ -179,21 +190,21 @@ const EnhancedAdminDashboard = ({ navigation }) => {
 
         {/* Quick Actions */}
         <View style={styles.actionsSection}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.quickActions')}</Text>
           <View style={styles.actionGrid}>
             <TouchableOpacity style={styles.actionCard} onPress={navigateToPriorityQueue}>
               <LinearGradient colors={['#1A1A1A', '#1A1A1A']} style={styles.actionGradient}>
                 <Ionicons name="list-outline" size={28} color="#fff" />
-                <Text style={styles.actionTitle}>Priority Queue</Text>
-                <Text style={styles.actionSubtitle}>Manage complaints by priority</Text>
+                <Text style={styles.actionTitle}>{t('admin:mobileAdmin.viewPriorityQueue')}</Text>
+                <Text style={styles.actionSubtitle}>{t('admin:mobileAdmin.manageByPriority')}</Text>
               </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionCard} onPress={navigateToCitizenManagement}>
               <LinearGradient colors={['#1A1A1A', '#1A1A1A']} style={styles.actionGradient}>
                 <Ionicons name="people-outline" size={28} color="#fff" />
-                <Text style={styles.actionTitle}>Citizen Management</Text>
-                <Text style={styles.actionSubtitle}>Manage user accounts</Text>
+                <Text style={styles.actionTitle}>{t('admin:mobileAdmin.citizenManagement')}</Text>
+                <Text style={styles.actionSubtitle}>{t('admin:mobileAdmin.manageUserAccounts')}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -201,7 +212,7 @@ const EnhancedAdminDashboard = ({ navigation }) => {
 
         {/* Top Priority Complaints */}
         <View style={styles.prioritySection}>
-          <Text style={styles.sectionTitle}>High Priority Complaints</Text>
+          <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.highPriorityComplaints')}</Text>
           {(dashboardData.topPriorityComplaints || []).length > 0 ? (
             (dashboardData.topPriorityComplaints || []).slice(0, 3).map((complaint, index) => (
               <TouchableOpacity
@@ -212,24 +223,24 @@ const EnhancedAdminDashboard = ({ navigation }) => {
                 <View style={styles.priorityHeader}>
                   <View style={styles.priorityBadge}>
                     <Text style={styles.priorityScore}>
-                      {typeof complaint.priority_score === 'number' ? `${(complaint.priority_score * 100).toFixed(0)}%` : 'N/A'}
+                      {typeof complaint.priority_score === 'number' ? `${(complaint.priority_score * 100).toFixed(0)}%` : t('common:mobileNav.na')}
                     </Text>
                   </View>
                   <View style={styles.priorityInfo}>
                     <Text style={styles.priorityTitle} numberOfLines={2}>
-                      {complaint.category?.replace(/_/g, ' ').toUpperCase() || 'Complaint'}
+                      {complaint.category ? getCategoryLabel(complaint.category, t).toUpperCase() : t('admin:mobileAdmin.complaintFallback')}
                     </Text>
                     <Text style={styles.priorityLocation} numberOfLines={1}>
-                      Priority Score: {complaint.priority_score ?? 'N/A'}
+                      {t('admin:mobileAdmin.priorityScoreLabel', { score: complaint.priority_score ?? t('common:mobileNav.na') })}
                     </Text>
                   </View>
                 </View>
                 <View style={styles.priorityFooter}>
                   <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>{(complaint.status || 'pending').toUpperCase()}</Text>
+                    <Text style={styles.statusText}>{getStatusLabel(complaint.status || 'pending', t).toUpperCase()}</Text>
                   </View>
                   <Text style={styles.priorityDate}>
-                    {new Date(complaint.created_at).toLocaleDateString()}
+                    {formatLocalizedDate(complaint.created_at, {}, i18n.language)}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -237,28 +248,28 @@ const EnhancedAdminDashboard = ({ navigation }) => {
           ) : (
             <View style={styles.emptyActivityCard}>
               <Ionicons name="flame-outline" size={32} color="#95a5a6" />
-              <Text style={styles.emptyActivityText}>No high priority complaints</Text>
+              <Text style={styles.emptyActivityText}>{t('admin:mobileAdmin.noHighPriority')}</Text>
             </View>
           )}
-          
+
           <TouchableOpacity style={styles.viewAllButton} onPress={navigateToPriorityQueue}>
-            <Text style={styles.viewAllText}>View All Complaints</Text>
+            <Text style={styles.viewAllText}>{t('admin:mobileAdmin.viewAllComplaints')}</Text>
             <Ionicons name="arrow-forward" size={16} color="#1A1A1A" />
           </TouchableOpacity>
         </View>
 
         {/* Location Hotspots */}
-        {(dashboardData.locationHotspots || []).length > 0 && (
+        {displayHotspots.length > 0 && (
           <View style={styles.hotspotsSection}>
-            <Text style={styles.sectionTitle}>Complaint Hotspots</Text>
-            {(dashboardData.locationHotspots || []).slice(0, 3).map((hotspot, index) => (
+            <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.complaintHotspots')}</Text>
+            {displayHotspots.slice(0, 3).map((hotspot, index) => (
               <View key={index} style={styles.hotspotCard}>
                 <View style={styles.hotspotHeader}>
                   <Ionicons name="location" size={20} color="#1A1A1A" />
                   <Text style={styles.hotspotLocation}>{hotspot.area_name}</Text>
                 </View>
                 <Text style={styles.hotspotCount}>
-                  {hotspot.complaint_count} complaints in this area
+                  {t('admin:mobileAdmin.hotspotCount', { count: hotspot.complaint_count })}
                 </Text>
               </View>
             ))}
@@ -267,21 +278,21 @@ const EnhancedAdminDashboard = ({ navigation }) => {
 
         {/* Recent Activity */}
         <View style={styles.activitySection}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          {(dashboardData.recentActivity || []).length > 0 ? (
-            (dashboardData.recentActivity || []).slice(0, 5).map((activity, index) => (
+          <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.recentActivity')}</Text>
+          {displayActivity.length > 0 ? (
+            displayActivity.slice(0, 5).map((activity, index) => (
               <View key={activity.id || index} style={styles.activityItem}>
                 <View style={styles.activityIcon}>
-                  <Ionicons 
-                    name={getActivityIcon(activity.event_type)} 
-                    size={16} 
-                    color="#1A1A1A" 
+                  <Ionicons
+                    name={getActivityIcon(activity.event_type)}
+                    size={16}
+                    color="#1A1A1A"
                   />
                 </View>
                 <View style={styles.activityContent}>
                   <Text style={styles.activityTitle}>{activity.event_title}</Text>
                   <Text style={styles.activityTime}>
-                    {formatActivityTime(activity.created_at)}
+                    {formatLocalizedRelativeTime(activity.created_at, formatActivityTime(activity.created_at), i18n.language)}
                   </Text>
                 </View>
               </View>
@@ -289,7 +300,7 @@ const EnhancedAdminDashboard = ({ navigation }) => {
           ) : (
             <View style={styles.emptyActivityCard}>
               <Ionicons name="time-outline" size={32} color="#95a5a6" />
-              <Text style={styles.emptyActivityText}>No recent activity</Text>
+              <Text style={styles.emptyActivityText}>{t('admin:mobileAdmin.noRecentActivity')}</Text>
             </View>
           )}
         </View>
@@ -316,7 +327,7 @@ const formatActivityTime = (timestamp) => {
   const now = new Date();
   const time = new Date(timestamp);
   const diffMinutes = Math.floor((now - time) / (1000 * 60));
-  
+
   if (diffMinutes < 1) return 'Just now';
   if (diffMinutes < 60) return `${diffMinutes}m ago`;
   if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;

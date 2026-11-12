@@ -17,6 +17,7 @@ import {
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { makeApiCall, apiClient } from '../../../config/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { refetchComplaintVotes } from '../../utils/voteUtils';
@@ -27,12 +28,17 @@ import NewsCarousel from '../../components/NewsCarousel';
 import NewsCard from '../../components/NewsCard';
 import NewsService from '../../services/NewsService';
 import WeatherWidget from '../../components/WeatherWidget';
+import { useTranslatedList } from '../../context/TranslationContext';
+import { formatLocalizedRelativeTime } from '../../utils/dateLocale';
+import { getCategoryLabel, getStatusLabel } from '../../utils/priorityUtils';
 
 const { width } = Dimensions.get('window');
 const CARD_HEIGHT = 380;
 
 const ComplaintFeedScreen = ({ navigation }) => {
+ const { t, i18n } = useTranslation(['citizen', 'common', 'complaint']);
  const [complaints, setComplaints] = useState([]);
+ const translatedComplaints = useTranslatedList(complaints, ['title', 'description', 'location_address', 'reporterName']);
  const [loading, setLoading] = useState(true);
  const [refreshing, setRefreshing] = useState(false);
  const [userLocation, setUserLocation] = useState(null);
@@ -77,21 +83,21 @@ const ComplaintFeedScreen = ({ navigation }) => {
  return coords;
  } else {
  Alert.alert(
- "Location Error",
- "We couldn't determine your current location. Please check your device settings and try again.",
- [{ text: "OK" }]
+ t('citizen:mobilePrivacy.locationError'),
+ t('citizen:mobileFeed.locationDetermineFailed'),
+ [{ text: t('common:mobileNav.ok') }]
  );
  return null;
  }
  } catch (error) {
  console.error(' Error getting location:', error);
  Alert.alert(
- "Location Error",
- "We need your location to show nearby complaints. Please enable location services.",
+ t('citizen:mobilePrivacy.locationError'),
+ t('citizen:mobileFeed.locationPermissionNeeded'),
  [
- { text: "Cancel" },
+ { text: t('common:mobileNav.cancel') },
  { 
- text: "Settings", 
+ text: t('common:mobileNav.settings'), 
  onPress: async () => {
  if (Platform.OS === 'ios') {
  Linking.openURL('app-settings:');
@@ -129,9 +135,11 @@ const ComplaintFeedScreen = ({ navigation }) => {
  
  // Calculate time ago
  const timeAgo = getTimeAgo(new Date(complaint.created_at));
+ const reporterName = complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || '';
  
  return {
  ...complaint,
+ reporterName,
  timeAgo,
  voteCount: complaint.vote_count || 0,
  userVoted: complaint.userVoted || false,
@@ -146,9 +154,9 @@ const ComplaintFeedScreen = ({ navigation }) => {
  } catch (error) {
  console.error(' Error fetching nearby complaints:', error);
  Alert.alert(
- "Couldn't Load Complaints",
- "There was a problem loading complaints. Please try again later.",
- [{ text: "OK" }]
+ t('citizen:mobileFeed.loadErrorTitle'),
+ t('citizen:mobileFeed.loadErrorDesc'),
+ [{ text: t('common:mobileNav.ok') }]
  );
  setComplaints([]);
  } finally {
@@ -198,35 +206,24 @@ const ComplaintFeedScreen = ({ navigation }) => {
 
  // Create feed data (only complaints, no interspersed news)
  const createFeedData = () => {
- console.log(' Creating feed data...');
- console.log(' Complaints:', complaints.length);
- 
- if (!complaints.length) {
- console.log('️ No complaints available for feed');
+ const sourceList = translatedComplaints.length > 0 ? translatedComplaints : complaints;
+ if (!sourceList.length) {
  return [];
  }
  
  // Only return complaint items - news will be shown in header
- const feedData = complaints.map(complaint => ({
+ return sourceList.map(complaint => ({
  id: complaint.id,
  type: 'complaint',
  data: complaint
  }));
- 
- console.log(' Feed data created:', feedData.length, 'complaint items');
- 
- return feedData;
  };
 
  // Update feed data when complaints change (no news interspersing)
  useEffect(() => {
- console.log(' Feed data update triggered');
- console.log(' Current complaints:', complaints.length);
- 
  const feed = createFeedData();
  setFeedData(feed);
- console.log(' Feed data updated with', feed.length, 'items');
- }, [complaints]); // Remove allNews dependency
+ }, [translatedComplaints, complaints]);
 
  // Fetch news on component mount
  useEffect(() => {
@@ -264,9 +261,9 @@ const ComplaintFeedScreen = ({ navigation }) => {
  if (!voteResponse.success) {
  console.error(' Vote failed:', voteResponse);
  Alert.alert(
- "Vote Failed",
- "There was a problem recording your vote. Please try again.",
- [{ text: "OK" }]
+ t('citizen:mobileFeed.voteFailedTitle'),
+ t('citizen:mobileFeed.voteFailedDesc'),
+ [{ text: t('common:mobileNav.ok') }]
  );
  return;
  }
@@ -394,12 +391,10 @@ const ComplaintFeedScreen = ({ navigation }) => {
 
  // Handle news press
  const handleNewsPress = (article) => {
- console.log(' News pressed:', article.headline);
- // TODO: Navigate to news detail screen or open external link
  Alert.alert(
  article.headline,
- `${article.summary}\n\nSource: ${article.source}`,
- [{ text: 'Close' }]
+ `${article.summary}\n\n${t('citizen:mobileFeed.sourcePrefix', { source: article.source })}`,
+ [{ text: t('citizen:mobileFeed.close') }]
  );
  };
 
@@ -453,26 +448,28 @@ const ComplaintFeedScreen = ({ navigation }) => {
   <View style={styles.userInfo}>
   <View style={styles.userAvatar}>
   <Text style={styles.userAvatarText}>
-  {(item.users?.full_name || item.user?.full_name || item.user_name || item.citizenName || 'Verified Citizen').charAt(0).toUpperCase()}
+  {(item.reporterName || t('citizen:feed.verifiedCitizen')).charAt(0).toUpperCase()}
   </Text>
   </View>
   <View>
   <Text style={styles.userName}>
-  {item.users?.full_name || item.user?.full_name || item.user_name || item.citizenName || 'Verified Citizen'}
+  {item.reporterName || t('citizen:feed.verifiedCitizen')}
   </Text>
  <View style={styles.locationRow}>
  <Ionicons name="location" size={12} color="#777" />
  <Text style={styles.locationText} numberOfLines={1}>
- {item.location_address?.substring(0, 30) || 'Unknown location'}
+ {item.location_address?.substring(0, 30) || t('citizen:mobileFeed.unknownLocation')}
  </Text>
  </View>
  </View>
  </View>
  <View style={styles.timeContainer}>
- <Text style={styles.timeAgo}>{item.timeAgo}</Text>
+ <Text style={styles.timeAgo}>
+ {formatLocalizedRelativeTime(item.created_at, item.timeAgo, i18n.language)}
+ </Text>
  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
  <Text style={styles.statusText}>
- {((item.status || 'pending').charAt(0).toUpperCase() + (item.status || 'pending').slice(1)).replace('_', ' ')}
+ {getStatusLabel(item.status, t)}
  </Text>
  </View>
  </View>
@@ -489,21 +486,21 @@ const ComplaintFeedScreen = ({ navigation }) => {
  ) : (
  <View style={styles.noImageContainer}>
  <Ionicons name="image" size={50} color="#ddd" />
- <Text style={styles.noImageText}>No image available</Text>
+ <Text style={styles.noImageText}>{t('citizen:mobileFeed.noImage')}</Text>
  </View>
  )}
  
  <View style={styles.categoryBadge}>
  {getCategoryIcon(item.category)}
  <Text style={styles.categoryText}>
- {item.category?.replace('_', ' ')}
+ {item.category ? getCategoryLabel(item.category, t) : t('common:mobileNav.general')}
  </Text>
  </View>
  </View>
  
  {/* Card Content */}
  <View style={styles.cardContent}>
- <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+ <Text style={styles.cardTitle} numberOfLines={1}>{item.title || t('citizen:feed.untitledIncident')}</Text>
  <Text style={styles.cardDescription} numberOfLines={2}>
  {item.description}
  </Text>
@@ -532,7 +529,7 @@ const ComplaintFeedScreen = ({ navigation }) => {
  style={styles.detailsButton}
  onPress={() => navigation.navigate('ComplaintDetail', { complaintId: item.id })}
  >
- <Text style={styles.detailsText}>View Details</Text>
+ <Text style={styles.detailsText}>{t('citizen:mobileFeed.viewDetails')}</Text>
  <Ionicons name="chevron-forward" size={16} color="#1A1A1A" />
  </TouchableOpacity>
  </View>
@@ -544,7 +541,7 @@ const ComplaintFeedScreen = ({ navigation }) => {
  return (
  <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
  <ActivityIndicator size="large" color="#1A1A1A" />
- <Text style={styles.loadingText}>Getting your location...</Text>
+ <Text style={styles.loadingText}>{t('citizen:mobileFeed.gettingLocation')}</Text>
  </View>
  );
  }
@@ -552,14 +549,14 @@ const ComplaintFeedScreen = ({ navigation }) => {
  return (
  <View style={[styles.container, { paddingTop: insets.top }]}>
  <View style={styles.header}>
- <Text style={styles.headerTitle}>Nearby Issues</Text>
+ <Text style={styles.headerTitle}>{t('citizen:mobileFeed.nearbyIssues')}</Text>
  {userLocation && (
  <TouchableOpacity 
  style={styles.locationButton}
  onPress={fetchUserLocation}
  >
  <Ionicons name="locate" size={16} color="#fff" />
- <Text style={styles.locationButtonText}>Within 5km</Text>
+ <Text style={styles.locationButtonText}>{t('citizen:mobileFeed.within5km')}</Text>
  </TouchableOpacity>
  )}
  </View>
@@ -567,21 +564,21 @@ const ComplaintFeedScreen = ({ navigation }) => {
  {loading && !refreshing ? (
  <View style={styles.loadingContainer}>
  <ActivityIndicator size="large" color="#1A1A1A" />
- <Text style={styles.loadingText}>Loading nearby complaints...</Text>
+ <Text style={styles.loadingText}>{t('citizen:mobileFeed.loadingNearby')}</Text>
  </View>
  ) : complaints.length === 0 ? (
  <View style={styles.emptyContainer}>
  <Ionicons name="alert-circle-outline" size={60} color="#ccc" />
- <Text style={styles.emptyTitle}>No Complaints Nearby</Text>
+ <Text style={styles.emptyTitle}>{t('citizen:mobileFeed.noComplaintsTitle')}</Text>
  <Text style={styles.emptyText}>
- There are no reported issues within 5km of your location.
+ {t('citizen:mobileFeed.noComplaintsDesc')}
  </Text>
  <TouchableOpacity 
  style={styles.reportButton}
  onPress={() => navigation.navigate('SubmitComplaint')}
  >
  <Ionicons name="add-circle" size={20} color="#fff" />
- <Text style={styles.reportButtonText}>Report an Issue</Text>
+ <Text style={styles.reportButtonText}>{t('citizen:mobileFeed.reportIssue')}</Text>
  </TouchableOpacity>
  </View>
  ) : (
@@ -604,16 +601,12 @@ const ComplaintFeedScreen = ({ navigation }) => {
  />
  }
  ListHeaderComponent={() => {
- console.log(' Rendering ListHeaderComponent');
- console.log(' Top news length:', topNews.length);
- 
  return (
  <View style={{ marginBottom: 10 }}>
  <WeatherWidget />
  {/* News Carousel - Always at top */}
  {topNews.length > 0 ? (
  <>
- {console.log(' Rendering NewsCarousel with', topNews.length, 'items')}
  <View style={{ marginBottom: 8 }}>
  <Text style={{ 
  fontSize: 16, 
@@ -622,7 +615,7 @@ const ComplaintFeedScreen = ({ navigation }) => {
  marginHorizontal: 16, 
  marginBottom: 8 
  }}>
- ️ Civic News
+ {t('citizen:mobileFeed.civicNews')}
  </Text>
  <NewsCarousel
  news={topNews}
@@ -642,15 +635,14 @@ const ComplaintFeedScreen = ({ navigation }) => {
  marginHorizontal: 16, 
  marginBottom: 8 
  }}>
- Community Reports
+ {t('citizen:mobileFeed.communityReports')}
  </Text>
  </>
  ) : (
  <>
- {console.log('️ No top news to display')}
  <View style={{ padding: 10, backgroundColor: '#f0f0f0', margin: 10, borderRadius: 8 }}>
  <Text style={{ textAlign: 'center', color: '#666' }}>
- Loading Civic News...
+ {t('citizen:mobileFeed.loadingNews')}
  </Text>
  </View>
  <Text style={{ 
@@ -660,7 +652,7 @@ const ComplaintFeedScreen = ({ navigation }) => {
  marginHorizontal: 16, 
  marginBottom: 8 
  }}>
- Community Reports
+ {t('citizen:mobileFeed.communityReports')}
  </Text>
  </>
  )}

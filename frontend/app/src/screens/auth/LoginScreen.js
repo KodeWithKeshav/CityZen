@@ -10,9 +10,11 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
 
 const LoginScreen = ({ navigation }) => {
+  const { t } = useTranslation(['auth', 'common']);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -29,7 +31,7 @@ const LoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     const trimmedEmail = formData.email.trim();
     if (!trimmedEmail || !formData.password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('login.fillFields', 'Please fill in all fields'));
       return;
     }
 
@@ -45,7 +47,7 @@ const LoginScreen = ({ navigation }) => {
         await AsyncStorage.setItem('authToken', response.data.token);
         await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
 
-        Alert.alert('Success', 'Login successful!');
+        Alert.alert(t('common:mobileNav.ok', 'Success'), t('login.welcomeBack', { name: response.data.user.fullName || '' }));
         
         // Navigate based on user type
         if (response.data.user.userType === 'admin') {
@@ -55,7 +57,7 @@ const LoginScreen = ({ navigation }) => {
         }
       }
     } catch (error) {
-      Alert.alert('Error', error.message || 'Login failed');
+      Alert.alert(t('common:mobileNav.error', 'Error'), error.message || t('login.loginFailed', 'Login failed'));
     } finally {
       setLoading(false);
     }
@@ -64,13 +66,13 @@ const LoginScreen = ({ navigation }) => {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>CityZen Login</Text>
-        <Text style={styles.subtitle}>Sign in to your account</Text>
+        <Text style={styles.title}>{t('welcome.brand', 'CITYZEN')} · {t('login.tabLogin', 'Login')}</Text>
+        <Text style={styles.subtitle}>{t('login.secureAccess', 'Sign in to your account')}</Text>
 
         <View style={styles.form}>
           <TextInput
             style={styles.input}
-            placeholder="Email"
+            placeholder={t('login.emailLabel', 'Email')}
             value={formData.email}
             onChangeText={(value) => handleInputChange('email', value)}
             keyboardType="email-address"
@@ -79,7 +81,7 @@ const LoginScreen = ({ navigation }) => {
 
           <TextInput
             style={styles.input}
-            placeholder="Password"
+            placeholder={t('login.passwordLabel', 'Password')}
             value={formData.password}
             onChangeText={(value) => handleInputChange('password', value)}
             secureTextEntry
@@ -93,7 +95,7 @@ const LoginScreen = ({ navigation }) => {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Login</Text>
+              <Text style={styles.buttonText}>{t('login.tabLogin', 'Login')}</Text>
             )}
           </TouchableOpacity>
 
@@ -102,7 +104,7 @@ const LoginScreen = ({ navigation }) => {
             onPress={() => navigation.navigate('Signup')}
           >
             <Text style={styles.linkText}>
-              Don't have an account? Sign up
+              {t('login.noAccount', "Don't have an account?")} {t('login.tabRegister', 'Sign up')}
             </Text>
           </TouchableOpacity>
         </View>

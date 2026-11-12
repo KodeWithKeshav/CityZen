@@ -13,11 +13,16 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
+import { useTranslatedObject, useTranslatedList } from '../../context/TranslationContext';
+import { formatLocalizedDate, formatLocalizedDateTime } from '../../utils/dateLocale';
+import { getCategoryLabel, getStatusLabel, getPriorityTier } from '../../utils/priorityUtils';
 
 const { width } = Dimensions.get('window');
 
 const CitizenDetails = ({ route, navigation }) => {
+  const { t, i18n } = useTranslation(['admin', 'common', 'complaint', 'citizen']);
   const { citizenId } = route.params || {};
   const [citizenData, setCitizenData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -26,9 +31,19 @@ const CitizenDetails = ({ route, navigation }) => {
   const [showComplaintModal, setShowComplaintModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  const translatedCitizen = useTranslatedObject(citizenData?.citizen, ['full_name']);
+  const translatedComplaints = useTranslatedList(citizenData?.complaints, ['title', 'description', 'location']);
+  const translatedStages = useTranslatedList(selectedComplaint?.trackingStages, ['name', 'description', 'officer', 'contractor']);
+
+  const displayComplaints = translatedComplaints.length > 0 ? translatedComplaints : (citizenData?.complaints || []);
+  const activeModalComplaint = selectedComplaint
+    ? (displayComplaints.find((c) => c.id === selectedComplaint.id) || selectedComplaint)
+    : null;
+  const displayStages = translatedStages.length > 0 ? translatedStages : (activeModalComplaint?.trackingStages || []);
+
   useEffect(() => {
     if (!citizenId) {
-      Alert.alert('Error', 'Missing citizen ID');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.missingCitizenId'));
       navigation.goBack();
       return;
     }
@@ -45,12 +60,12 @@ const CitizenDetails = ({ route, navigation }) => {
       if (response.success) {
         setCitizenData(response.data);
       } else {
-        Alert.alert('Error', response.message || 'Failed to load citizen details');
+        Alert.alert(t('common:mobileNav.error'), response.message || t('admin:mobileAdmin.loadCitizenDetailsFailed'));
         navigation.goBack();
       }
     } catch (error) {
       console.error('Load citizen details error:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.connectError'));
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -71,15 +86,15 @@ const CitizenDetails = ({ route, navigation }) => {
       );
       
       if (response.success) {
-        Alert.alert('Success', 'Citizen deleted successfully', [
-          { text: 'OK', onPress: () => navigation.goBack() }
+        Alert.alert(t('common:buttons.success'), t('admin:mobileAdmin.citizenDeleted'), [
+          { text: t('common:buttons.ok'), onPress: () => navigation.goBack() }
         ]);
       } else {
-        Alert.alert('Error', response.message || 'Failed to delete citizen');
+        Alert.alert(t('common:mobileNav.error'), response.message || t('admin:mobileAdmin.deleteCitizenFailed'));
       }
     } catch (error) {
       console.error('Delete citizen error:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.connectError'));
     }
     setShowDeleteConfirm(false);
   };
@@ -123,9 +138,9 @@ const CitizenDetails = ({ route, navigation }) => {
             <Text style={[styles.stageName, { color: getStageColor() }]}>
               {stage.icon} {stage.name}
             </Text>
-            {stage.date && (
+            {Boolean(stage.date) && (
               <Text style={styles.stageDate}>
-                {new Date(stage.date).toLocaleDateString()}
+                {formatLocalizedDate(stage.date, i18n.language)}
               </Text>
             )}
           </View>
@@ -134,21 +149,21 @@ const CitizenDetails = ({ route, navigation }) => {
             {stage.description}
           </Text>
           
-          {stage.officer && (
+          {Boolean(stage.officer) && (
             <Text style={styles.stageAssignment}>
-              Officer: {stage.officer}
+              {t('admin:mobileAdmin.officerSimple', { name: stage.officer })}
             </Text>
           )}
           
-          {stage.contractor && (
+          {Boolean(stage.contractor) && (
             <Text style={styles.stageAssignment}>
-              Contractor: {stage.contractor}
+              {t('admin:mobileAdmin.contractorSimple', { name: stage.contractor })}
             </Text>
           )}
           
-          {stage.estimatedCost && (
+          {Boolean(stage.estimatedCost) && (
             <Text style={styles.stageAssignment}>
-              Estimated Cost: ₹{stage.estimatedCost}
+              {t('admin:mobileAdmin.estimatedCostLine', { cost: stage.estimatedCost })}
             </Text>
           )}
         </View>
@@ -182,7 +197,7 @@ const CitizenDetails = ({ route, navigation }) => {
             { backgroundColor: getStatusColor(complaint.status) }
           ]}>
             <Text style={styles.statusText}>
-              {(complaint.status || 'pending').replace('_', ' ').toUpperCase()}
+              {getStatusLabel(complaint.status || 'pending', t)}
             </Text>
           </View>
         </View>
@@ -193,16 +208,16 @@ const CitizenDetails = ({ route, navigation }) => {
         
         <View style={styles.complaintMeta}>
           <Text style={styles.complaintDate}>
-            {new Date(complaint.created_at).toLocaleDateString()}
+            {formatLocalizedDate(complaint.created_at, i18n.language)}
           </Text>
           <Text style={styles.complaintLocation}>
-            {complaint.location || 'Location not specified'}
+            {complaint.location || t('admin:mobileAdmin.locationNotSpecified')}
           </Text>
         </View>
         
         <View style={styles.progressIndicator}>
           <Text style={styles.progressText}>
-            Stage {complaint.currentStage}/5
+            {t('admin:mobileAdmin.stageProgressRatio', { current: complaint.currentStage, total: 5 })}
           </Text>
           <View style={styles.progressBar}>
             <View style={[
@@ -218,7 +233,7 @@ const CitizenDetails = ({ route, navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>Loading citizen details...</Text>
+        <Text>{t('admin:mobileAdmin.loadingCitizenDetails')}</Text>
       </View>
     );
   }
@@ -226,15 +241,17 @@ const CitizenDetails = ({ route, navigation }) => {
   if (!citizenData) {
     return (
       <View style={styles.errorContainer}>
-        <Text>Citizen not found</Text>
+        <Text>{t('admin:mobileAdmin.citizenNotFound')}</Text>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>Go Back</Text>
+          <Text style={styles.backButton}>{t('admin:mobileAdmin.goBack')}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const { citizen, complaints, stats } = citizenData;
+  const citizen = translatedCitizen || citizenData.citizen;
+  const complaints = displayComplaints;
+  const { stats } = citizenData;
 
   return (
     <ScrollView 
@@ -256,7 +273,7 @@ const CitizenDetails = ({ route, navigation }) => {
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
           
-          <Text style={styles.headerTitle}>Citizen Details</Text>
+          <Text style={styles.headerTitle}>{t('admin:mobileAdmin.citizenDetailsTitle')}</Text>
           
           <TouchableOpacity
             style={styles.deleteButton}
@@ -283,14 +300,14 @@ const CitizenDetails = ({ route, navigation }) => {
         
         <View style={styles.profileInfo}>
           <Text style={styles.citizenName}>
-            {citizen.full_name || 'Unknown User'}
+            {citizen.full_name || t('admin:mobileAdmin.unknownUser')}
           </Text>
           <Text style={styles.citizenEmail}>{citizen.email}</Text>
           <Text style={styles.citizenPhone}>
-            {citizen.phone_number || 'No phone number'}
+            {citizen.phone_number || t('admin:mobileAdmin.noPhone')}
           </Text>
           <Text style={styles.joinDate}>
-            Joined: {new Date(citizen.created_at).toLocaleDateString()}
+            {t('admin:mobileAdmin.joinedDate', { date: formatLocalizedDate(citizen.created_at, i18n.language) })}
           </Text>
         </View>
       </View>
@@ -299,27 +316,27 @@ const CitizenDetails = ({ route, navigation }) => {
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
           <Text style={styles.statNumber}>{stats.totalComplaints}</Text>
-          <Text style={styles.statLabel}>Total</Text>
+          <Text style={styles.statLabel}>{t('admin:mobileAdmin.totalLabel')}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.resolved}</Text>
-          <Text style={styles.statLabel}>Resolved</Text>
+          <Text style={styles.statLabel}>{t('common:status.resolved')}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.inProgress}</Text>
-          <Text style={styles.statLabel}>In Progress</Text>
+          <Text style={styles.statLabel}>{t('common:status.inProgress')}</Text>
         </View>
         <View style={styles.statCard}>
           <Text style={[styles.statNumber, { color: '#1A1A1A' }]}>{stats.pending}</Text>
-          <Text style={styles.statLabel}>Pending</Text>
+          <Text style={styles.statLabel}>{t('common:status.pending')}</Text>
         </View>
       </View>
 
       {/* Complaints List */}
       <View style={styles.complaintsSection}>
-        <Text style={styles.sectionTitle}>Complaints History</Text>
+        <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.complaintsHistory')}</Text>
         {complaints.length === 0 ? (
-          <Text style={styles.noComplaints}>No complaints found</Text>
+          <Text style={styles.noComplaints}>{t('admin:mobileAdmin.noComplaintsFound')}</Text>
         ) : (
           complaints.map(complaint => renderComplaintCard(complaint))
         )}
@@ -333,7 +350,7 @@ const CitizenDetails = ({ route, navigation }) => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Complaint Tracking</Text>
+            <Text style={styles.modalTitle}>{t('admin:mobileAdmin.complaintTracking')}</Text>
             <TouchableOpacity
               onPress={() => setShowComplaintModal(false)}
               style={styles.closeButton}
@@ -342,49 +359,49 @@ const CitizenDetails = ({ route, navigation }) => {
             </TouchableOpacity>
           </View>
           
-          {selectedComplaint && (
+          {activeModalComplaint && (
             <ScrollView style={styles.modalContent}>
               {/* Complaint Info */}
               <View style={styles.complaintInfo}>
                 <Text style={styles.complaintModalTitle}>
-                  {selectedComplaint.title}
+                  {activeModalComplaint.title}
                 </Text>
                 <Text style={styles.complaintModalDescription}>
-                  {selectedComplaint.description}
+                  {activeModalComplaint.description}
                 </Text>
                 
-                {selectedComplaint.image_url && (
+                {activeModalComplaint.image_url && (
                   <Image 
-                    source={{ uri: selectedComplaint.image_url }} 
+                    source={{ uri: activeModalComplaint.image_url }} 
                     style={styles.complaintImage}
                   />
                 )}
                 
                 <View style={styles.complaintModalMeta}>
                   <Text style={styles.modalMetaText}>
-                    Submitted: {new Date(selectedComplaint.created_at).toLocaleDateString()} at {new Date(selectedComplaint.created_at).toLocaleTimeString()}
+                    {t('admin:mobileAdmin.submittedDateLine', { date: formatLocalizedDateTime(activeModalComplaint.created_at, i18n.language) })}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    Location: {selectedComplaint.location || 'Not specified'}
+                    {t('admin:mobileAdmin.locationLine', { location: activeModalComplaint.location || t('admin:mobileAdmin.notSpecified') })}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    Category: {selectedComplaint.category || 'General'}
+                    {t('admin:mobileAdmin.categoryLine', { category: activeModalComplaint.category ? getCategoryLabel(activeModalComplaint.category, t) : t('admin:mobileAdmin.generalCategory') })}
                   </Text>
                   <Text style={styles.modalMetaText}>
-                    Priority: {selectedComplaint.priority || 'Medium'}
+                    {t('admin:mobileAdmin.priorityLine', { priority: activeModalComplaint.priority_score != null ? getPriorityTier(activeModalComplaint.priority_score, t).label : (activeModalComplaint.priority || t('common:priority.medium')) })}
                   </Text>
                 </View>
               </View>
               
               {/* Amazon-style Tracking */}
               <View style={styles.trackingContainer}>
-                <Text style={styles.trackingTitle}>Complaint Progress</Text>
-                {selectedComplaint.trackingStages?.map((stage, index) => 
+                <Text style={styles.trackingTitle}>{t('admin:mobileAdmin.complaintProgress')}</Text>
+                {displayStages.map((stage, index) => 
                   renderTrackingStage(
                     stage, 
-                    index + 1 === selectedComplaint.currentStage,
+                    index + 1 === activeModalComplaint.currentStage,
                     stage.status === 'completed',
-                    index === selectedComplaint.trackingStages.length - 1
+                    index === displayStages.length - 1
                   )
                 )}
               </View>
@@ -401,22 +418,22 @@ const CitizenDetails = ({ route, navigation }) => {
       >
         <View style={styles.deleteModalOverlay}>
           <View style={styles.deleteModalContent}>
-            <Text style={styles.deleteModalTitle}>Delete Citizen</Text>
+            <Text style={styles.deleteModalTitle}>{t('admin:mobileAdmin.deleteCitizenTitle')}</Text>
             <Text style={styles.deleteModalMessage}>
-              Are you sure you want to delete this citizen? This will also delete all their complaints and cannot be undone.
+              {t('admin:mobileAdmin.deleteCitizenConfirm')}
             </Text>
             <View style={styles.deleteModalButtons}>
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setShowDeleteConfirm(false)}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={styles.cancelButtonText}>{t('common:buttons.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.confirmDeleteButton}
                 onPress={handleDeleteCitizen}
               >
-                <Text style={styles.confirmDeleteButtonText}>Delete</Text>
+                <Text style={styles.confirmDeleteButtonText}>{t('common:buttons.delete')}</Text>
               </TouchableOpacity>
             </View>
           </View>

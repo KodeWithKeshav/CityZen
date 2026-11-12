@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../context/AuthContext'
 import { makeApiCall, apiClient } from '../../services/api'
+import { useTranslatedText } from '../../context/TranslationContext'
 import {
   HiPlusCircle, HiNewspaper, HiMap, HiDocumentReport,
   HiChat, HiStar, HiChartBar, HiClock, HiCheckCircle, HiGlobeAlt, HiArrowRight
@@ -48,32 +49,33 @@ export default function CitizenDashboard() {
   }, [])
 
   const firstName = (user?.fullName || user?.full_name || '').trim().split(/\s+/)[0]
+  const translatedFirstName = useTranslatedText(firstName)
 
   return (
-    <div className="p-8 max-w-6xl mx-auto fade-in">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto fade-in">
       {/* ─── Header ─── */}
-      <div className="mb-stack-md">
+      <div className="mb-6 sm:mb-stack-md">
         <h1 className="text-headline-lg font-epilogue text-on-surface">
-          {t('citizen:dashboard.greeting', { name: firstName || t('citizen:dashboard.defaultName') })}
+          {t('citizen:dashboard.greeting', { name: translatedFirstName || firstName || t('citizen:dashboard.defaultName') })}
         </h1>
-        <p className="text-body-md text-on-surface-variant mt-2">
+        <p className="text-sm sm:text-body-md text-on-surface-variant mt-2">
           {t('citizen:dashboard.tagline')}
         </p>
       </div>
 
       {/* ─── Stats Row ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-stack-md">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-stack-md">
         {[
           { label: t('citizen:dashboard.statPending'), value: stats.pending, icon: HiClock },
           { label: t('citizen:dashboard.statResolved'), value: stats.resolved, icon: HiCheckCircle },
           { label: t('citizen:dashboard.statTotalImpact'), value: stats.total, icon: HiGlobeAlt },
         ].map(s => (
-          <div key={s.label} className="card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <s.icon className="w-5 h-5 text-on-surface" />
-              <span className="text-label-sm text-primary-400">{s.label}</span>
+          <div key={s.label} className="card p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4">
+              <s.icon className="w-5 h-5 text-on-surface flex-shrink-0" />
+              <span className="text-label-sm text-primary-400 text-right">{s.label}</span>
             </div>
-            <p className="font-epilogue text-4xl font-bold text-on-surface">
+            <p className="font-epilogue text-3xl sm:text-4xl font-bold text-on-surface">
               {statsLoading ? '—' : s.value}
             </p>
           </div>
@@ -81,10 +83,10 @@ export default function CitizenDashboard() {
       </div>
 
       {/* ─── Quick Actions ─── */}
-      <div className="mb-6">
-        <h2 className="text-label-sm text-primary-400 mb-4">{t('citizen:dashboard.quickActions')}</h2>
+      <div className="mb-4 sm:mb-6">
+        <h2 className="text-label-sm text-primary-400 mb-3 sm:mb-4">{t('citizen:dashboard.quickActions')}</h2>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {actions.map(({ icon: Icon, label, sub, to }) => (
           <button
             key={to + label}

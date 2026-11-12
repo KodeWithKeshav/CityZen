@@ -13,11 +13,13 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
 
 const { width } = Dimensions.get('window');
 
 const CitizenLoginScreen = ({ navigation }) => {
+  const { t } = useTranslation(['auth', 'common']);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -36,7 +38,7 @@ const CitizenLoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     const trimmedEmail = formData.email.trim();
     if (!trimmedEmail || !formData.password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('login.fillFields', 'Please fill in all fields'));
       return;
     }
 
@@ -50,7 +52,7 @@ const CitizenLoginScreen = ({ navigation }) => {
       if (response.success) {
         // Verify user type is citizen
         if (response.data.user.userType !== 'citizen') {
-          Alert.alert('Access Denied', 'This is the citizen portal. Please use the admin portal to login as an administrator.');
+          Alert.alert(t('common:mobileNav.error', 'Access Denied'), t('login.loginFailed', 'Please use the admin portal to login as an administrator.'));
           setLoading(false);
           return;
         }
@@ -59,11 +61,11 @@ const CitizenLoginScreen = ({ navigation }) => {
         await AsyncStorage.setItem('authToken', response.data.token);
         await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
 
-        Alert.alert('Success', 'Login successful!');
+        Alert.alert(t('common:mobileNav.ok', 'Success'), t('login.welcomeBack', { name: response.data.user.fullName || '' }));
         navigation.replace('InstagramFeed');
       }
     } catch (error) {
-      Alert.alert('Error', error.message || 'Login failed');
+      Alert.alert(t('common:mobileNav.error', 'Error'), error.message || t('login.loginFailed', 'Login failed'));
     } finally {
       setLoading(false);
     }
@@ -86,10 +88,10 @@ const CitizenLoginScreen = ({ navigation }) => {
           <Text style={styles.brandName}>CITY{'\n'}ZEN</Text>
           <View style={styles.brandDivider} />
           <View style={styles.accessBadge}>
-            <Text style={styles.accessTitle}>Secure Citizen Access</Text>
+            <Text style={styles.accessTitle}>{t('login.secureAccess', 'Secure Citizen Access')}</Text>
           </View>
           <Text style={styles.accessDescription}>
-            Institutional portal for secure identity verification and civic engagement. Restricted access.
+            {t('login.secureAccessDesc', 'Institutional portal for secure identity verification and civic engagement. Restricted access.')}
           </Text>
         </View>
       </View>
@@ -107,7 +109,7 @@ const CitizenLoginScreen = ({ navigation }) => {
             style={[styles.tab, activeTab === 'login' && styles.activeTab]}
             onPress={() => setActiveTab('login')}
           >
-            <Text style={[styles.tabText, activeTab === 'login' && styles.activeTabText]}>LOGIN</Text>
+            <Text style={[styles.tabText, activeTab === 'login' && styles.activeTabText]}>{t('login.tabLogin', 'LOGIN')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'register' && styles.activeTab]}
@@ -116,17 +118,17 @@ const CitizenLoginScreen = ({ navigation }) => {
               navigation.navigate('CitizenSignup');
             }}
           >
-            <Text style={[styles.tabText, activeTab === 'register' && styles.activeTabText]}>REGISTER</Text>
+            <Text style={[styles.tabText, activeTab === 'register' && styles.activeTabText]}>{t('login.tabRegister', 'REGISTER')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Form fields */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>CITIZEN ID / EMAIL</Text>
+          <Text style={styles.fieldLabel}>{t('login.emailLabel', 'CITIZEN ID / EMAIL')}</Text>
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
-              placeholder="Enter your credentials"
+              placeholder={t('login.emailPlaceholder', 'Enter your credentials')}
               value={formData.email}
               onChangeText={(value) => handleInputChange('email', value)}
               keyboardType="email-address"
@@ -138,7 +140,7 @@ const CitizenLoginScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>ACCESS KEY</Text>
+          <Text style={styles.fieldLabel}>{t('login.passwordLabel', 'ACCESS KEY')}</Text>
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
@@ -162,12 +164,12 @@ const CitizenLoginScreen = ({ navigation }) => {
         <View style={styles.optionsRow}>
           <View style={styles.checkRow}>
             <View style={styles.checkbox} />
-            <Text style={styles.optionText}>Maintain Session</Text>
+            <Text style={styles.optionText}>{t('login.maintainSession', 'Maintain Session')}</Text>
           </View>
           <TouchableOpacity
-            onPress={() => Alert.alert('Password Reset', 'Contact your administrator for key recovery.')}
+            onPress={() => Alert.alert(t('login.recoverKey', 'Password Reset'), t('login.secureAccessDesc', 'Contact your administrator for key recovery.'))}
           >
-            <Text style={styles.recoverText}>RECOVER KEY</Text>
+            <Text style={styles.recoverText}>{t('login.recoverKey', 'RECOVER KEY')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -182,7 +184,7 @@ const CitizenLoginScreen = ({ navigation }) => {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <View style={styles.submitContent}>
-              <Text style={styles.submitText}>AUTHENTICATE SESSION</Text>
+              <Text style={styles.submitText}>{t('login.authenticate', 'AUTHENTICATE SESSION')}</Text>
               <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
             </View>
           )}
@@ -191,14 +193,14 @@ const CitizenLoginScreen = ({ navigation }) => {
         {/* Security notice */}
         <View style={styles.securityNotice}>
           <Ionicons name="shield-checkmark-outline" size={14} color="#9CA3AF" />
-          <Text style={styles.securityText}>Protected by Civic Protocol 256-bit encryption</Text>
+          <Text style={styles.securityText}>{t('login.protectedBy', 'Protected by Civic Protocol 256-bit encryption')}</Text>
         </View>
 
         {/* Footer link */}
         <View style={styles.footerRow}>
-          <Text style={styles.footerText}>Need admin access? </Text>
+          <Text style={styles.footerText}>{t('login.adminLink', 'Admin')}? </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Welcome')}>
-            <Text style={styles.footerLink}>Switch Portal</Text>
+            <Text style={styles.footerLink}>{t('login.portalLabel', 'Switch Portal')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

@@ -24,12 +24,30 @@
     "viewPrioritySequencing": "VIEW PRIORITY SEQUENCING →",
     "loadFailed": "Failed to load operational console telemetry",
     "stats": {
-      "totalIncidents": { "label": "TOTAL INCIDENTS LOGGED", "sub": "Archived & active" },
-      "remediated": { "label": "REMEDIATED & SIGNED OFF", "sub": "Closed audit dossiers" },
-      "pendingDispatch": { "label": "PENDING DISPATCH / TRIAGE", "sub": "Awaiting team assignment" },
-      "activeFieldTeams": { "label": "ACTIVE FIELD TEAMS", "sub": "Currently under repair" },
-      "verifiedCitizens": { "label": "VERIFIED CITIZEN ACCOUNTS", "sub": "Enrolled in jurisdiction" },
-      "slaIndex": { "label": "SLA RESOLUTION INDEX", "sub": "Baseline target: 90%" }
+      "totalIncidents": {
+        "label": "TOTAL INCIDENTS LOGGED",
+        "sub": "Archived & active"
+      },
+      "remediated": {
+        "label": "REMEDIATED & SIGNED OFF",
+        "sub": "Closed audit dossiers"
+      },
+      "pendingDispatch": {
+        "label": "PENDING DISPATCH / TRIAGE",
+        "sub": "Awaiting team assignment"
+      },
+      "activeFieldTeams": {
+        "label": "ACTIVE FIELD TEAMS",
+        "sub": "Currently under repair"
+      },
+      "verifiedCitizens": {
+        "label": "VERIFIED CITIZEN ACCOUNTS",
+        "sub": "Enrolled in jurisdiction"
+      },
+      "slaIndex": {
+        "label": "SLA RESOLUTION INDEX",
+        "sub": "Baseline target: 90%"
+      }
     },
     "statusAllocation": "STATUS ALLOCATION",
     "liveCohort": "LIVE COHORT",
@@ -42,10 +60,26 @@
     "moduleLabel": "MODULE: {{tag}}",
     "accessConsole": "ACCESS CONSOLE →",
     "panels": {
-      "allComplaints": { "label": "ALL COMPLAINTS REGISTRY", "desc": "Audit, reassign and update incident states", "tag": "LEDGER" },
-      "prioritySequencing": { "label": "PRIORITY SEQUENCING", "desc": "AI-prioritized operational remediation order", "tag": "URGENCY" },
-      "geospatialCadastre": { "label": "GEOSPATIAL CADASTRE", "desc": "Interactive geographic heatmaps & radius audits", "tag": "SPATIAL" },
-      "citizenDirectory": { "label": "CITIZEN DIRECTORY", "desc": "Verified citizen roster & activity audit logs", "tag": "DIRECTORY" }
+      "allComplaints": {
+        "label": "ALL COMPLAINTS REGISTRY",
+        "desc": "Audit, reassign and update incident states",
+        "tag": "LEDGER"
+      },
+      "prioritySequencing": {
+        "label": "PRIORITY SEQUENCING",
+        "desc": "AI-prioritized operational remediation order",
+        "tag": "URGENCY"
+      },
+      "geospatialCadastre": {
+        "label": "GEOSPATIAL CADASTRE",
+        "desc": "Interactive geographic heatmaps & radius audits",
+        "tag": "SPATIAL"
+      },
+      "citizenDirectory": {
+        "label": "CITIZEN DIRECTORY",
+        "desc": "Verified citizen roster & activity audit logs",
+        "tag": "DIRECTORY"
+      }
     }
   },
   "citizenManagement": {
@@ -140,6 +174,151 @@
     "queued": "QUEUED",
     "dimensions": "DIMENSIONS",
     "severityIndex": "SEVERITY INDEX",
-    "dispatchDossier": "DISPATCH DOSSIER"
+    "dispatchDossier": "DISPATCH DOSSIER",
+    "cmUnit": "cm"
+  },
+  "complaintsRegistry": {
+    "breadcrumbArchive": "OPERATIONAL ARCHIVE",
+    "breadcrumbSubmissions": "ALL SUBMISSIONS",
+    "breadcrumbCadastre": "CADASTRE",
+    "title": "Incident Dispatch Registry",
+    "subtitle": "Centralized municipal ledger of citizen dispatches, field states, and resolution proofs.",
+    "refreshTooltip": "Refresh Roster",
+    "searchPlaceholder": "Search by ID, keyword, complainant, or street address...",
+    "loadFailed": "Failed to load municipal complaint roster",
+    "loading": "LOADING MUNICIPAL CADASTRE...",
+    "noRecordsTitle": "No Records Found",
+    "noRecordsDesc": "No registered dispatches align with the provided criteria.",
+    "matchingRecords": "MATCHING RECORDS:",
+    "of": "OF",
+    "statusFilter": "STATUS FILTER:",
+    "audit": "AUDIT",
+    "table": {
+      "id": "ID",
+      "incident": "INCIDENT & DESCRIPTION",
+      "citizen": "CITIZEN",
+      "category": "CATEGORY",
+      "severity": "SEVERITY",
+      "status": "STATUS",
+      "date": "DATE",
+      "action": "ACTION"
+    },
+    "flagged": "Flagged",
+    "flaggedTooltip": "Flagged by the authenticity check for review",
+    "scorePrefix": "SCORE: {{score}} / 100",
+    "unclassifiedIncident": "Unclassified Incident",
+    "filedOn": "FILED ON"
+  },
+  "complaintDossier": {
+    "loadFailed": "Failed to load incident dispatch dossier",
+    "statusUpdated": "Incident status and notes updated in municipal ledger",
+    "updateFailed": "Ledger update failed",
+    "selectStatus": "Please select a status",
+    "notFoundTitle": "Incident Record Not Found",
+    "notFoundDesc": "Dossier #{{id}} does not exist in the municipal registry.",
+    "returnToRegistry": "Return to Registry",
+    "backToRegistry": "BACK TO INCIDENT REGISTRY",
+    "dossierHeader": "DISPATCH AUDIT DOSSIER · RECORD #{{id}}",
+    "civicIncident": "Civic Incident",
+    "reportingCitizen": "REPORTING CITIZEN",
+    "classification": "CLASSIFICATION",
+    "priorityScore": "PRIORITY SCORE",
+    "recordedTimestamp": "RECORDED TIMESTAMP",
+    "severityTier": "SEVERITY TIER",
+    "citizenConcurrences": "CITIZEN CONCURRENCES",
+    "votesCount": "{{count}} VOTES",
+    "recordedNarrative": "RECORDED CITIZEN NARRATIVE",
+    "geoReference": "GEOGRAPHIC COORDINATE REFERENCE",
+    "coordsLogged": "Coordinates Logged",
+    "gps": "GPS: {{lat}}, {{lon}}",
+    "verifiedPhoto": "VERIFIED FIELD PHOTOGRAPH",
+    "explainAi": "EXPLAIN AI (SAM-3)",
+    "neuralValidation": "Automated Neural Validation Dossier",
+    "authenticityScore": "AUTHENTICITY SCORE",
+    "capturedLanguage": "CAPTURED LANGUAGE",
+    "contentFlagged": "CONTENT FLAGGED FOR AUDIT",
+    "flaggedWarning": "Automated moderation flagged this narrative for manual dispatcher verification.",
+    "statusUpdateTitle": "Municipal Dispatch Action & Status Control",
+    "statusLabel": "DISPATCH STATUS",
+    "adminNotesLabel": "RESOLUTION / DISPATCH NOTES",
+    "adminNotesPlaceholder": "Enter inspection observations, assigned field unit, or remediation proof...",
+    "saveUpdate": "COMMIT LEDGER UPDATE",
+    "saving": "COMMITTING...",
+    "verificationStatus": "VERIFICATION STATUS",
+    "authenticityCheck": "Description Authenticity Check",
+    "flaggedForReview": "Flagged for Review",
+    "dispatcherProtocolTitle": "Dispatcher Protocol: State Mutation",
+    "dispatcherProtocolDesc": "Modify incident lifecycle state and record official municipal action notes.",
+    "assignStatus": "ASSIGN STATUS",
+    "officialResolutionNotes": "OFFICIAL RESOLUTION & FIELD NOTES",
+    "notesPlaceholder": "Record municipal work order ID, field crew dispatched, timeline update, or closure remarks...",
+    "commitDossierUpdate": "COMMIT DOSSIER UPDATE →",
+    "committingToLedger": "COMMITTING TO MUNICIPAL LEDGER..."
+  },
+  "explainAi": {
+    "header": "EXPLAIN AI · SAM-3 VISION WORKFLOW",
+    "close": "Close modal",
+    "target": "TARGET:",
+    "maskTab": "SAM-3 Mask",
+    "originalTab": "Original",
+    "splitTab": "Side-by-Side",
+    "executing": "EXECUTING SAM-3 NEURAL SEGMENTATION PIPELINE...",
+    "executingDesc": "Synthesizing semantic bounding masks, contour detection, and model feature rationale.",
+    "unavailable": "EXPLANATION PIPELINE UNAVAILABLE",
+    "retry": "RETRY WORKFLOW",
+    "maskOverlay": "SAM-3 SEGMENTATION OVERLAY",
+    "noMask": "NO SEGMENTATION MASK GENERATED BY ENGINE",
+    "originalEvidence": "ORIGINAL FIELD EVIDENCE",
+    "originalPhoto": "ORIGINAL FIELD PHOTO",
+    "noSegData": "NO SEGMENTATION DATA",
+    "segmentation": "SAM-3 SEGMENTATION",
+    "detectedContours": "DETECTED CIVIC CONTOURS & OBJECT INSTANCES",
+    "conf": "CONF: {{pct}}%",
+    "reasoningReport": "NEURAL INFERENCE & REASONING REPORT",
+    "noExplanation": "No diagnostic explanation text was provided by the neural model.",
+    "modelLabel": "MODEL:",
+    "dismiss": "DISMISS REPORT",
+    "loadError": "Failed to generate SAM-3 neural explanation.",
+    "connectError": "Unable to connect to image analysis engine."
+  },
+  "geometry": {
+    "title": "Geometric Dimensions Profile",
+    "statusPrefix": "STATUS: {{status}}",
+    "estimation": "GEOMETRIC ESTIMATION",
+    "footprint": "SURFACE FOOTPRINT",
+    "area": "ESTIMATED AREA",
+    "depth": "ESTIMATED DEPTH",
+    "confidence": "CONFIDENCE METRIC",
+    "footnote": "* Dimensions computed via computer-vision segmentation and standard asphalt reference perspective.",
+    "computing": "COMPUTING GEOMETRIC DIMENSIONS & SPATIAL BOUNDARIES...",
+    "pendingMsg": "Geometric measurement is pending or uncomputed for this road defect.",
+    "errorPrefix": "Geometry computation error: {{error}}",
+    "running": "RUNNING ESTIMATION...",
+    "execute": "EXECUTE GEOMETRY ESTIMATION",
+    "missingInfo": "Complaint ID and field image are required for geometry estimation.",
+    "recalculated": "Pothole geometric dimensions re-calculated",
+    "failed": "Geometry estimation failed.",
+    "skipped": "Geometry estimation skipped.",
+    "commError": "Geometry service communication error.",
+    "cmUnit": "cm",
+    "cm2Unit": "cm²"
+  },
+  "mobileAdmin": {
+    "portalTitle": "Admin Dashboard",
+    "adminConsole": "Admin Console",
+    "enhancedTitle": "Operations Command",
+    "modernTitle": "Modern Admin",
+    "overview": "Overview",
+    "recentComplaints": "Recent Complaints",
+    "manageCitizens": "Manage Citizens",
+    "viewPriorityQueue": "Priority Queue",
+    "openMap": "Complaint Map",
+    "updateStatus": "Update Status",
+    "statusUpdated": "Status updated successfully",
+    "saveNotes": "Save Notes",
+    "citizenProfile": "Citizen Profile",
+    "totalComplaints": "Total Complaints",
+    "activeComplaints": "Active",
+    "resolvedComplaints": "Resolved"
   }
 }

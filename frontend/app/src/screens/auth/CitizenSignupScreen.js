@@ -11,9 +11,11 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
 
 const CitizenSignupScreen = ({ navigation }) => {
+  const { t } = useTranslation(['auth', 'common']);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -39,27 +41,27 @@ const CitizenSignupScreen = ({ navigation }) => {
     const phoneNumber = formData.phoneNumber.trim();
 
     if (!email || !formData.password || !fullName || !phoneNumber) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('citizenSignup.fillRequired', 'Please fill in all required fields'));
       return false;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('citizenSignup.passwordMismatch', 'Passwords do not match'));
       return false;
     }
 
     if (formData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('citizenSignup.passwordTooShort', 'Password must be at least 6 characters long'));
       return false;
     }
 
     if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('citizenSignup.fillRequired', 'Please enter a valid email address'));
       return false;
     }
 
     if (phoneNumber.replace(/\D/g, '').length < 10) {
-      Alert.alert('Error', 'Please enter a valid phone number (at least 10 digits)');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('citizenSignup.fillRequired', 'Please enter a valid phone number'));
       return false;
     }
 
@@ -88,28 +90,28 @@ const CitizenSignupScreen = ({ navigation }) => {
 
       if (response.success) {
         Alert.alert(
-          'Success',
-          'Your citizen account has been created successfully! You can now login.',
+          t('common:mobileNav.ok', 'Success'),
+          t('citizenSignup.accountCreated', 'Your citizen account has been created successfully! You can now login.'),
           [
             {
-              text: 'OK',
+              text: t('common:mobileNav.ok', 'OK'),
               onPress: () => navigation.navigate('CitizenLogin'),
             },
           ]
         );
       }
     } catch (error) {
-      Alert.alert('Error', error.message || 'Signup failed');
+      Alert.alert(t('common:mobileNav.error', 'Error'), error.message || t('citizenSignup.signupFailed', 'Signup failed'));
     } finally {
       setLoading(false);
     }
   };
 
   const fields = [
-    { key: 'fullName', label: 'FULL NAME', placeholder: 'Enter your full name', icon: 'person-outline', required: true },
-    { key: 'email', label: 'EMAIL ADDRESS', placeholder: 'Enter email', icon: 'mail-outline', keyboard: 'email-address', required: true },
-    { key: 'phoneNumber', label: 'PHONE NUMBER', placeholder: 'Enter phone number', icon: 'call-outline', keyboard: 'phone-pad', required: true },
-    { key: 'address', label: 'ADDRESS', placeholder: 'Enter your address (optional)', icon: 'location-outline', multiline: true },
+    { key: 'fullName', label: t('citizenSignup.fullName', 'FULL NAME'), placeholder: t('citizenSignup.fullNamePlaceholder', 'Enter your full name'), icon: 'person-outline', required: true },
+    { key: 'email', label: t('citizenSignup.email', 'EMAIL ADDRESS'), placeholder: t('citizenSignup.email', 'Enter email'), icon: 'mail-outline', keyboard: 'email-address', required: true },
+    { key: 'phoneNumber', label: t('citizenSignup.phone', 'PHONE NUMBER'), placeholder: t('citizenSignup.phonePlaceholder', 'Enter phone number'), icon: 'call-outline', keyboard: 'phone-pad', required: true },
+    { key: 'address', label: t('citizenSignup.address', 'ADDRESS'), placeholder: t('citizenSignup.addressPlaceholder', 'Enter your address (optional)'), icon: 'location-outline', multiline: true },
   ];
 
   return (
@@ -131,8 +133,8 @@ const CitizenSignupScreen = ({ navigation }) => {
 
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Register as a citizen to start reporting civic issues</Text>
+          <Text style={styles.title}>{t('citizenSignup.createAccount', 'Create Account')}</Text>
+          <Text style={styles.subtitle}>{t('citizenSignup.leftDesc', 'Register as a citizen to start reporting civic issues')}</Text>
         </View>
 
         {/* Form fields */}
@@ -160,12 +162,12 @@ const CitizenSignupScreen = ({ navigation }) => {
 
         {/* Password */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>PASSWORD <Text style={styles.required}>*</Text></Text>
+          <Text style={styles.fieldLabel}>{t('citizenSignup.password', 'PASSWORD')} <Text style={styles.required}>*</Text></Text>
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" />
             <TextInput
               style={styles.input}
-              placeholder="Min 6 characters"
+              placeholder={t('citizenSignup.passwordPlaceholder', 'Min 6 characters')}
               value={formData.password}
               onChangeText={(value) => handleInputChange('password', value)}
               secureTextEntry={!showPassword}
@@ -182,12 +184,12 @@ const CitizenSignupScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>CONFIRM PASSWORD <Text style={styles.required}>*</Text></Text>
+          <Text style={styles.fieldLabel}>{t('citizenSignup.confirmPassword', 'CONFIRM PASSWORD')} <Text style={styles.required}>*</Text></Text>
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" />
             <TextInput
               style={styles.input}
-              placeholder="Re-enter password"
+              placeholder={t('citizenSignup.confirmPasswordPlaceholder', 'Re-enter password')}
               value={formData.confirmPassword}
               onChangeText={(value) => handleInputChange('confirmPassword', value)}
               secureTextEntry={!showConfirmPassword}
@@ -207,7 +209,7 @@ const CitizenSignupScreen = ({ navigation }) => {
         <View style={styles.noticeCard}>
           <Ionicons name="information-circle-outline" size={18} color="#6B7280" />
           <Text style={styles.noticeText}>
-            Your information will be used to verify and track your complaints.
+            {t('citizenSignup.leftDesc', 'Your information will be used to verify and track your complaints.')}
           </Text>
         </View>
 
@@ -222,7 +224,7 @@ const CitizenSignupScreen = ({ navigation }) => {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <View style={styles.submitContent}>
-              <Text style={styles.submitText}>CREATE ACCOUNT</Text>
+              <Text style={styles.submitText}>{t('citizenSignup.createAccount', 'CREATE ACCOUNT')}</Text>
               <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
             </View>
           )}
@@ -230,9 +232,9 @@ const CitizenSignupScreen = ({ navigation }) => {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account? </Text>
+          <Text style={styles.footerText}>{t('citizenSignup.alreadyHaveAccount', 'Already have an account?')} </Text>
           <TouchableOpacity onPress={() => navigation.navigate('CitizenLogin')}>
-            <Text style={styles.footerLink}>Login here</Text>
+            <Text style={styles.footerLink}>{t('citizenSignup.login', 'Login here')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

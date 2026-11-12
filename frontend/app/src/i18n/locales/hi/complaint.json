@@ -8,18 +8,48 @@
     "stepOf": "चरण {{current}} / {{total}}"
   },
   "categories": {
-    "pothole": { "label": "गड्ढा", "desc": "सड़क में दरार, गड्ढा, या गंभीर क्षति" },
-    "fallen_tree": { "label": "गिरा हुआ पेड़", "desc": "मार्ग को अवरुद्ध करने वाला पेड़ या शाखा" },
-    "garbage_dumping": { "label": "कचरा डंपिंग", "desc": "अवैध नगरपालिका या व्यावसायिक कचरा निपटान" },
-    "stray_cattle": { "label": "आवारा पशु", "desc": "यातायात में बाधा डालने वाले मवेशी" },
-    "fallen_electric_pole": { "label": "गिरा हुआ बिजली का खंभा", "desc": "क्षतिग्रस्त खंभा, खुले तार, या ट्रांसफार्मर खराबी" },
-    "concrete_structure_damage": { "label": "संरचनात्मक क्षति", "desc": "दरारें, पुल का घिसाव, या सड़क धंसाव" },
-    "road_waterlogging": { "label": "सड़क जलभराव", "desc": "बारिश का रुका पानी या नाली उफान" }
+    "pothole": {
+      "label": "गड्ढा",
+      "desc": "सड़क में दरार, गड्ढा, या गंभीर क्षति"
+    },
+    "fallen_tree": {
+      "label": "गिरा हुआ पेड़",
+      "desc": "मार्ग को अवरुद्ध करने वाला पेड़ या शाखा"
+    },
+    "garbage_dumping": {
+      "label": "कचरा डंपिंग",
+      "desc": "अवैध नगरपालिका या व्यावसायिक कचरा निपटान"
+    },
+    "stray_cattle": {
+      "label": "आवारा पशु",
+      "desc": "यातायात में बाधा डालने वाले मवेशी"
+    },
+    "fallen_electric_pole": {
+      "label": "गिरा हुआ बिजली का खंभा",
+      "desc": "क्षतिग्रस्त खंभा, खुले तार, या ट्रांसफार्मर खराबी"
+    },
+    "concrete_structure_damage": {
+      "label": "संरचनात्मक क्षति",
+      "desc": "दरारें, पुल का घिसाव, या सड़क धंसाव"
+    },
+    "road_waterlogging": {
+      "label": "सड़क जलभराव",
+      "desc": "बारिश का रुका पानी या नाली उफान"
+    }
   },
   "privacyLevels": {
-    "exact": { "label": "सटीक जीपीएस", "desc": "±5–10मी सटीकता" },
-    "street": { "label": "सड़क स्तर", "desc": "±25मी सटीकता" },
-    "area": { "label": "मोहल्ला स्तर", "desc": "±150मी वार्ड त्रिज्या अनुमान" }
+    "exact": {
+      "label": "सटीक जीपीएस",
+      "desc": "±5–10मी सटीकता"
+    },
+    "street": {
+      "label": "सड़क स्तर",
+      "desc": "±25मी सटीकता"
+    },
+    "area": {
+      "label": "मोहल्ला स्तर",
+      "desc": "±150मी वार्ड त्रिज्या अनुमान"
+    }
   },
   "languages": {
     "en": "English",
@@ -66,5 +96,114 @@
     "micError": "माइक्रोफ़ोन सक्रिय नहीं हो सका",
     "uploadError": "ट्रांसक्रिप्शन सेवा तक नहीं पहुँच सके।",
     "failed": "वाक् पहचान विफल रही। कृपया पुनः प्रयास करें या अपनी शिकायत टाइप करें।"
+  },
+  "mobileSubmit": {
+    "allowExactLocation": "सटीक स्थान की अनुमति दें",
+    "allowLocation": "स्थान की अनुमति दें",
+    "cameraPermDesc": "नागरिक समस्या की फ़ोटो लेने के लिए कृपया कैमरा अनुमति दें।",
+    "categoryLabel": "श्रेणी",
+    "complaintDetails": "शिकायत विवरण",
+    "complaintIdLabel": "शिकायत आईडी",
+    "connectionErrorTitle": "कनेक्शन त्रुटि",
+    "contentMismatchDesc": "यह विवरण चयनित समस्या प्रकार से मेल नहीं खाता। कृपया सबमिट करने से पहले विवरण संपादित करें या ऊपर सुझाई गई श्रेणी चुनें।",
+    "contentMismatchTitle": "विवरण समस्या से मेल नहीं खाता",
+    "descMismatchDesc": "विवरण चयनित समस्या प्रकार से मेल नहीं खाता। कृपया अपना विवरण संपादित करें।",
+    "descMismatchTitle": "विवरण समस्या प्रकार से मेल नहीं खाता",
+    "done": "पूर्ण",
+    "endpointNotFoundDesc": "API एंडपॉइंट नहीं मिला। कृपया ऐप अपडेट करें।",
+    "enterDescription": "कृपया समस्या का विवरण दर्ज करें",
+    "enterTitle": "कृपया शिकायत के लिए एक शीर्षक दर्ज करें",
+    "getLocation": "स्थान प्राप्त करें",
+    "goToPhotoStep": "फ़ोटो चरण पर जाएं",
+    "highPriorityDesc": "महत्वपूर्ण बुनियादी ढांचे की निकटता के कारण आपकी शिकायत को {{level}} प्राथमिकता दी गई है। इस पर तुरंत ध्यान दिया जाएगा।",
+    "highPriorityTitle": "उच्च प्राथमिकता शिकायत का पता चला",
+    "invalidDataDesc": "अमान्य डेटा सबमिट किया गया। कृपया सभी फ़ील्ड जांचें।",
+    "issueTypeChangedDesc": "चूंकि समस्या का प्रकार बदल गया है, इसलिए आपकी फ़ोटो की फिर से जांच करनी होगी। कृपया फ़ोटो चरण पर वापस जाएं और नए प्रकार से मेल खाती फ़ोटो जोड़ें।",
+    "issueTypeChangedTitle": "समस्या प्रकार बदला गया",
+    "later": "बाद में",
+    "locationAccuracyLabel": "स्थान सटीकता",
+    "locationCapturedDesc": "सटीकता: ±{{radius}}मी ({{precision}})\nगोपनीयता स्तर: {{privacyLevel}}\nआसपास के बुनियादी ढांचे के आधार पर आपकी शिकायत को प्राथमिकता दी जाएगी।",
+    "locationCapturedTitle": "स्थान सफलतापूर्वक कैप्चर किया गया!",
+    "locationErrorDesc": "स्थान कैप्चर करने में असमर्थ। आप पुनः प्रयास कर सकते हैं या स्थान के बिना सबमिट कर सकते हैं (कम प्राथमिकता)।",
+    "locationErrorTitle": "स्थान त्रुटि",
+    "locationNormalDesc": "आपकी शिकायत को प्राथमिकता देने और सही नगर निगम कार्यालय तक पहुँचाने के लिए हम आपका स्थान कैप्चर करेंगे। आपकी गोपनीयता सड़क-स्तरीय सटीकता से सुरक्षित है।",
+    "locationRequiredContinueDesc": "प्राथमिकता मूल्यांकन के लिए स्थान आवश्यक है। क्या आप अभी अपना स्थान कैप्चर करना चाहेंगे?",
+    "locationRequiredTitle": "स्थान आवश्यक है",
+    "locationUrgentDesc": "{{category}} शिकायतों के लिए, आपातकालीन प्रतिक्रिया को प्राथमिकता देने हेतु हमें आपके सटीक स्थान की आवश्यकता है। इससे शिकायत निकटतम टीम तक पहुँचती है।",
+    "networkFailedDesc": "सर्वर से कनेक्ट नहीं हो सका। कृपया अपना इंटरनेट कनेक्शन जांचें।",
+    "nextSteps": "अगले चरण",
+    "photoMismatchDesc": "फ़ोटो चयनित समस्या प्रकार से मेल नहीं खाती। कृपया वापस जाकर मेल खाती फ़ोटो जोड़ें या इसे हटा दें।",
+    "photoMismatchTitle": "फ़ोटो समस्या प्रकार से मेल नहीं खाती",
+    "photoNotValidatedDesc": "चयनित समस्या प्रकार के विरुद्ध आपकी फ़ोटो सत्यापित नहीं हुई है। कृपया फ़ोटो चरण पर वापस जाकर पुनः सत्यापित करें या इसे हटा दें।",
+    "photoNotValidatedTitle": "फ़ोटो सत्यापित नहीं है",
+    "photoPermDesc": "फ़ोटो चुनने के लिए कृपया गैलरी की अनुमति दें।",
+    "pickImageFailed": "छवि चुनने में विफल",
+    "priorityAnalysis": "प्राथमिकता विश्लेषण",
+    "priorityLevelLabel": "प्राथमिकता स्तर",
+    "selectCategoryError": "कृपया शिकायत की श्रेणी चुनें",
+    "serverErrorDesc": "सर्वर त्रुटि। कृपया बाद में पुनः प्रयास करें।",
+    "serverErrorTitle": "सर्वर त्रुटि",
+    "serviceErrorTitle": "सेवा त्रुटि",
+    "skipLocation": "स्थान छोड़ें",
+    "statusLabel": "स्थिति",
+    "submitConnFallback": "कृपया अपना कनेक्शन जांचें और पुनः प्रयास करें।",
+    "submitFailedTitle": "सबमिट करना विफल",
+    "submittedLabel": "सबमिट किया गया",
+    "successSubtitle": "आपकी नागरिक शिकायत दर्ज कर ली गई है और कार्रवाई के लिए भेज दी गई है।",
+    "successTitle": "शिकायत सबमिट हो गई!",
+    "switchCategoryTo": "श्रेणी को \"{{category}}\" पर बदलें",
+    "takePhotoFailed": "फ़ोटो लेने में विफल",
+    "timeoutDesc": "अनुरोध का समय समाप्त हो गया। कृपया कनेक्शन जांचें और पुनः प्रयास करें।",
+    "titleLabel": "शीर्षक",
+    "understood": "समझ गया",
+    "validationErrorDesc": "छवि सत्यापित करने में विफल। कृपया अपना कनेक्शन जांचें और पुनः प्रयास करें।",
+    "validationErrorTitle": "सत्यापन त्रुटि",
+    "viewOnMap": "मानचित्र पर देखें",
+    "votesLabel": "वोट",
+    "validIssueDetectedTitle": "मान्य नागरिक समस्या की पहचान हुई",
+    "confidenceScoreLabel": "विश्वास स्कोर: {{score}}%",
+    "imageValidationFailedTitle": "छवि सत्यापन विफल रहा",
+    "imageValidationFailedDesc": "विश्वास स्कोर: {{score}}%\nचयनित छवि में कोई मान्य नागरिक समस्या दिखाई नहीं दे रही है। कृपया कोई दूसरी छवि चुनें।",
+    "imageValidationSubmitAnywayDesc": "विश्वास स्कोर: {{score}}%\n\nचयनित छवि में कोई मान्य नागरिक समस्या दिखाई नहीं दे रही है। अत्यावश्यक समस्याओं के लिए आप फिर भी सबमिट कर सकते हैं।",
+    "changeImage": "छवि बदलें",
+    "submitAnyway": "फिर भी सबमिट करें",
+    "validationFailedFallback": "सत्यापन विफल रहा।",
+    "tryAgain": "पुनः प्रयास करें",
+    "keepAnyway": "फिर भी रखें",
+    "skipValidation": "सत्यापन छोड़ें",
+    "selectIssueImageError": "कृपया नागरिक समस्या की एक छवि चुनें",
+    "expectedResponseLabel": "अपेक्षित प्रतिक्रिया",
+    "processingFallback": "प्रक्रियाधीन",
+    "reasoningLabel": "तर्क",
+    "viewDetails": "विवरण देखें",
+    "provideFeedback": "प्रतिक्रिया दें",
+    "totalScoreLabel": "कुल स्कोर",
+    "locationAnalysisHeader": "स्थान विश्लेषण",
+    "scoreLabel": "स्कोर",
+    "facilitiesNearbyLabel": "नज़दीकी सुविधाएँ",
+    "privacyLabel": "गोपनीयता",
+    "imageAnalysisHeader": "छवि विश्लेषण",
+    "validatingCivicIssue": "नागरिक समस्या का सत्यापन हो रहा है...",
+    "civicIssueFallback": "नागरिक समस्या",
+    "validIssueClassification": "मान्य नागरिक समस्या पाई गई (वर्गीकरण: {{classification}})",
+    "submitCivicComplaintTitle": "नागरिक शिकायत दर्ज करें",
+    "submitCivicComplaintSubtitle": "AI-संचालित प्राथमिकता स्कोरिंग के साथ नागरिक समस्याओं की रिपोर्ट करें",
+    "complaintCategoryRequired": "शिकायत श्रेणी *",
+    "locationOptionalFieldLabel": "स्थान",
+    "locationOptionalPlaceholder": "समस्या का स्थान या पता (वैकल्पिक)",
+    "locationPriorityAssessmentRequired": "स्थान प्राथमिकता मूल्यांकन *",
+    "locationAutoCaptureHint": "जब आप शिकायत श्रेणी चुनते हैं तो स्थान स्वचालित रूप से कैप्चर हो जाता है",
+    "capturingLocationStatus": "आपका स्थान कैप्चर किया जा रहा है...",
+    "accuracyInline": "सटीकता: ±{{radius}}m ({{precision}})",
+    "privacyInline": "गोपनीयता: {{description}}",
+    "recaptureLocation": "स्थान पुनः कैप्चर करें",
+    "captureLocationNow": "अभी स्थान कैप्चर करें",
+    "locationPriorityAnalysisTitle": "स्थान प्राथमिकता विश्लेषण",
+    "priorityLevelInline": "प्राथमिकता स्तर: {{level}} ({{score}}%)",
+    "issuePhotoRequired": "समस्या की फ़ोटो *",
+    "issuePhotoHint": "नागरिक समस्या दर्शाने वाली एक स्पष्ट फ़ोटो अपलोड करें। हमारा AI इसकी पुष्टि करेगा।",
+    "takePhoto": "फ़ोटो लें",
+    "chooseFromGallery": "गैलरी से चुनें",
+    "submitComplaintBtn": "शिकायत दर्ज करें"
   }
 }

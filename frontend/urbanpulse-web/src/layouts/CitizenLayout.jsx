@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import { useTranslatedText } from '../context/TranslationContext'
 import LanguageSwitcher from '../components/LanguageSwitcher'
 import {
   HiViewGrid, HiNewspaper, HiMap, HiDocumentReport,
@@ -39,8 +40,12 @@ export default function CitizenLayout() {
     setMobileNavOpen(false)
   }
 
-  const displayName = user?.fullName || user?.full_name || user?.name || user?.email || 'Citizen'
-  const userInitial = displayName.charAt(0).toUpperCase()
+  const rawName = user?.fullName || user?.full_name || user?.name || ''
+  const translatedName = useTranslatedText(rawName)
+  const displayName = translatedName || rawName || user?.email || 'Citizen'
+  const userInitial = (typeof Intl !== 'undefined' && Intl.Segmenter)
+    ? (new Intl.Segmenter().segment(displayName.trim() || 'C')[Symbol.iterator]().next().value?.segment || 'C').toUpperCase()
+    : displayName.charAt(0).toUpperCase()
 
   const sidebarContent = (
     <>
@@ -84,6 +89,11 @@ export default function CitizenLayout() {
         ))}
       </nav>
 
+      {/* Mobile Language Switcher */}
+      <div className="px-3 pb-3 sm:hidden">
+        <LanguageSwitcher className="w-full" />
+      </div>
+
       {/* Submit Report CTA */}
       <div className="px-3 pb-3">
         <button
@@ -111,7 +121,7 @@ export default function CitizenLayout() {
   )
 
   return (
-    <div className="flex h-screen bg-surface-bright overflow-hidden">
+    <div className="flex h-screen h-[100dvh] bg-surface-bright overflow-hidden">
       {/* ─── Desktop Sidebar ─── */}
       <aside className="hidden md:flex w-[220px] flex-shrink-0 border-r border-black/10 bg-white flex-col">
         {sidebarContent}
@@ -124,7 +134,7 @@ export default function CitizenLayout() {
             className="fixed inset-0 bg-black/40"
             onClick={() => setMobileNavOpen(false)}
           />
-          <aside className="relative z-10 w-[240px] max-w-[80vw] bg-white border-r border-black/10 flex flex-col h-full">
+          <aside className="relative z-10 w-[260px] max-w-[82vw] bg-white border-r border-black/10 flex flex-col h-full">
             {sidebarContent}
           </aside>
         </div>
@@ -133,11 +143,11 @@ export default function CitizenLayout() {
       {/* ─── Main Area ─── */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top Bar */}
-        <header className="h-14 flex-shrink-0 border-b border-black/10 bg-white flex items-center justify-between gap-3 px-4 md:px-6 relative">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
+        <header className="h-14 flex-shrink-0 border-b border-black/10 bg-white flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 md:px-6 relative">
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
             <button
               type="button"
-              onClick={() => setMobileNavOpen(true)}
+              onClick={() => { setShowNotifications(false); setMobileNavOpen(true) }}
               aria-label="Open navigation"
               className="md:hidden w-8 h-8 flex items-center justify-center border border-black/10 hover:bg-surface-container-high transition-colors flex-shrink-0"
             >
@@ -145,22 +155,22 @@ export default function CitizenLayout() {
             </button>
 
             {/* Search */}
-            <form onSubmit={handleSearchSubmit} className="relative w-full max-w-xs">
-              <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary-400" />
+            <form onSubmit={handleSearchSubmit} className="relative w-full max-w-xs min-w-0">
+              <HiSearch className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('nav.search')}
                 aria-label={t('nav.search')}
-                className="w-full border border-black/10 pl-10 pr-4 py-2 text-sm text-on-surface placeholder:text-primary-300 focus:outline-none focus:border-black bg-surface-container-low"
+                className="w-full border border-black/10 pl-8 sm:pl-10 pr-2 sm:pr-4 py-1.5 sm:py-2 text-xs sm:text-sm text-on-surface placeholder:text-primary-300 focus:outline-none focus:border-black bg-surface-container-low"
               />
             </form>
           </div>
 
           {/* Right actions */}
-          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-            <LanguageSwitcher />
+          <div className="flex items-center gap-1.5 sm:gap-4 flex-shrink-0">
+            <LanguageSwitcher className="hidden sm:block" />
             <button
               type="button"
               onClick={() => setShowNotifications((prev) => !prev)}
@@ -187,20 +197,20 @@ export default function CitizenLayout() {
           </div>
 
           {showNotifications && (
-            <div className="absolute right-4 md:right-6 top-14 mt-1 w-72 bg-white border border-black z-40 p-4 text-xs">
+            <div className="absolute right-3 md:right-6 top-14 mt-1 w-[min(18rem,calc(100vw-1.5rem))] bg-white border border-black z-40 p-4 text-xs">
               <div className="flex items-center justify-between border-b border-black/10 pb-2 mb-3">
-                <span className="text-label-sm text-on-surface">Updates</span>
+                <span className="text-label-sm text-on-surface">{t('popovers.updatesTitle')}</span>
                 <button
                   type="button"
                   onClick={() => setShowNotifications(false)}
-                  aria-label="Close"
+                  aria-label={t('popovers.close')}
                   className="text-primary-400 hover:text-on-surface"
                 >
                   <HiX className="w-3.5 h-3.5" />
                 </button>
               </div>
               <p className="text-on-surface-variant mb-3">
-                Track status changes and updates on your submitted complaints.
+                {t('popovers.updatesDesc')}
               </p>
               <button
                 type="button"

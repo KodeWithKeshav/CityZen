@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useChatContext } from '../../context/ChatContext'
 import {
   HiPaperAirplane, HiMicrophone, HiSparkles,
@@ -32,13 +33,13 @@ const formatMarkdown = (text) => {
 }
 
 // ─── Source badge ─────────────────────────────────────────────────────────────
-function SourceBadge({ source, confidence }) {
+function SourceBadge({ source, confidence, t }) {
   if (!source) return null
   const map = {
-    knowledge_base:          { label: 'Knowledge Base', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    knowledge_base_fallback: { label: 'KB Fallback',    cls: 'bg-yellow-50 text-yellow-700 border-yellow-200'  },
-    groq:                    { label: 'Groq AI',        cls: 'bg-violet-50 text-violet-700 border-violet-200'  },
-    groq_tool:               { label: 'AI + Navigate',  cls: 'bg-blue-50 text-blue-700 border-blue-200'        },
+    knowledge_base:          { label: t('sources.knowledge_base'), cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    knowledge_base_fallback: { label: t('sources.knowledge_base_fallback'), cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+    groq:                    { label: t('sources.groq'), cls: 'bg-violet-50 text-violet-700 border-violet-200' },
+    groq_tool:               { label: t('sources.groq_tool'), cls: 'bg-blue-50 text-blue-700 border-blue-200' },
   }
   const { label, cls } = map[source] || { label: source, cls: 'bg-gray-50 text-gray-700 border-gray-200' }
   return (
@@ -49,14 +50,14 @@ function SourceBadge({ source, confidence }) {
 }
 
 // ─── Navigation action card ───────────────────────────────────────────────────
-function NavActionCard({ action, onGo, onDismiss }) {
+function NavActionCard({ action, onGo, onDismiss, t }) {
   if (!action || action.type !== 'navigate') return null
   return (
     <div className="mt-2 p-3 border border-violet-200 bg-violet-50 rounded-lg flex items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         <HiExternalLink className="w-4 h-4 text-violet-600 flex-shrink-0" />
         <p className="text-xs text-violet-800">
-          Navigate to <strong>{action.label}</strong>?
+          {t('floating.navigateTo')} <strong>{action.label}</strong>?
         </p>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -64,7 +65,7 @@ function NavActionCard({ action, onGo, onDismiss }) {
           onClick={onGo}
           className="px-3 py-1 text-xs bg-violet-600 hover:bg-violet-700 text-white rounded-md font-medium transition-colors"
         >
-          Go now
+          {t('floating.goNow')}
         </button>
         <button onClick={onDismiss} className="p-1 text-violet-400 hover:text-violet-600">
           <HiX className="w-3.5 h-3.5" />
@@ -76,6 +77,7 @@ function NavActionCard({ action, onGo, onDismiss }) {
 
 // ─── Chatbot page ─────────────────────────────────────────────────────────────
 export default function Chatbot() {
+  const { t } = useTranslation('chatbot')
   const navigate = useNavigate()
   const {
     messages, loading, followUps,
@@ -192,54 +194,54 @@ export default function Chatbot() {
   }
 
   const QUICK_PROMPTS = [
-    'How do I submit a complaint?',
-    'Show me the heat map',
-    'How do I track my reports?',
-    'What civic issues can I report?',
+    t('suggestions.emergency'),
+    t('suggestions.timeline'),
+    t('suggestions.authenticity'),
+    t('suggestions.expedited'),
   ]
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)] bg-white max-w-4xl mx-auto border-x border-neutral-200">
+    <div className="flex flex-col h-full bg-white max-w-4xl mx-auto border-x border-neutral-200">
       {/* ── Header ── */}
-      <div className="px-6 py-4 border-b border-black bg-white flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center">
-            <HiSparkles className="w-5 h-5 text-white" />
+      <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-black bg-white flex items-center justify-between gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center flex-shrink-0">
+            <HiSparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-serif font-bold text-base uppercase text-neutral-900">
-                CityZen AI Assistant
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <h1 className="font-serif font-bold text-sm sm:text-base uppercase text-neutral-900 truncate">
+                {t('floating.tooltip')}
               </h1>
-              <span className="font-mono text-[10px] tracking-wider uppercase px-2 py-0.5
-                bg-violet-50 text-violet-700 border border-violet-200 rounded-full">
-                Groq AI
+              <span className="font-mono text-[9px] sm:text-[10px] tracking-wider uppercase px-2 py-0.5
+                bg-violet-50 text-violet-700 border border-violet-200 rounded-full whitespace-nowrap">
+                {t('sources.groq')}
               </span>
             </div>
-            <p className="font-mono text-xs text-neutral-500 mt-0.5">
-              Hybrid AI · Rule-based + Language Model · Navigation-aware
+            <p className="font-mono text-[11px] sm:text-xs text-neutral-500 mt-0.5 truncate">
+              {t('subtitle')}
             </p>
           </div>
         </div>
         <button
           onClick={() => { clearChat(); setPendingNavs({}) }}
-          title="Clear conversation"
-          className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 text-neutral-400 hover:text-neutral-700 transition-colors"
+          title={t('floating.clearChat')}
+          className="p-2 rounded-lg border border-neutral-200 hover:bg-neutral-50 text-neutral-400 hover:text-neutral-700 transition-colors flex-shrink-0"
         >
           <HiTrash className="w-4 h-4" />
         </button>
       </div>
 
       {/* ── Messages ── */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-neutral-50/40">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 sm:space-y-5 bg-neutral-50/40">
         {messages.map(m => (
           <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
             <span className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-1">
-              {m.role === 'user' ? 'You' : 'CityZen AI'}
+              {m.role === 'user' ? t('citizenQuery') : t('botResponse')}
             </span>
 
             <div
-              className={`max-w-[85%] sm:max-w-[75%] p-4 text-sm leading-relaxed border rounded-2xl ${
+              className={`max-w-[90%] sm:max-w-[75%] p-3 sm:p-4 text-sm leading-relaxed border rounded-2xl break-words ${
                 m.role === 'user'
                   ? 'bg-neutral-900 text-white border-black rounded-br-sm'
                   : 'bg-white text-neutral-800 border-neutral-200 rounded-bl-sm shadow-sm'
@@ -250,18 +252,19 @@ export default function Chatbot() {
 
             {/* Nav action card */}
             {m.role === 'assistant' && pendingNavs[m.id] && (
-              <div className="max-w-[85%] sm:max-w-[75%] w-full">
+              <div className="max-w-[90%] sm:max-w-[75%] w-full">
                 <NavActionCard
                   action={pendingNavs[m.id]}
                   onGo={() => { executeNav(pendingNavs[m.id]); setPendingNavs(p => ({ ...p, [m.id]: null })) }}
                   onDismiss={() => setPendingNavs(p => ({ ...p, [m.id]: null }))}
+                  t={t}
                 />
               </div>
             )}
 
             {m.role === 'assistant' && (
               <div className="mt-1.5">
-                <SourceBadge source={m.source} confidence={m.confidence} />
+                <SourceBadge source={m.source} confidence={m.confidence} t={t} />
               </div>
             )}
           </div>
@@ -269,7 +272,7 @@ export default function Chatbot() {
 
         {loading && (
           <div className="flex flex-col items-start">
-            <span className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-1">CityZen AI</span>
+            <span className="font-mono text-[10px] text-neutral-400 uppercase tracking-widest mb-1">{t('botResponse')}</span>
             <div className="bg-white border border-neutral-200 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm flex items-center gap-2">
               <span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
               <span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -283,17 +286,17 @@ export default function Chatbot() {
 
       {/* ── Follow-ups / quick prompts ── */}
       {(followUps.length > 0 || messages.length <= 2) && (
-        <div className="px-4 py-3 border-t border-neutral-100 bg-white flex-shrink-0">
+        <div className="px-3 sm:px-4 py-2.5 sm:py-3 border-t border-neutral-100 bg-white flex-shrink-0">
           <span className="font-mono text-[10px] uppercase text-neutral-400 tracking-wider block mb-2">
-            {followUps.length > 0 ? 'Follow-up suggestions' : 'Quick questions'}
+            {followUps.length > 0 ? t('followUpInquiries') : t('suggestedInquiries')}
           </span>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto sm:max-h-none">
             {(followUps.length > 0 ? followUps : QUICK_PROMPTS).map((s, i) => (
               <button
                 key={i}
                 onClick={() => handleSend(s)}
-                className="font-mono text-xs px-3 py-1.5 border border-neutral-200 hover:border-violet-400
-                  hover:bg-violet-50 hover:text-violet-700 text-neutral-600 bg-white rounded-full transition-all"
+                className="font-mono text-xs px-2.5 sm:px-3 py-1 sm:py-1.5 border border-neutral-200 hover:border-violet-400
+                  hover:bg-violet-50 hover:text-violet-700 text-neutral-600 bg-white rounded-full transition-all text-left"
               >
                 {s}
               </button>
@@ -303,19 +306,19 @@ export default function Chatbot() {
       )}
 
       {/* ── Input ── */}
-      <div className="p-4 border-t border-black bg-white flex-shrink-0">
+      <div className="p-3 sm:p-4 border-t border-black bg-white flex-shrink-0">
         <form onSubmit={e => { e.preventDefault(); handleSend() }} className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder={transcribing ? 'Transcribing…' : 'Ask about the app, report an issue, or ask for help…'}
+            placeholder={transcribing ? t('mobile.thinking') : t('inputPlaceholder')}
             disabled={transcribing || loading}
-            className="flex-1 px-4 py-3 border border-neutral-200 text-sm placeholder-neutral-400
+            className="min-w-0 flex-1 px-3 sm:px-4 py-2.5 sm:py-3 border border-neutral-200 text-sm placeholder-neutral-400
               focus:outline-none focus:border-violet-400 disabled:opacity-50 rounded-lg transition-colors"
           />
           <button type="button" onClick={handleVoiceInput} disabled={loading || transcribing}
-            className={`px-3 py-3 border font-mono text-xs flex items-center gap-1.5 transition-colors
+            className={`px-2.5 sm:px-3 py-2.5 sm:py-3 border font-mono text-xs flex items-center gap-1.5 transition-colors flex-shrink-0
               disabled:opacity-40 rounded-lg ${
               isRecording
                 ? 'bg-rose-600 text-white border-rose-700 animate-pulse'
@@ -325,10 +328,10 @@ export default function Chatbot() {
             <HiMicrophone className="w-4 h-4" />
           </button>
           <button type="submit" disabled={loading || !input.trim() || transcribing}
-            className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white font-mono text-xs font-bold
-              uppercase tracking-wider disabled:opacity-40 transition-colors flex items-center gap-2 rounded-lg"
+            className="px-3.5 sm:px-6 py-2.5 sm:py-3 bg-violet-600 hover:bg-violet-700 text-white font-mono text-xs font-bold
+              uppercase tracking-wider disabled:opacity-40 transition-colors flex items-center gap-2 rounded-lg flex-shrink-0"
           >
-            <span>Send</span>
+            <span className="hidden sm:inline">{t('transmit')}</span>
             <HiPaperAirplane className="w-3.5 h-3.5 rotate-90" />
           </button>
         </form>

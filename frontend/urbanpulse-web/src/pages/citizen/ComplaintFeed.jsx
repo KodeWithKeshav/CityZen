@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
@@ -12,8 +12,9 @@ import {
   HiSearch,
   HiNewspaper,
 } from 'react-icons/hi'
-import { formatDistanceToNow } from 'date-fns'
-import { getPriorityTier } from '../../utils/priorityUtils'
+import { getPriorityTier, getCategoryLabel } from '../../utils/priorityUtils'
+import { useTranslatedList } from '../../context/TranslationContext'
+import { formatLocalizedRelativeTime } from '../../utils/dateLocale'
 
 const CATEGORY_IDS = [
   'pothole', 'road_waterlogging', 'garbage_dumping', 'fallen_tree',
@@ -33,7 +34,7 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
 }
 
 function ComplaintCard({ c, onVote, onDetail }) {
-  const { t } = useTranslation(['citizen', 'admin'])
+  const { t, i18n } = useTranslation(['citizen', 'admin', 'complaint', 'common'])
   const [voting, setVoting] = useState(false)
 
   const STATUS_CONFIG = {
@@ -52,10 +53,7 @@ function ComplaintCard({ c, onVote, onDetail }) {
   }
 
   const rawDate = c.createdAt || c.created_at
-  const parsedDate = rawDate ? new Date(rawDate) : null
-  const time = parsedDate && !isNaN(parsedDate.getTime())
-    ? formatDistanceToNow(parsedDate, { addSuffix: true })
-    : t('citizen:feed.recently')
+  const time = formatLocalizedRelativeTime(rawDate, t('citizen:feed.recently'), i18n.resolvedLanguage || i18n.language)
 
   const normalizedStatus = (c.status || '').toLowerCase()
   const statusInfo = STATUS_CONFIG[normalizedStatus] || {
@@ -104,15 +102,15 @@ function ComplaintCard({ c, onVote, onDetail }) {
             <p className="text-xs font-semibold uppercase tracking-wider text-neutral-900 truncate">
               {citizenDisplayName}
             </p>
-            <div className="flex items-center gap-2 font-mono text-[11px] text-neutral-500 mt-0.5">
-              <span className="flex items-center gap-1">
-                <HiClock className="w-3 h-3" />
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-neutral-500 mt-0.5">
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <HiClock className="w-3 h-3 flex-shrink-0" />
                 {time}
               </span>
               {address && (
                 <>
                   <span>/</span>
-                  <span className="truncate max-w-[200px]">{address}</span>
+                  <span className="truncate max-w-[160px] sm:max-w-[200px]">{address}</span>
                 </>
               )}
             </div>
@@ -141,15 +139,15 @@ function ComplaintCard({ c, onVote, onDetail }) {
       </div>
 
       {/* Metadata & Actions Footer */}
-      <div className="pt-3 border-t border-neutral-100 flex items-center justify-between gap-3 text-xs font-mono">
+      <div className="pt-3 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-2 sm:gap-3 text-xs font-mono">
         <div className="flex items-center gap-2 flex-wrap">
           {(c.category || c.issueType) && (
             <span className="border border-neutral-300 px-2 py-0.5 bg-neutral-50 text-neutral-700 tracking-wider uppercase text-[10px]">
-              {(c.category || c.issueType).replace(/_/g, ' ')}
+              {getCategoryLabel(c.category || c.issueType, t)}
             </span>
           )}
           {(() => {
-            const pTier = getPriorityTier(c)
+            const pTier = getPriorityTier(c, t)
             if (pTier.score === null) return null
             return (
               <span className="text-neutral-500 text-[11px] flex items-center gap-1.5">
@@ -182,7 +180,7 @@ function ComplaintCard({ c, onVote, onDetail }) {
 }
 
 export default function ComplaintFeed() {
-  const { t } = useTranslation(['citizen', 'complaint', 'admin'])
+  const { t, i18n } = useTranslation(['citizen', 'complaint', 'admin', 'common'])
   const CATEGORIES = [
     { id: 'all', label: t('citizen:feed.categoryAll') },
     ...CATEGORY_IDS.map(id => ({ id, label: t(`complaint:categories.${id}.label`) })),
@@ -190,16 +188,45 @@ export default function ComplaintFeed() {
   const [allComplaints, setAllComplaints] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [searchParams] = useSearchParams()
+  const urlQuery = searchParams.get('q') || ''
   const [userLoc, setUserLoc] = useState(null)
   const [locStatus, setLocStatus] = useState('requesting') // requesting, granted, denied
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(urlQuery)
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
   const [radiusFilter, setRadiusFilter] = useState('3km') // '3km', '10km', 'all'
-  const [civicNews, setCivicNews] = useState([])
   const [showNews, setShowNews] = useState(false)
 
   const navigate = useNavigate()
+
+  useEffect(() => {
+    setSearchQuery(urlQuery)
+  }, [urlQuery])
+
+  const civicNews = useMemo(() => [
+    {
+      id: '1',
+      title: t('common:bulletins.b1Title'),
+      source: t('common:bulletins.b1Source'),
+      time: t('common:bulletins.b1Time'),
+      tag: t('common:bulletins.b1Tag'),
+    },
+    {
+      id: '2',
+      title: t('common:bulletins.b2Title'),
+      source: t('common:bulletins.b2Source'),
+      time: t('common:bulletins.b2Time'),
+      tag: t('common:bulletins.b2Tag'),
+    },
+    {
+      id: '3',
+      title: t('common:bulletins.b3Title'),
+      source: t('common:bulletins.b3Source'),
+      time: t('common:bulletins.b3Time'),
+      tag: t('common:bulletins.b3Tag'),
+    },
+  ], [t, i18n.resolvedLanguage])
 
   const fetchComplaints = async () => {
     try {
@@ -210,41 +237,13 @@ export default function ComplaintFeed() {
       } else if (!res.success) {
         toast.error(res.message || t('citizen:feed.loadFailed'))
       }
-    } catch (err) {
+    } catch {
       toast.error(t('citizen:feed.loadFailed'))
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
   }
-
-  // Load sample or real civic news (parity with React Native NewsService)
-  useEffect(() => {
-    const civicBulletins = [
-      {
-        id: '1',
-        title: 'Municipal Water Main Maintenance Scheduled for Ward 7',
-        source: 'Municipal Works Dept',
-        time: '2 hours ago',
-        tag: 'INFRASTRUCTURE'
-      },
-      {
-        id: '2',
-        title: 'Monsoon Preparedness: Storm Drain Desilting in Progress',
-        source: 'City Corporation',
-        time: '5 hours ago',
-        tag: 'DRAINAGE'
-      },
-      {
-        id: '3',
-        title: 'Road Surface Restoration on South Avenue Commencing Monday',
-        source: 'Urban Roads Bureau',
-        time: 'Yesterday',
-        tag: 'ROADWORK'
-      }
-    ]
-    setCivicNews(civicBulletins)
-  }, [])
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -353,19 +352,37 @@ export default function ComplaintFeed() {
       })
   }, [allComplaints, userLoc, locStatus, selectedCategory, selectedStatus, radiusFilter, searchQuery])
 
+  const normalizedFilteredComplaints = useMemo(
+    () =>
+      filteredComplaints.map(c => ({
+        ...c,
+        citizenName: c.citizenName || c.userName || c.users?.full_name || c.user?.full_name || c.user_name || '',
+      })),
+    [filteredComplaints]
+  )
+
+  const translatedComplaints = useTranslatedList(normalizedFilteredComplaints, [
+    'title',
+    'complaintTitle',
+    'description',
+    'location',
+    'location_address',
+    'citizenName',
+  ])
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header section */}
       <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
             <span>{t('citizen:feed.breadcrumbAudit')}</span>
             <span>/</span>
             <span>{t('citizen:feed.breadcrumbPublic')}</span>
             <span>/</span>
             <span className="text-black font-semibold">{t('citizen:feed.breadcrumbFeed')}</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 uppercase">
             {t('citizen:feed.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans max-w-xl">
@@ -373,12 +390,11 @@ export default function ComplaintFeed() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={() => setShowNews(!showNews)}
-            className={`px-3 py-2 text-xs font-mono tracking-wider border transition-colors flex items-center gap-1.5 ${
-              showNews ? 'bg-neutral-900 text-white border-black' : 'border-neutral-300 text-neutral-700 hover:border-black'
-            }`}
+            className={`px-3 py-2 text-xs font-mono tracking-wider border transition-colors flex items-center gap-1.5 ${showNews ? 'bg-neutral-900 text-white border-black' : 'border-neutral-300 text-neutral-700 hover:border-black'
+              }`}
           >
             <HiNewspaper className="w-4 h-4" />
             <span>{t('citizen:feed.municipalBulletins')}</span>
@@ -447,11 +463,11 @@ export default function ComplaintFeed() {
           </div>
 
           {/* Status dropdown */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
+              className="flex-1 sm:flex-initial min-w-0 border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
             >
               <option value="all">{t('citizen:feed.statusAll')}</option>
               <option value="pending">{t('admin:status.pending')}</option>
@@ -464,7 +480,7 @@ export default function ComplaintFeed() {
             <select
               value={radiusFilter}
               onChange={(e) => setRadiusFilter(e.target.value)}
-              className="border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
+              className="flex-1 sm:flex-initial min-w-0 border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
             >
               <option value="3km">{t('citizen:feed.radius3km')}</option>
               <option value="10km">{t('citizen:feed.radius10km')}</option>
@@ -479,11 +495,10 @@ export default function ComplaintFeed() {
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1 text-[11px] font-mono tracking-wider uppercase whitespace-nowrap transition-colors border ${
-                selectedCategory === cat.id
-                  ? 'bg-neutral-900 text-white border-black font-bold'
-                  : 'border-neutral-200 text-neutral-600 hover:border-neutral-400 bg-neutral-50'
-              }`}
+              className={`px-3 py-1 text-[11px] font-mono tracking-wider uppercase whitespace-nowrap transition-colors border ${selectedCategory === cat.id
+                ? 'bg-neutral-900 text-white border-black font-bold'
+                : 'border-neutral-200 text-neutral-600 hover:border-neutral-400 bg-neutral-50'
+                }`}
             >
               {cat.label}
             </button>
@@ -492,7 +507,7 @@ export default function ComplaintFeed() {
       </div>
 
       {/* Active filters status & count */}
-      <div className="flex items-center justify-between text-xs font-mono text-neutral-500 px-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-neutral-500 px-1">
         <span>
           {t('citizen:feed.showingIncidents', { count: filteredComplaints.length, plural: filteredComplaints.length === 1 ? '' : 'S' })}
           {locStatus === 'granted' && radiusFilter !== 'all' ? t('citizen:feed.withinRadius', { radius: radiusFilter.toUpperCase() }) : ''}
@@ -531,7 +546,7 @@ export default function ComplaintFeed() {
           <p className="text-sm text-neutral-500 font-sans mt-1 max-w-sm mx-auto">
             {t('citizen:feed.noIncidentsDesc')}
           </p>
-          <div className="mt-5 flex items-center justify-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
             <button
               onClick={() => {
                 setSelectedCategory('all')
@@ -553,7 +568,7 @@ export default function ComplaintFeed() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredComplaints.map(c => (
+          {translatedComplaints.map(c => (
             <ComplaintCard
               key={c._id || c.id}
               c={c}

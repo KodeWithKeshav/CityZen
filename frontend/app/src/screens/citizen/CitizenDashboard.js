@@ -11,12 +11,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
+import { useTranslatedText } from '../../context/TranslationContext';
 import FloatingChatbotButton from '../../components/FloatingChatbotButton';
 
 const { width } = Dimensions.get('window');
 
 const CitizenDashboard = ({ navigation }) => {
+  const { t } = useTranslation(['citizen', 'common', 'auth']);
   const [userData, setUserData] = useState(null);
+  const translatedCitizenName = useTranslatedText(userData?.fullName || '');
 
   useEffect(() => {
     loadUserData();
@@ -35,12 +39,12 @@ const CitizenDashboard = ({ navigation }) => {
 
   const handleLogout = async () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      t('common:nav.citizen.signOut', 'Logout'),
+      t('common:nav.citizen.signOut', 'Are you sure you want to logout?'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:mobileNav.cancel', 'Cancel'), style: 'cancel' },
         {
-          text: 'Logout',
+          text: t('common:nav.citizen.signOut', 'Logout'),
           style: 'destructive',
           onPress: async () => {
             await AsyncStorage.multiRemove(['authToken', 'userData']);
@@ -54,43 +58,34 @@ const CitizenDashboard = ({ navigation }) => {
   const actionItems = [
     {
       icon: 'add-circle-outline',
-      title: 'New Report',
-      subtitle: 'Submit civic concern',
+      title: t('common:nav.citizen.newReport', 'New Report'),
+      subtitle: t('citizen:dashboard.actions.newReport.sub', 'Submit civic concern'),
       onPress: () => navigation.navigate('SubmitComplaint'),
     },
     {
       icon: 'documents-outline',
-      title: 'My Reports',
-      subtitle: 'Track progress',
+      title: t('common:nav.citizen.reports', 'My Reports'),
+      subtitle: t('citizen:dashboard.actions.reports.sub', 'Track progress'),
       onPress: () => navigation.reset({ index: 0, routes: [{ name: 'InstagramFeed' }] }),
     },
     {
       icon: 'map-outline',
-      title: 'Complaint Map',
-      subtitle: 'View area status',
+      title: t('common:nav.citizen.map', 'Complaint Map'),
+      subtitle: t('citizen:dashboard.actions.map.sub', 'View area status'),
       onPress: () => navigation.navigate('ComplaintMap'),
     },
     {
       icon: 'bar-chart-outline',
-      title: 'Transparency',
-      subtitle: 'Impact statistics',
+      title: t('common:nav.citizen.transparency', 'Transparency'),
+      subtitle: t('citizen:dashboard.actions.transparency.sub', 'Impact statistics'),
       onPress: () => navigation.navigate('CitizenTransparency'),
     },
     {
       icon: 'chatbubbles-outline',
-      title: 'AI Assistant',
-      subtitle: 'Get instant help',
+      title: t('common:nav.citizen.chatbot', 'AI Assistant'),
+      subtitle: t('citizen:dashboard.actions.chatbot.sub', 'Get instant help'),
       onPress: () => navigation.navigate('CivicChatbot'),
     },
-    // Temporarily hidden: Voice Report
-    /*
-    {
-      icon: 'mic-outline',
-      title: 'Voice Report',
-      subtitle: 'Speak your concern',
-      onPress: () => navigation.navigate('SubmitComplaint', { useVoice: true }),
-    },
-    */
   ];
 
   return (
@@ -100,8 +95,8 @@ const CitizenDashboard = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.brandMark}>CITYZEN</Text>
-          <Text style={styles.brandSub}>Institutional Portal</Text>
+          <Text style={styles.brandMark}>{t('auth:welcome.brand', 'CITYZEN')}</Text>
+          <Text style={styles.brandSub}>{t('common:nav.citizen.portalLabel', 'Institutional Portal')}</Text>
         </View>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.headerIcon}>
@@ -112,7 +107,7 @@ const CitizenDashboard = ({ navigation }) => {
             onPress={handleLogout}
           >
             <Text style={styles.avatarText}>
-              {userData?.fullName?.charAt(0)?.toUpperCase() || 'C'}
+              {(translatedCitizenName || userData?.fullName)?.charAt(0)?.toUpperCase() || 'C'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -126,10 +121,10 @@ const CitizenDashboard = ({ navigation }) => {
         {/* Welcome section */}
         <View style={styles.welcomeSection}>
           <Text style={styles.welcomeTitle}>
-            Dashboard
+            {t('common:nav.citizen.dashboard', 'Dashboard')}
           </Text>
           <Text style={styles.welcomeSub}>
-            Welcome back, {userData?.fullName || 'Citizen'}
+            {t('citizen:dashboard.greeting', { name: translatedCitizenName || userData?.fullName || t('citizen:dashboard.defaultName', 'Citizen') })}
           </Text>
         </View>
 
@@ -137,24 +132,24 @@ const CitizenDashboard = ({ navigation }) => {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>PENDING</Text>
+            <Text style={styles.statLabel}>{t('citizen:dashboard.statPending', 'PENDING')}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>RESOLVED</Text>
+            <Text style={styles.statLabel}>{t('citizen:dashboard.statResolved', 'RESOLVED')}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>IMPACT</Text>
+            <Text style={styles.statLabel}>{t('citizen:dashboard.statTotalImpact', 'IMPACT')}</Text>
           </View>
         </View>
 
         {/* Actions grid */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <Text style={styles.sectionSub}>Report and track civic issues</Text>
+          <Text style={styles.sectionTitle}>{t('citizen:dashboard.quickActions', 'Quick Actions')}</Text>
+          <Text style={styles.sectionSub}>{t('citizen:dashboard.tagline', 'Report and track civic issues')}</Text>
         </View>
 
         <View style={styles.actionsGrid}>
@@ -176,14 +171,14 @@ const CitizenDashboard = ({ navigation }) => {
 
         {/* Profile card */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Profile</Text>
+          <Text style={styles.sectionTitle}>{t('common:mobileNav.profile', 'Profile')}</Text>
         </View>
 
         <View style={styles.profileCard}>
           <View style={styles.profileRow}>
             <View style={styles.profileLabelRow}>
               <Ionicons name="mail-outline" size={18} color="#6B7280" />
-              <Text style={styles.profileLabel}>Email</Text>
+              <Text style={styles.profileLabel}>{t('auth:citizenSignup.email', 'Email')}</Text>
             </View>
             <Text style={styles.profileValue}>{userData?.email || '—'}</Text>
           </View>
@@ -191,7 +186,7 @@ const CitizenDashboard = ({ navigation }) => {
           <View style={styles.profileRow}>
             <View style={styles.profileLabelRow}>
               <Ionicons name="call-outline" size={18} color="#6B7280" />
-              <Text style={styles.profileLabel}>Phone</Text>
+              <Text style={styles.profileLabel}>{t('auth:citizenSignup.phone', 'Phone')}</Text>
             </View>
             <Text style={styles.profileValue}>{userData?.phoneNumber || '—'}</Text>
           </View>
@@ -199,11 +194,11 @@ const CitizenDashboard = ({ navigation }) => {
           <View style={styles.profileRow}>
             <View style={styles.profileLabelRow}>
               <Ionicons name="shield-checkmark-outline" size={18} color="#6B7280" />
-              <Text style={styles.profileLabel}>Status</Text>
+              <Text style={styles.profileLabel}>{t('common:statusFilters.resolved', 'Status')}</Text>
             </View>
             <View style={styles.statusBadge}>
               <View style={styles.statusDot} />
-              <Text style={styles.statusText}>Active Citizen</Text>
+              <Text style={styles.statusText}>{t('citizen:feed.verifiedCitizen', 'Active Citizen')}</Text>
             </View>
           </View>
         </View>
@@ -211,7 +206,7 @@ const CitizenDashboard = ({ navigation }) => {
         {/* Logout */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={18} color="#1A1A1A" />
-          <Text style={styles.logoutText}>Sign Out</Text>
+          <Text style={styles.logoutText}>{t('common:nav.citizen.signOut', 'Sign Out')}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 32 }} />

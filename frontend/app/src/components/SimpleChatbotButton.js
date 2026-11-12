@@ -1,8 +1,10 @@
 import React from 'react';
 import { TouchableOpacity, Text, View, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 const SimpleChatbotButton = ({ onPress }) => {
+  const { t } = useTranslation('common');
   return (
     <TouchableOpacity
       style={styles.button}
@@ -10,7 +12,7 @@ const SimpleChatbotButton = ({ onPress }) => {
       activeOpacity={0.8}
     >
       <MaterialCommunityIcons name="robot-happy" size={30} color="#fff" />
-      <Text style={styles.buttonText}>Help</Text>
+      <Text style={styles.buttonText}>{t('mobileNav.chatbot', 'AI Chat')}</Text>
     </TouchableOpacity>
   );
 };

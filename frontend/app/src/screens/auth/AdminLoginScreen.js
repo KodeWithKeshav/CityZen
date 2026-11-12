@@ -12,9 +12,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
 
 const AdminLoginScreen = ({ navigation }) => {
+  const { t } = useTranslation(['auth', 'common']);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -32,7 +34,7 @@ const AdminLoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     const trimmedEmail = formData.email.trim();
     if (!trimmedEmail || !formData.password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('login.fillFields', 'Please fill in all fields'));
       return;
     }
 
@@ -46,7 +48,7 @@ const AdminLoginScreen = ({ navigation }) => {
       if (response.success) {
         // Verify user type is admin
         if (response.data.user.userType !== 'admin') {
-          Alert.alert('Access Denied', 'This is the admin portal. Please use the citizen portal to login as a citizen.');
+          Alert.alert(t('common:mobileNav.error', 'Access Denied'), t('adminSignup.leftDesc', 'This is the admin portal.'));
           setLoading(false);
           return;
         }
@@ -55,11 +57,11 @@ const AdminLoginScreen = ({ navigation }) => {
         await AsyncStorage.setItem('authToken', response.data.token);
         await AsyncStorage.setItem('userData', JSON.stringify(response.data.user));
 
-        Alert.alert('Success', 'Admin login successful!');
+        Alert.alert(t('common:mobileNav.ok', 'Success'), t('login.welcomeBack', { name: response.data.user.fullName || '' }));
         navigation.replace('ModernAdminDashboard');
       }
     } catch (error) {
-      Alert.alert('Error', error.message || 'Login failed');
+      Alert.alert(t('common:mobileNav.error', 'Error'), error.message || t('login.loginFailed', 'Login failed'));
     } finally {
       setLoading(false);
     }
@@ -80,7 +82,7 @@ const AdminLoginScreen = ({ navigation }) => {
 
         <View style={styles.brandContent}>
           <Text style={styles.brandName}>CITY{'\n'}ZEN</Text>
-          <Text style={styles.brandSub}>INSTITUTIONAL PORTAL</Text>
+          <Text style={styles.brandSub}>{t('login.portalLabel', 'INSTITUTIONAL PORTAL')}</Text>
         </View>
       </View>
 
@@ -91,16 +93,16 @@ const AdminLoginScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.formTitle}>Admin Access</Text>
-        <Text style={styles.formSubtitle}>Secure login for authorized personnel only.</Text>
+        <Text style={styles.formTitle}>{t('adminSignup.title', 'Admin Access')}</Text>
+        <Text style={styles.formSubtitle}>{t('adminSignup.leftDesc', 'Secure login for authorized personnel only.')}</Text>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>ADMIN ID / CREDENTIAL</Text>
+          <Text style={styles.fieldLabel}>{t('adminSignup.email', 'ADMIN ID / CREDENTIAL')}</Text>
           <View style={styles.inputContainer}>
             <Ionicons name="shield-outline" size={18} color="#9CA3AF" />
             <TextInput
               style={styles.input}
-              placeholder="Enter numeric identifier"
+              placeholder={t('login.emailPlaceholder', 'Enter identifier')}
               value={formData.email}
               onChangeText={(value) => handleInputChange('email', value)}
               keyboardType="email-address"
@@ -111,7 +113,7 @@ const AdminLoginScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>SECURITY PASSKEY</Text>
+          <Text style={styles.fieldLabel}>{t('adminSignup.password', 'SECURITY PASSKEY')}</Text>
           <View style={styles.inputContainer}>
             <Ionicons name="key-outline" size={18} color="#9CA3AF" />
             <TextInput
@@ -142,7 +144,7 @@ const AdminLoginScreen = ({ navigation }) => {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <View style={styles.submitContent}>
-              <Text style={styles.submitText}>VERIFY IDENTITY</Text>
+              <Text style={styles.submitText}>{t('adminSignup.verifyIdentity', 'VERIFY IDENTITY')}</Text>
               <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
             </View>
           )}
@@ -150,19 +152,19 @@ const AdminLoginScreen = ({ navigation }) => {
 
         <View style={styles.linksRow}>
           <TouchableOpacity onPress={() => navigation.navigate('AdminSignup')}>
-            <Text style={styles.linkText}>REQUEST ACCESS</Text>
+            <Text style={styles.linkText}>{t('adminSignup.requestAccess', 'REQUEST ACCESS')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => Alert.alert('Admin Support', 'For password reset, please contact your system administrator.')}
+            onPress={() => Alert.alert(t('adminSignup.protocolHelp', 'Admin Support'), t('adminSignup.leftDesc', 'Contact your administrator.'))}
           >
-            <Text style={styles.linkText}>PROTOCOL HELP</Text>
+            <Text style={styles.linkText}>{t('adminSignup.protocolHelp', 'PROTOCOL HELP')}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Citizen user? </Text>
+          <Text style={styles.footerText}>{t('welcome.citizenPortal.title', 'Citizen Portal')} · </Text>
           <TouchableOpacity onPress={() => navigation.navigate('Welcome')}>
-            <Text style={styles.footerLink}>Switch to Citizen Portal</Text>
+            <Text style={styles.footerLink}>{t('login.portalLabel', 'Switch Portal')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

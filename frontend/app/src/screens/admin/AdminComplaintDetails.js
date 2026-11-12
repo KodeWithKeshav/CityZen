@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,8 +13,12 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
 import SimpleDropdown from '../../components/SimpleDropdown';
+import { useTranslatedObject, useTranslatedList } from '../../context/TranslationContext';
+import { formatLocalizedDate } from '../../utils/dateLocale';
+import { getCategoryLabel, getStatusLabel } from '../../utils/priorityUtils';
 
 // The complaints table stores photos as image_urls (array, see
 // routes/complaints.js's insert) - there is no image_url column. Some
@@ -30,6 +34,7 @@ const getComplaintImageUrl = (complaint) => {
 };
 
 const AdminComplaintDetails = ({ route, navigation }) => {
+  const { t, i18n } = useTranslation(['admin', 'common', 'complaint', 'citizen']);
   const { complaintId } = route.params || {};
   const [complaint, setComplaint] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -47,9 +52,41 @@ const AdminComplaintDetails = ({ route, navigation }) => {
   const [showAiExplainModal, setShowAiExplainModal] = useState(false);
   const [geometryRetryLoading, setGeometryRetryLoading] = useState(false);
 
+  const normalizedComplaint = useMemo(() => (
+    complaint ? {
+      ...complaint,
+      _citizenName: complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || '',
+    } : null
+  ), [complaint]);
+
+  const stagesSource = useMemo(() => (
+    (complaint?.complaint_stages || []).map((s) => ({
+      ...s,
+      _officerName: s.officers?.name || '',
+      _officerDept: s.officers?.department || '',
+      _contractorName: s.contractors?.name || '',
+    }))
+  ), [complaint]);
+
+  const translatedComplaint = useTranslatedObject(normalizedComplaint, [
+    'title', 'description', 'location_address', 'content_flag_reason', '_citizenName'
+  ]);
+  const translatedStages = useTranslatedList(stagesSource, [
+    'stage_name', 'stage_description', 'notes', '_officerName', '_officerDept', '_contractorName'
+  ]);
+  const translatedOfficers = useTranslatedList(officers, ['name', 'department']);
+  const translatedContractors = useTranslatedList(contractors, ['name']);
+  const translatedAiExplain = useTranslatedObject(aiExplainResult, ['explanationText']);
+
+  const displayComplaint = translatedComplaint || normalizedComplaint || complaint;
+  const displayStages = translatedStages.length > 0 ? translatedStages : stagesSource;
+  const displayOfficers = translatedOfficers.length > 0 ? translatedOfficers : officers;
+  const displayContractors = translatedContractors.length > 0 ? translatedContractors : contractors;
+  const displayAiExplain = translatedAiExplain || aiExplainResult;
+
   useEffect(() => {
     if (!complaintId) {
-      Alert.alert('Error', 'Missing complaint ID');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.missingComplaintId'));
       navigation.goBack();
       return;
     }
@@ -68,11 +105,11 @@ const AdminComplaintDetails = ({ route, navigation }) => {
       if (response.success) {
         setComplaint(response.data);
       } else {
-        Alert.alert('Error', response.message || 'Failed to load complaint details');
+        Alert.alert(t('common:mobileNav.error'), response.message || t('admin:mobileAdmin.loadComplaintDetailsFailed'));
       }
     } catch (error) {
       console.error('Load complaint details error:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.connectError'));
     } finally {
       setLoading(false);
     }
@@ -111,23 +148,24 @@ const AdminComplaintDetails = ({ route, navigation }) => {
   };
 
   const openStageModal = (stage) => {
-    setSelectedStageId(stage.id);
+    const rawStage = complaint?.complaint_stages?.find(s => s.id === stage.id) || stage;
+    setSelectedStageId(rawStage.id);
     // Ensure we always have a valid status, default to 'pending' if undefined
-    const validStatus = stage.stage_status && 
-      ['pending', 'in_progress', 'completed', 'cancelled'].includes(stage.stage_status) 
-      ? stage.stage_status 
+    const validStatus = rawStage.stage_status && 
+      ['pending', 'in_progress', 'completed', 'cancelled'].includes(rawStage.stage_status) 
+      ? rawStage.stage_status 
       : 'pending';
     setNewStageStatus(validStatus);
-    setStageNotes(stage.notes || '');
-    setSelectedOfficer(stage.assigned_officer_id || '');
-    setSelectedContractor(stage.assigned_contractor_id || '');
+    setStageNotes(rawStage.notes || '');
+    setSelectedOfficer(rawStage.assigned_officer_id || '');
+    setSelectedContractor(rawStage.assigned_contractor_id || '');
     setShowStageModal(true);
     
     console.log('🔧 Opening stage modal:', { 
-      stageId: stage.id, 
-      originalStatus: stage.stage_status, 
+      stageId: rawStage.id, 
+      originalStatus: rawStage.stage_status, 
       validStatus,
-      stage 
+      stage: rawStage 
     });
   };
 
@@ -157,15 +195,15 @@ const AdminComplaintDetails = ({ route, navigation }) => {
       );
 
       if (response.success) {
-        Alert.alert('Success', 'Stage updated successfully');
+        Alert.alert(t('common:buttons.success'), t('admin:mobileAdmin.stageUpdatedSuccess'));
         setShowStageModal(false);
         await loadComplaintDetails();
       } else {
-        Alert.alert('Error', response.message || 'Failed to update stage');
+        Alert.alert(t('common:mobileNav.error'), response.message || t('admin:mobileAdmin.updateStageFailed'));
       }
     } catch (error) {
       console.error('Update stage error:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.connectError'));
     }
   };
 
@@ -179,14 +217,14 @@ const AdminComplaintDetails = ({ route, navigation }) => {
       );
 
       if (response.success) {
-        Alert.alert('Success', 'Next stage added successfully');
+        Alert.alert(t('common:buttons.success'), t('admin:mobileAdmin.nextStageAdded'));
         await loadComplaintDetails();
       } else {
-        Alert.alert('Error', response.message || 'Failed to add next stage');
+        Alert.alert(t('common:mobileNav.error'), response.message || t('admin:mobileAdmin.addNextStageFailed'));
       }
     } catch (error) {
       console.error('Add next stage error:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.connectError'));
     }
   };
 
@@ -206,12 +244,12 @@ const AdminComplaintDetails = ({ route, navigation }) => {
       if (response?.success) {
         setAiExplainResult(response);
       } else {
-        Alert.alert('Error', response?.error || 'Failed to generate explanation');
+        Alert.alert(t('common:mobileNav.error'), response?.error || t('admin:mobileAdmin.explainFailed'));
         setShowAiExplainModal(false);
       }
     } catch (error) {
       console.error('AI explanation error:', error);
-      Alert.alert('Error', 'Failed to connect to explanation service');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.explainConnectFailed'));
       setShowAiExplainModal(false);
     } finally {
       setAiExplainLoading(false);
@@ -236,11 +274,11 @@ const AdminComplaintDetails = ({ route, navigation }) => {
       if (response?.success && response.geometry) {
         setComplaint((prev) => (prev ? { ...prev, ...response.geometry } : prev));
       } else {
-        Alert.alert('Error', response?.error || 'Geometry estimation failed');
+        Alert.alert(t('common:mobileNav.error'), response?.error || t('admin:mobileAdmin.geometryFailed'));
       }
     } catch (error) {
       console.error('Geometry retry error:', error);
-      Alert.alert('Error', 'Failed to connect to geometry estimation service');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.geometryConnectFailed'));
     } finally {
       setGeometryRetryLoading(false);
     }
@@ -275,27 +313,27 @@ const AdminComplaintDetails = ({ route, navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>Loading complaint details...</Text>
+        <Text>{t('admin:mobileAdmin.loadingComplaintDetails')}</Text>
       </View>
     );
   }
 
-  if (!complaint) {
+  if (!displayComplaint) {
     return (
       <View style={styles.errorContainer}>
-        <Text>Complaint not found</Text>
+        <Text>{t('admin:mobileAdmin.complaintNotFound')}</Text>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>Go Back</Text>
+          <Text style={styles.backButton}>{t('admin:mobileAdmin.goBack')}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const currentStage = complaint.complaint_stages?.find(s => s.stage_status === 'in_progress') ||
-                     complaint.complaint_stages?.find(s => s.stage_status === 'pending');
-  const completedStages = complaint.complaint_stages?.filter(s => s.stage_status === 'completed').length || 0;
-  const totalStages = complaint.complaint_stages?.length || 0;
-  const complaintImageUrl = getComplaintImageUrl(complaint);
+  const currentStage = displayStages.find(s => s.stage_status === 'in_progress') ||
+                     displayStages.find(s => s.stage_status === 'pending');
+  const completedStages = displayStages.filter(s => s.stage_status === 'completed').length || 0;
+  const totalStages = displayStages.length || 0;
+  const complaintImageUrl = getComplaintImageUrl(displayComplaint);
 
   return (
     <View style={styles.container}>
@@ -304,7 +342,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Complaint Details</Text>
+        <Text style={styles.headerTitle}>{t('admin:mobileAdmin.complaintDetailsTitle')}</Text>
         <TouchableOpacity onPress={onRefresh}>
           <Ionicons name="refresh-outline" size={24} color="#fff" />
         </TouchableOpacity>
@@ -319,83 +357,83 @@ const AdminComplaintDetails = ({ route, navigation }) => {
         {/* Basic Information */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Basic Information</Text>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(complaint.status) }]}>
-              <Text style={styles.statusText}>{(complaint.status || 'pending').toUpperCase()}</Text>
+            <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.basicInfo')}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(displayComplaint.status) }]}>
+              <Text style={styles.statusText}>{getStatusLabel(displayComplaint.status || 'pending', t)}</Text>
             </View>
           </View>
 
-          <Text style={styles.complaintTitle}>{complaint.title}</Text>
-          <Text style={styles.complaintDescription}>{complaint.description}</Text>
+          <Text style={styles.complaintTitle}>{displayComplaint.title}</Text>
+          <Text style={styles.complaintDescription}>{displayComplaint.description}</Text>
 
           <View style={styles.infoGrid}>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Priority Score</Text>
-              <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(complaint.priority_score) }]}>
-                <Text style={styles.priorityText}>{complaint.priority_score}</Text>
+              <Text style={styles.infoLabel}>{t('admin:mobileAdmin.priorityScoreHeaderLabel')}</Text>
+              <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(displayComplaint.priority_score) }]}>
+                <Text style={styles.priorityText}>{displayComplaint.priority_score}</Text>
               </View>
             </View>
 
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Category</Text>
-              <Text style={styles.infoValue}>{complaint.category?.replace('_', ' ')}</Text>
+              <Text style={styles.infoLabel}>{t('admin:mobileAdmin.categoryHeaderLabel')}</Text>
+              <Text style={styles.infoValue}>{getCategoryLabel(displayComplaint.category, t)}</Text>
             </View>
 
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Submitted By</Text>
-              <Text style={styles.infoValue}>{complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || 'Verified Citizen'}</Text>
+              <Text style={styles.infoLabel}>{t('admin:mobileAdmin.submittedByLabel')}</Text>
+              <Text style={styles.infoValue}>{displayComplaint._citizenName || t('admin:mobileAdmin.verifiedCitizen')}</Text>
             </View>
 
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Location</Text>
-              <Text style={styles.infoValue}>{complaint.location_address}</Text>
+              <Text style={styles.infoLabel}>{t('admin:mobileAdmin.locationHeaderLabel')}</Text>
+              <Text style={styles.infoValue}>{displayComplaint.location_address}</Text>
             </View>
 
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Created</Text>
+              <Text style={styles.infoLabel}>{t('admin:mobileAdmin.createdHeaderLabel')}</Text>
               <Text style={styles.infoValue}>
-                {new Date(complaint.created_at).toLocaleDateString()}
+                {formatLocalizedDate(displayComplaint.created_at, i18n.language)}
               </Text>
             </View>
 
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Last Updated</Text>
+              <Text style={styles.infoLabel}>{t('admin:mobileAdmin.lastUpdatedHeaderLabel')}</Text>
               <Text style={styles.infoValue}>
-                {new Date(complaint.updated_at).toLocaleDateString()}
+                {formatLocalizedDate(displayComplaint.updated_at, i18n.language)}
               </Text>
             </View>
           </View>
         </View>
 
         {/* Authenticity Check (rule-based + multilingual model blend) */}
-        {typeof complaint.text_authenticity_score === 'number' && (
+        {typeof displayComplaint.text_authenticity_score === 'number' && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Description Authenticity Check</Text>
-              {complaint.content_flagged && (
+              <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.authenticityCheck')}</Text>
+              {displayComplaint.content_flagged && (
                 <View style={[styles.statusBadge, { backgroundColor: '#C62828' }]}>
-                  <Text style={styles.statusText}>FLAGGED FOR REVIEW</Text>
+                  <Text style={styles.statusText}>{t('admin:mobileAdmin.flaggedForReview')}</Text>
                 </View>
               )}
             </View>
 
             <View style={styles.infoGrid}>
               <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Authenticity Score</Text>
-                <Text style={styles.infoValue}>{Math.round(complaint.text_authenticity_score * 100)} / 100</Text>
+                <Text style={styles.infoLabel}>{t('admin:mobileAdmin.authenticityScoreLabel')}</Text>
+                <Text style={styles.infoValue}>{Math.round(displayComplaint.text_authenticity_score * 100)} / 100</Text>
               </View>
               <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Verification Status</Text>
-                <Text style={styles.infoValue}>{(complaint.verification_status || 'unverified').replace(/_/g, ' ')}</Text>
+                <Text style={styles.infoLabel}>{t('admin:mobileAdmin.verificationStatusLabel')}</Text>
+                <Text style={styles.infoValue}>{(displayComplaint.verification_status || 'unverified').replace(/_/g, ' ')}</Text>
               </View>
               <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Captured Language</Text>
-                <Text style={styles.infoValue}>{(complaint.language || 'en').toUpperCase()}</Text>
+                <Text style={styles.infoLabel}>{t('admin:mobileAdmin.capturedLanguageLabel')}</Text>
+                <Text style={styles.infoValue}>{(displayComplaint.language || 'en').toUpperCase()}</Text>
               </View>
             </View>
 
-            {complaint.content_flag_reason && (
-              <Text style={styles.complaintDescription}>{complaint.content_flag_reason}</Text>
+            {Boolean(displayComplaint.content_flag_reason) && (
+              <Text style={styles.complaintDescription}>{displayComplaint.content_flag_reason}</Text>
             )}
           </View>
         )}
@@ -404,10 +442,10 @@ const AdminComplaintDetails = ({ route, navigation }) => {
         {complaintImageUrl ? (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Images</Text>
+              <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.imagesTitle')}</Text>
               <TouchableOpacity style={styles.explainButton} onPress={fetchAiExplanation}>
                 <Ionicons name="scan-outline" size={16} color="#fff" />
-                <Text style={styles.explainButtonText}>Explain AI</Text>
+                <Text style={styles.explainButtonText}>{t('admin:mobileAdmin.explainAi')}</Text>
               </TouchableOpacity>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -417,16 +455,15 @@ const AdminComplaintDetails = ({ route, navigation }) => {
             {/* Pothole size/depth estimate - shown here too (not just
                 inside the Explain AI modal) so it's visible without an
                 extra tap. See services/potholeGeometryService.js. */}
-            {(complaint.geometry_status === 'completed' || (complaint.estimated_width_cm != null && complaint.estimated_length_cm != null)) && (
+            {(displayComplaint.geometry_status === 'completed' || (displayComplaint.estimated_width_cm != null && displayComplaint.estimated_length_cm != null)) && (
               <View style={styles.geometryPanel}>
-                <Text style={styles.geometryTitle}>Estimated Size (AI estimate)</Text>
+                <Text style={styles.geometryTitle}>{t('admin:mobileAdmin.estimatedSizeTitle')}</Text>
                 <Text style={styles.geometryRow}>
-                  Width × Length: {complaint.estimated_width_cm} × {complaint.estimated_length_cm} cm
+                  {t('admin:mobileAdmin.widthLengthRow', { w: displayComplaint.estimated_width_cm, l: displayComplaint.estimated_length_cm })}
                 </Text>
-                <Text style={styles.geometryRow}>Area: {complaint.estimated_area_cm2} cm²</Text>
+                <Text style={styles.geometryRow}>{t('admin:mobileAdmin.areaRow', { area: displayComplaint.estimated_area_cm2 })}</Text>
                 <Text style={styles.geometryDisclaimer}>
-                  Confidence {Math.round((complaint.geometry_confidence || 0) * 100)}% — estimated from a single
-                  photo using an assumed camera height/angle, not a measured value.
+                  {t('admin:mobileAdmin.geometryDisclaimer', { confidence: Math.round((displayComplaint.geometry_confidence || 0) * 100) })}
                 </Text>
                 <TouchableOpacity
                   style={[styles.geometryRetryButton, { backgroundColor: '#34495e', marginTop: 10 }]}
@@ -434,20 +471,20 @@ const AdminComplaintDetails = ({ route, navigation }) => {
                   onPress={retryGeometry}
                 >
                   <Text style={styles.explainButtonText}>
-                    {geometryRetryLoading ? 'Recalculating…' : 'Recalculate Size'}
+                    {geometryRetryLoading ? t('admin:mobileAdmin.recalculating') : t('admin:mobileAdmin.recalculateSize')}
                   </Text>
                 </TouchableOpacity>
               </View>
             )}
-            {complaint.geometry_status === 'pending' && (
+            {displayComplaint.geometry_status === 'pending' && (
               <View style={styles.geometryPanel}>
-                <Text style={styles.geometryRow}>Estimating size…</Text>
+                <Text style={styles.geometryRow}>{t('admin:mobileAdmin.estimatingSize')}</Text>
               </View>
             )}
-            {complaint.geometry_status === 'failed' && (
+            {displayComplaint.geometry_status === 'failed' && (
               <View style={styles.geometryPanel}>
                 <Text style={styles.geometryRow}>
-                  Size estimate failed{complaint.geometry_error ? `: ${complaint.geometry_error}` : '.'}
+                  {t('admin:mobileAdmin.sizeEstimateFailed')}{displayComplaint.geometry_error ? `: ${displayComplaint.geometry_error}` : '.'}
                 </Text>
                 <TouchableOpacity
                   style={styles.geometryRetryButton}
@@ -455,19 +492,19 @@ const AdminComplaintDetails = ({ route, navigation }) => {
                   onPress={retryGeometry}
                 >
                   <Text style={styles.explainButtonText}>
-                    {geometryRetryLoading ? 'Retrying…' : 'Retry size estimate'}
+                    {geometryRetryLoading ? t('admin:mobileAdmin.retrying') : t('admin:mobileAdmin.retrySizeEstimate')}
                   </Text>
                 </TouchableOpacity>
               </View>
             )}
-            {complaint.geometry_status !== 'completed' &&
-              complaint.geometry_status !== 'pending' &&
-              complaint.geometry_status !== 'failed' &&
-              complaint.estimated_width_cm == null &&
-              complaint.category?.toLowerCase()?.includes('pothole') && (
+            {displayComplaint.geometry_status !== 'completed' &&
+              displayComplaint.geometry_status !== 'pending' &&
+              displayComplaint.geometry_status !== 'failed' &&
+              displayComplaint.estimated_width_cm == null &&
+              displayComplaint.category?.toLowerCase()?.includes('pothole') && (
               <View style={styles.geometryPanel}>
                 <Text style={styles.geometryRow}>
-                  No geometric size estimate yet computed for this pothole.
+                  {t('admin:mobileAdmin.noGeometryYet')}
                 </Text>
                 <TouchableOpacity
                   style={styles.geometryRetryButton}
@@ -475,7 +512,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
                   onPress={retryGeometry}
                 >
                   <Text style={styles.explainButtonText}>
-                    {geometryRetryLoading ? 'Calculating…' : 'Estimate Pothole Geometry'}
+                    {geometryRetryLoading ? t('admin:mobileAdmin.calculating') : t('admin:mobileAdmin.estimatePotholeGeometry')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -483,14 +520,14 @@ const AdminComplaintDetails = ({ route, navigation }) => {
           </View>
         ) : (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Images</Text>
-            <Text style={styles.noImageText}>No photo was attached to this complaint.</Text>
+            <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.imagesTitle')}</Text>
+            <Text style={styles.noImageText}>{t('admin:mobileAdmin.noPhotoAttached')}</Text>
           </View>
         )}
 
         {/* Progress Overview */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Progress Overview</Text>
+          <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.progressOverview')}</Text>
           
           <View style={styles.progressOverview}>
             <View style={styles.progressBar}>
@@ -502,13 +539,17 @@ const AdminComplaintDetails = ({ route, navigation }) => {
               />
             </View>
             <Text style={styles.progressText}>
-              {completedStages} of {totalStages} stages completed ({totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0}%)
+              {t('admin:mobileAdmin.stagesCompletedPercent', {
+                completed: completedStages,
+                total: totalStages,
+                percent: totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0,
+              })}
             </Text>
           </View>
 
           {currentStage && (
             <View style={styles.currentStageCard}>
-              <Text style={styles.currentStageLabel}>Current Stage</Text>
+              <Text style={styles.currentStageLabel}>{t('admin:mobileAdmin.currentStage')}</Text>
               <Text style={styles.currentStageName}>{currentStage.stage_name}</Text>
               <Text style={styles.currentStageDescription}>{currentStage.stage_description}</Text>
               
@@ -516,7 +557,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
                 <View style={styles.assignmentInfo}>
                   <Ionicons name="person-outline" size={16} color="#1A1A1A" />
                   <Text style={styles.assignmentText}>
-                    Officer: {currentStage.officers.name} ({currentStage.officers.department})
+                    {t('admin:mobileAdmin.officerLine', { name: currentStage._officerName || currentStage.officers.name, dept: currentStage._officerDept || currentStage.officers.department || '' })}
                   </Text>
                 </View>
               )}
@@ -525,7 +566,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
                 <View style={styles.assignmentInfo}>
                   <Ionicons name="build-outline" size={16} color="#1A1A1A" />
                   <Text style={styles.assignmentText}>
-                    Contractor: {currentStage.contractors.name}
+                    {t('admin:mobileAdmin.contractorSimple', { name: currentStage._contractorName || currentStage.contractors.name })}
                   </Text>
                 </View>
               )}
@@ -535,7 +576,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
                 onPress={() => openStageModal(currentStage)}
               >
                 <Ionicons name="create-outline" size={20} color="#fff" />
-                <Text style={styles.updateStageText}>Update Stage</Text>
+                <Text style={styles.updateStageText}>{t('admin:mobileAdmin.updateStageBtn')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -544,16 +585,16 @@ const AdminComplaintDetails = ({ route, navigation }) => {
         {/* Stages Timeline */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Stages Timeline</Text>
-            {complaint.status !== 'resolved' && complaint.status !== 'rejected' && (
+            <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.stagesTimeline')}</Text>
+            {displayComplaint.status !== 'resolved' && displayComplaint.status !== 'rejected' && (
               <TouchableOpacity style={styles.addStageButton} onPress={addNextStage}>
                 <Ionicons name="add" size={20} color="#1A1A1A" />
-                <Text style={styles.addStageText}>Add Next Stage</Text>
+                <Text style={styles.addStageText}>{t('admin:mobileAdmin.addNextStage')}</Text>
               </TouchableOpacity>
             )}
           </View>
 
-          {complaint.complaint_stages?.map((stage, index) => (
+          {displayStages.map((stage, index) => (
             <TouchableOpacity
               key={stage.id}
               style={styles.stageItem}
@@ -570,7 +611,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
                     color="#fff" 
                   />
                 </View>
-                {index < complaint.complaint_stages.length - 1 && (
+                {index < displayStages.length - 1 && (
                   <View style={styles.stageLine} />
                 )}
               </View>
@@ -583,39 +624,39 @@ const AdminComplaintDetails = ({ route, navigation }) => {
                     { backgroundColor: getStatusColor(stage.stage_status) }
                   ]}>
                     <Text style={styles.stageStatusText}>
-                      {(stage.stage_status || 'pending').replace('_', ' ').toUpperCase()}
+                      {getStatusLabel(stage.stage_status || 'pending', t)}
                     </Text>
                   </View>
                 </View>
 
                 <Text style={styles.stageDescription}>{stage.stage_description}</Text>
 
-                {stage.notes && (
-                  <Text style={styles.stageNotes}>Notes: {stage.notes}</Text>
+                {Boolean(stage.notes) && (
+                  <Text style={styles.stageNotes}>{t('admin:mobileAdmin.notesLine', { notes: stage.notes })}</Text>
                 )}
 
-                {stage.officers && (
+                {Boolean(stage.officers) && (
                   <Text style={styles.stageAssignment}>
-                    Officer: {stage.officers.name}
+                    {t('admin:mobileAdmin.officerSimple', { name: stage._officerName || stage.officers.name })}
                   </Text>
                 )}
 
-                {stage.contractors && (
+                {Boolean(stage.contractors) && (
                   <Text style={styles.stageAssignment}>
-                    Contractor: {stage.contractors.name}
+                    {t('admin:mobileAdmin.contractorSimple', { name: stage._contractorName || stage.contractors.name })}
                   </Text>
                 )}
 
-                {stage.estimated_cost && (
+                {Boolean(stage.estimated_cost) && (
                   <Text style={styles.stageCost}>
-                    Estimated Cost: ₹{stage.estimated_cost}
+                    {t('admin:mobileAdmin.estimatedCostLine', { cost: stage.estimated_cost })}
                   </Text>
                 )}
 
                 <Text style={styles.stageTimestamp}>
-                  Created: {new Date(stage.created_at).toLocaleDateString()}
+                  {t('admin:mobileAdmin.createdAtLine', { date: formatLocalizedDate(stage.created_at, i18n.language) })}
                   {stage.updated_at !== stage.created_at && 
-                    ` • Updated: ${new Date(stage.updated_at).toLocaleDateString()}`
+                    ` • ${t('admin:mobileAdmin.updatedAtLine', { date: formatLocalizedDate(stage.updated_at, i18n.language) })}`
                   }
                 </Text>
               </View>
@@ -625,52 +666,52 @@ const AdminComplaintDetails = ({ route, navigation }) => {
 
         {/* Additional Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions</Text>
+          <Text style={styles.sectionTitle}>{t('admin:mobileAdmin.actionsTitle')}</Text>
           <View style={styles.actionButtons}>
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: '#1A1A1A' }]}
               onPress={() => Alert.alert(
-                'Contact User', 
-                'Contact user feature coming soon!\n\nThis will allow direct communication with the citizen who submitted this complaint.',
-                [{ text: 'OK' }]
+                t('admin:mobileAdmin.contactUserTitle'), 
+                t('admin:mobileAdmin.contactUserDesc'),
+                [{ text: t('common:buttons.ok') }]
               )}
             >
               <Ionicons name="chatbubble-outline" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Contact User</Text>
+              <Text style={styles.actionButtonText}>{t('admin:mobileAdmin.contactUserTitle')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: '#1A1A1A' }]}
               onPress={() => {
                 Alert.alert(
-                  'Mark as Resolved',
-                  'Are you sure you want to mark this complaint as resolved?',
+                  t('admin:mobileAdmin.markResolvedTitle'),
+                  t('admin:mobileAdmin.markResolvedConfirm'),
                   [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Resolve', onPress: () => updateComplaintStatus('resolved') }
+                    { text: t('common:buttons.cancel'), style: 'cancel' },
+                    { text: t('admin:mobileAdmin.resolveBtn'), onPress: () => updateComplaintStatus('resolved') }
                   ]
                 );
               }}
             >
               <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Mark Resolved</Text>
+              <Text style={styles.actionButtonText}>{t('admin:mobileAdmin.markResolvedBtn')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
               style={[styles.actionButton, { backgroundColor: '#1A1A1A' }]}
               onPress={() => {
                 Alert.alert(
-                  'Reject Complaint',
-                  'Are you sure you want to reject this complaint?',
+                  t('admin:mobileAdmin.rejectComplaintTitle'),
+                  t('admin:mobileAdmin.rejectComplaintConfirm'),
                   [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Reject', onPress: () => updateComplaintStatus('rejected') }
+                    { text: t('common:buttons.cancel'), style: 'cancel' },
+                    { text: t('admin:mobileAdmin.rejectBtn'), onPress: () => updateComplaintStatus('rejected') }
                   ]
                 );
               }}
             >
               <Ionicons name="close-circle-outline" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Reject</Text>
+              <Text style={styles.actionButtonText}>{t('admin:mobileAdmin.rejectBtn')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -686,59 +727,59 @@ const AdminComplaintDetails = ({ route, navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.stageModal}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Update Stage</Text>
+              <Text style={styles.modalTitle}>{t('admin:mobileAdmin.updateStageBtn')}</Text>
               <TouchableOpacity onPress={() => setShowStageModal(false)}>
                 <Ionicons name="close" size={24} color="#2c3e50" />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalContent}>
-              <Text style={styles.modalLabel}>Stage Status</Text>
+              <Text style={styles.modalLabel}>{t('admin:mobileAdmin.stageStatusLabel')}</Text>
               <SimpleDropdown
                 value={newStageStatus}
                 onValueChange={setNewStageStatus}
                 items={[
-                  { label: 'Pending', value: 'pending' },
-                  { label: 'In Progress', value: 'in_progress' },
-                  { label: 'Completed', value: 'completed' },
-                  { label: 'Cancelled', value: 'cancelled' },
+                  { label: getStatusLabel('pending', t), value: 'pending' },
+                  { label: getStatusLabel('in_progress', t), value: 'in_progress' },
+                  { label: getStatusLabel('completed', t), value: 'completed' },
+                  { label: getStatusLabel('cancelled', t), value: 'cancelled' },
                 ]}
               />
 
-              <Text style={styles.modalLabel}>Assign Officer</Text>
+              <Text style={styles.modalLabel}>{t('admin:mobileAdmin.assignOfficer')}</Text>
               <SimpleDropdown
                 value={selectedOfficer}
                 onValueChange={setSelectedOfficer}
-                placeholder="No Officer Assigned"
+                placeholder={t('admin:mobileAdmin.noOfficerAssigned')}
                 items={[
-                  { label: 'No Officer Assigned', value: '' },
-                  ...officers.map(officer => ({
+                  { label: t('admin:mobileAdmin.noOfficerAssigned'), value: '' },
+                  ...displayOfficers.map(officer => ({
                     label: `${officer.name} (${officer.department})`,
                     value: officer.id,
                   })),
                 ]}
               />
 
-              <Text style={styles.modalLabel}>Assign Contractor</Text>
+              <Text style={styles.modalLabel}>{t('admin:mobileAdmin.assignContractor')}</Text>
               <SimpleDropdown
                 value={selectedContractor}
                 onValueChange={setSelectedContractor}
-                placeholder="No Contractor Assigned"
+                placeholder={t('admin:mobileAdmin.noContractorAssigned')}
                 items={[
-                  { label: 'No Contractor Assigned', value: '' },
-                  ...contractors.map(contractor => ({
+                  { label: t('admin:mobileAdmin.noContractorAssigned'), value: '' },
+                  ...displayContractors.map(contractor => ({
                     label: contractor.name,
                     value: contractor.id,
                   })),
                 ]}
               />
 
-              <Text style={styles.modalLabel}>Notes</Text>
+              <Text style={styles.modalLabel}>{t('admin:mobileAdmin.notesHeaderLabel')}</Text>
               <TextInput
                 style={styles.modalTextArea}
                 multiline
                 numberOfLines={4}
-                placeholder="Add notes about this stage..."
+                placeholder={t('admin:mobileAdmin.addStageNotesPlaceholder')}
                 value={stageNotes}
                 onChangeText={setStageNotes}
               />
@@ -749,10 +790,10 @@ const AdminComplaintDetails = ({ route, navigation }) => {
                 style={styles.modalCancelButton} 
                 onPress={() => setShowStageModal(false)}
               >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t('common:buttons.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalUpdateButton} onPress={updateStage}>
-                <Text style={styles.modalUpdateText}>Update Stage</Text>
+                <Text style={styles.modalUpdateText}>{t('admin:mobileAdmin.updateStageBtn')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -769,7 +810,7 @@ const AdminComplaintDetails = ({ route, navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.stageModal}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>AI Image Explanation</Text>
+              <Text style={styles.modalTitle}>{t('admin:mobileAdmin.aiImageExplanation')}</Text>
               <TouchableOpacity onPress={() => setShowAiExplainModal(false)}>
                 <Ionicons name="close" size={24} color="#2c3e50" />
               </TouchableOpacity>
@@ -777,21 +818,21 @@ const AdminComplaintDetails = ({ route, navigation }) => {
             <ScrollView style={styles.modalContent}>
               {aiExplainLoading ? (
                 <View style={{ padding: 20, alignItems: 'center' }}>
-                  <Text>Generating SAM3 segmentation map...</Text>
+                  <Text>{t('admin:mobileAdmin.generatingSam3')}</Text>
                 </View>
-              ) : aiExplainResult ? (
+              ) : displayAiExplain ? (
                 <View>
-                  <Text style={styles.explanationText}>{aiExplainResult.explanationText}</Text>
-                  {aiExplainResult.annotatedImage?.value && (
+                  <Text style={styles.explanationText}>{displayAiExplain.explanationText}</Text>
+                  {displayAiExplain.annotatedImage?.value && (
                     <Image
-                      source={{ uri: `data:image/jpeg;base64,${aiExplainResult.annotatedImage.value}` }}
+                      source={{ uri: `data:image/jpeg;base64,${displayAiExplain.annotatedImage.value}` }}
                       style={{ width: '100%', height: 250, borderRadius: 8, marginTop: 15, resizeMode: 'contain' }}
                     />
                   )}
 
                 </View>
               ) : (
-                <Text style={{ padding: 20 }}>No explanation generated.</Text>
+                <Text style={{ padding: 20 }}>{t('admin:mobileAdmin.noExplanationGenerated')}</Text>
               )}
             </ScrollView>
           </View>
@@ -819,14 +860,14 @@ const AdminComplaintDetails = ({ route, navigation }) => {
       );
 
       if (response.success) {
-        Alert.alert('Success', `Complaint ${newStatus} successfully`);
+        Alert.alert(t('common:buttons.success'), t('admin:mobileAdmin.complaintStatusChangedSuccess', { status: getStatusLabel(newStatus, t) }));
         await loadComplaintDetails();
       } else {
-        Alert.alert('Error', response.message || `Failed to ${newStatus} complaint`);
+        Alert.alert(t('common:mobileNav.error'), response.message || t('admin:mobileAdmin.complaintStatusChangeFailed'));
       }
     } catch (error) {
       console.error('Update status error:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.connectError'));
     }
   }
 };

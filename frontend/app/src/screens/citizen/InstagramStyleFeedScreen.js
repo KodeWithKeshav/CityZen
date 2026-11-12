@@ -23,6 +23,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { makeApiCall, apiClient } from '../../../config/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { refetchComplaintVotes } from '../../utils/voteUtils';
 import { handleVoting } from '../../utils/enhancedVoteUtils';
 import LocationService from '../../services/LocationService';
@@ -33,6 +34,9 @@ import NewsCarousel from '../../components/NewsCarousel';
 import NewsCard from '../../components/NewsCard';
 import NewsService from '../../services/NewsService';
 import WeatherWidget from '../../components/WeatherWidget';
+import { useTranslatedList } from '../../context/TranslationContext';
+import { formatLocalizedRelativeTime } from '../../utils/dateLocale';
+import { getCategoryLabel, getStatusLabel } from '../../utils/priorityUtils';
 
 /**
  * Get guest vote status from local storage
@@ -55,7 +59,9 @@ const { width } = Dimensions.get('window');
 const CARD_WIDTH = width;
 
 const InstagramStyleFeedScreen = ({ navigation }) => {
+  const { t, i18n } = useTranslation(['citizen', 'common', 'complaint']);
   const [complaints, setComplaints] = useState([]);
+  const translatedComplaints = useTranslatedList(complaints, ['title', 'description', 'location_address', 'reporterName']);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
@@ -164,21 +170,21 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
         return coords;
       } else {
         Alert.alert(
-          "Location Error",
-          "We couldn't determine your current location. Please check your device settings and try again.",
-          [{ text: "OK" }]
+          t('citizen:mobilePrivacy.locationError'),
+          t('citizen:mobileFeed.locationDetermineFailed'),
+          [{ text: t('common:mobileNav.ok') }]
         );
         return null;
       }
     } catch (error) {
       console.error(' Error getting location:', error);
       Alert.alert(
-        "Location Error",
-        "We need your location to show nearby complaints. Please enable location services.",
+        t('citizen:mobilePrivacy.locationError'),
+        t('citizen:mobileFeed.locationPermissionNeeded'),
         [
-          { text: "Cancel" },
+          { text: t('common:mobileNav.cancel') },
           { 
-            text: "Settings", 
+            text: t('common:mobileNav.settings'), 
             onPress: async () => {
               if (Platform.OS === 'ios') {
                 Linking.openURL('app-settings:');
@@ -374,6 +380,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           
           return {
             ...complaint,
+            reporterName: complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || '',
             timeAgo,
             voteCount: complaint.vote_count || 0,
             userVoted: finalUserVoted,
@@ -390,9 +397,9 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     } catch (error) {
       console.error(' Error fetching nearby complaints:', error);
       Alert.alert(
-        "Couldn't Load Complaints",
-        "There was a problem loading complaints. Please try again later.",
-        [{ text: "OK" }]
+        t('citizen:mobileFeed.loadErrorTitle'),
+        t('citizen:mobileFeed.loadErrorDesc'),
+        [{ text: t('common:mobileNav.ok') }]
       );
       setComplaints([]);
     } finally {
@@ -472,24 +479,25 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     console.log(' News pressed:', article.headline);
     Alert.alert(
       article.headline,
-      `${article.summary}\n\nSource: ${article.source}`,
-      [{ text: 'Close' }]
+      `${article.summary}\n\n${t('citizen:mobileInsta.sourcePrefix', { source: article.source })}`,
+      [{ text: t('common:buttons.close') }]
     );
   };
 
   // Create feed data (only complaints - news shown in header)
   const createCombinedFeedData = () => {
+    const sourceList = translatedComplaints.length > 0 ? translatedComplaints : complaints;
     console.log(' Creating feed data...');
-    console.log(' Complaints:', complaints.length);
+    console.log(' Complaints:', sourceList.length);
     console.log(' All news:', allNews.length);
     
-    if (!complaints.length) {
+    if (!sourceList.length) {
       console.log('️ No complaints available for feed');
       return [];
     }
     
     // Only return complaints - news will be shown in header carousel
-    const feedData = complaints.map(complaint => ({
+    const feedData = sourceList.map(complaint => ({
       id: complaint.id,
       type: 'complaint',
       data: complaint
@@ -510,7 +518,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     const combined = createCombinedFeedData();
     setFeedData(combined);
     console.log(' Feed data updated with', combined.length, 'items');
-  }, [complaints, allNews]);
+  }, [complaints, translatedComplaints, allNews]);
 
   const handleUpvote = async (complaintId, index) => {
     // Find the complaint in the state
@@ -543,9 +551,9 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
       if (!voteResponse.success) {
         console.error(' Vote failed:', voteResponse);
         Alert.alert(
-          "Vote Failed",
-          "There was a problem recording your vote. Please try again.",
-          [{ text: "OK" }]
+          t('citizen:mobileFeed.voteFailedTitle'),
+          t('citizen:mobileFeed.voteFailedDesc'),
+          [{ text: t('common:mobileNav.ok') }]
         );
         return;
       }
@@ -774,16 +782,16 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
 
   const handleMoreButtonPress = (complaint) => {
     Alert.alert(
-      'Complaint Options',
-      'What would you like to do?',
+      t('citizen:mobileInsta.optionsTitle'),
+      t('citizen:mobileInsta.optionsDesc'),
       [
         {
-          text: 'View Details',
+          text: t('citizen:mobileFeed.viewDetails'),
           onPress: () => navigation.navigate('ComplaintDetail', { complaintId: complaint.id }),
           style: 'default'
         },
         {
-          text: 'Cancel',
+          text: t('common:mobileNav.cancel'),
           style: 'cancel'
         }
       ],
@@ -809,7 +817,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             <View style={styles.storyAdd}>
               <Ionicons name="add" size={28} color="#fff" />
             </View>
-            <Text style={styles.storyText}>New Report</Text>
+            <Text style={styles.storyText}>{t('citizen:mobileInsta.newReport')}</Text>
           </TouchableOpacity>
           
           {/* Quick actions */}
@@ -825,7 +833,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
                 <Ionicons name="map" size={22} color="#fff" />
               </View>
             </LinearGradient>
-            <Text style={styles.storyText}>Map</Text>
+            <Text style={styles.storyText}>{t('common:mobileNav.map')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -840,7 +848,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
                 <Ionicons name="bar-chart" size={22} color="#fff" />
               </View>
             </LinearGradient>
-            <Text style={styles.storyText}>Stats</Text>
+            <Text style={styles.storyText}>{t('citizen:mobileInsta.stats')}</Text>
           </TouchableOpacity>
 
           {/* Dynamic stories from categories */}
@@ -850,7 +858,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
               style={styles.storyItem}
               onPress={() => {
                 // Future feature: Filter by category
-                Alert.alert("Coming Soon", "Filter by category will be available soon");
+                Alert.alert(t('citizen:mobileInsta.comingSoonTitle'), t('citizen:mobileInsta.comingSoonDesc'));
               }}
             >
               <LinearGradient
@@ -862,7 +870,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
                 </View>
               </LinearGradient>
               <Text style={styles.storyText}>
-                {category.replace('_', ' ')}
+                {getCategoryLabel(category, t)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -881,7 +889,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
       return (
         <View style={[styles.postImage, styles.imagePlaceholder]}>
           <Ionicons name="image-outline" size={60} color="#ccc" />
-          <Text style={styles.placeholderText}>No Image Available</Text>
+          <Text style={styles.placeholderText}>{t('citizen:mobileFeed.noImage')}</Text>
         </View>
       );
     }
@@ -892,7 +900,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
       return (
         <View style={[styles.postImage, styles.imagePlaceholder]}>
           <Ionicons name="image-outline" size={60} color="#95a5a6" />
-          <Text style={styles.placeholderText}>Local Image Not Available</Text>
+          <Text style={styles.placeholderText}>{t('citizen:mobileInsta.localImageUnavailable')}</Text>
         </View>
       );
     }
@@ -1027,17 +1035,17 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
               style={styles.modernUserAvatar}
             >
               <Text style={styles.modernUserAvatarText}>
-                {(item.users?.full_name || item.user?.full_name || item.user_name || item.citizenName || 'Verified Citizen').charAt(0).toUpperCase()}
+                {(item.reporterName || t('citizen:feed.verifiedCitizen')).charAt(0).toUpperCase()}
               </Text>
             </LinearGradient>
             <View style={styles.userInfo}>
               <Text style={styles.modernUserName}>
-                {item.users?.full_name || item.user?.full_name || item.user_name || item.citizenName || 'Verified Citizen'}
+                {item.reporterName || t('citizen:feed.verifiedCitizen')}
               </Text>
               <View style={styles.modernLocationContainer}>
                 <Ionicons name="location" size={11} color="#666" />
                 <Text style={styles.modernLocationText} numberOfLines={1}>
-                  {item.location_address?.substring(0, 35) || 'Unknown location'}
+                  {item.location_address?.substring(0, 35) || t('citizen:mobileFeed.unknownLocation')}
                 </Text>
               </View>
             </View>
@@ -1049,9 +1057,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
               style={styles.modernStatusBadge}
             >
               <Text style={styles.modernStatusText}>
-                {item.status
-                  ? item.status.charAt(0).toUpperCase() + item.status.slice(1).replace('_', ' ')
-                  : 'Pending'}
+                {getStatusLabel(item.status, t)}
               </Text>
             </LinearGradient>
             <TouchableOpacity 
@@ -1071,7 +1077,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           <View style={styles.categoryBadge}>
             {getCategoryIcon(item.category)}
             <Text style={styles.categoryText}>
-              {item.category?.replace('_', ' ')}
+              {item.category ? getCategoryLabel(item.category, t) : t('common:mobileNav.general')}
             </Text>
           </View>
         </View>
@@ -1097,14 +1103,14 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
         {/* Vote count */}
         <View style={styles.likesContainer}>
           <Text style={styles.likesText}>
-            {item.voteCount || 0} {item.voteCount === 1 ? 'vote' : 'votes'}
+            {t('citizen:mobileInsta.voteCount', { count: item.voteCount || 0 })}
           </Text>
         </View>
         
         {/* Caption */}
         <View style={styles.captionContainer}>
-          <Text style={styles.captionName}>{item.users?.full_name || item.user?.full_name || item.user_name || item.citizenName || 'Verified Citizen'}</Text>
-          <Text style={styles.captionText}>{item.title}</Text>
+          <Text style={styles.captionName}>{item.reporterName || t('citizen:feed.verifiedCitizen')}</Text>
+          <Text style={styles.captionText}>{item.title || t('citizen:feed.untitledIncident')}</Text>
         </View>
         
         {/* Description */}
@@ -1116,12 +1122,14 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             {item.description}
           </Text>
           {item.description && item.description.length > 80 && (
-            <Text style={styles.readMore}>more</Text>
+            <Text style={styles.readMore}>{t('citizen:mobileInsta.more')}</Text>
           )}
         </TouchableOpacity>
         
         {/* Time ago */}
-        <Text style={styles.timeAgoText}>{item.timeAgo}</Text>
+        <Text style={styles.timeAgoText}>
+          {formatLocalizedRelativeTime(item.created_at, item.timeAgo, i18n.language)}
+        </Text>
       </Animated.View>
     );
   };
@@ -1130,7 +1138,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
     return (
       <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color="#1A1A1A" />
-        <Text style={styles.loadingText}>Getting your location...</Text>
+        <Text style={styles.loadingText}>{t('citizen:mobileFeed.gettingLocation')}</Text>
       </View>
     );
   }
@@ -1148,7 +1156,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           <View style={styles.headerContent}>
             <View style={styles.headerLeft}>
               <Text style={styles.modernHeaderTitle}>CITYZEN</Text>
-              <Text style={styles.headerSubtitle}>Nearby Reports</Text>
+              <Text style={styles.headerSubtitle}>{t('citizen:mobileInsta.nearbyReports')}</Text>
             </View>
             <View style={styles.headerRight}>
               {userLocation && (
@@ -1162,7 +1170,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
                     style={styles.locationGradient}
                   >
                     <Ionicons name="locate" size={14} color="#fff" />
-                    <Text style={styles.modernLocationText}>3km</Text>
+                    <Text style={styles.locationPillText}>{t('citizen:mobileInsta.radius3km')}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               )}
@@ -1200,8 +1208,8 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           >
             <ActivityIndicator size="large" color="#fff" />
           </LinearGradient>
-          <Text style={styles.modernLoadingText}>Loading nearby reports...</Text>
-          <Text style={styles.loadingSubtext}>Finding issues around you</Text>
+          <Text style={styles.modernLoadingText}>{t('citizen:mobileInsta.loadingNearbyReports')}</Text>
+          <Text style={styles.loadingSubtext}>{t('citizen:mobileInsta.findingIssues')}</Text>
         </Animated.View>
       ) : complaints.length === 0 ? (
         <Animated.View style={[styles.modernEmptyContainer, { transform: [{ translateY: slideAnim }] }]}>
@@ -1210,10 +1218,9 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           >
             <Ionicons name="checkmark-circle-outline" size={50} color="#9CA3AF" />
           </View>
-          <Text style={styles.modernEmptyTitle}>No Reports Nearby</Text>
+          <Text style={styles.modernEmptyTitle}>{t('citizen:mobileInsta.noReportsNearby')}</Text>
           <Text style={styles.modernEmptyText}>
-            No issues reported within 3km.{'\n'}
-            Be the first to submit a report.
+            {t('citizen:mobileInsta.noReportsNearbyDesc')}
           </Text>
           <TouchableOpacity 
             style={styles.modernReportButton}
@@ -1225,7 +1232,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
               style={styles.reportButtonGradient}
             >
               <Ionicons name="add-circle" size={20} color="#fff" />
-              <Text style={styles.modernReportButtonText}>Report an Issue</Text>
+              <Text style={styles.modernReportButtonText}>{t('citizen:mobileFeed.reportIssue')}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
@@ -1234,7 +1241,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           <FlatList
             data={feedData}
             renderItem={renderFeedItem}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => String(item.id ?? index)}
             showsVerticalScrollIndicator={false}
             onScroll={Animated.event(
               [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -1252,9 +1259,6 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             contentContainerStyle={styles.flatListContainer}
             ItemSeparatorComponent={() => <View style={styles.cardSeparator} />}
             ListHeaderComponent={() => {
-              console.log(' Rendering ListHeaderComponent');
-              console.log(' Top news length:', topNews.length);
-              console.log(' Top news:', topNews.map(n => n.headline));
               return (
               <View>
                 {/* Weather Widget */}
@@ -1263,7 +1267,6 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
                 {/* News Carousel */}
                 {topNews.length > 0 ? (
                   <>
-                    {console.log(' Rendering NewsCarousel with', topNews.length, 'items')}
                     <NewsCarousel
                       news={topNews}
                       onNewsPress={handleNewsPress}
@@ -1271,10 +1274,9 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
                   </>
                 ) : (
                   <>
-                    {console.log('️ No top news to display')}
                     <View style={{ padding: 10, backgroundColor: '#f0f0f0', margin: 10, borderRadius: 8 }}>
                       <Text style={{ textAlign: 'center', color: '#666' }}>
-                        Loading Location News...
+                        {t('citizen:mobileInsta.loadingLocationNews')}
                       </Text>
                     </View>
                   </>
@@ -1299,7 +1301,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
           >
             <View style={styles.activeTabContainer}>
               <Ionicons name="home" size={22} color="#1A1A1A" />
-              <Text style={styles.activeTabText}>Feed</Text>
+              <Text style={styles.activeTabText}>{t('common:mobileNav.feed')}</Text>
             </View>
           </TouchableOpacity>
           
@@ -1309,7 +1311,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             activeOpacity={0.8}
           >
             <Ionicons name="map-outline" size={22} color="#9CA3AF" />
-            <Text style={styles.tabText}>Map</Text>
+            <Text style={styles.tabText}>{t('common:mobileNav.map')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -1331,7 +1333,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             activeOpacity={0.8}
           >
             <Ionicons name="stats-chart-outline" size={22} color="#9CA3AF" />
-            <Text style={styles.tabText}>Stats</Text>
+            <Text style={styles.tabText}>{t('citizen:mobileInsta.stats')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -1340,7 +1342,7 @@ const InstagramStyleFeedScreen = ({ navigation }) => {
             activeOpacity={0.8}
           >
             <Ionicons name="person-outline" size={22} color="#9CA3AF" />
-            <Text style={styles.tabText}>Profile</Text>
+            <Text style={styles.tabText}>{t('common:mobileNav.profile')}</Text>
           </TouchableOpacity>
         </LinearGradient>
       </View>
@@ -1452,7 +1454,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  modernLocationText: {
+  locationPillText: {
     color: '#fff',
     fontSize: 11,
     fontWeight: '600',

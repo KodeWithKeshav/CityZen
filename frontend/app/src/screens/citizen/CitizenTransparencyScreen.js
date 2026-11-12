@@ -13,18 +13,23 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { makeApiCall, apiClient } from '../../../config/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import TransparencyService from '../../../services/TransparencyService';
+import { getCategoryLabel } from '../../utils/priorityUtils';
+import { useTranslatedList } from '../../context/TranslationContext';
 
 const { width } = Dimensions.get('window');
 
 const CitizenTransparencyScreen = ({ navigation }) => {
+  const { t } = useTranslation(['citizen', 'common', 'complaint']);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statsData, setStatsData] = useState(null);
   const [error, setError] = useState(null);
   const insets = useSafeAreaInsets();
+  const translatedMonthlyData = useTranslatedList(statsData?.monthlyData || [], ['month']);
 
   useEffect(() => {
     fetchTransparencyData();
@@ -51,11 +56,11 @@ const CitizenTransparencyScreen = ({ navigation }) => {
       
       // Show user-friendly error message
       Alert.alert(
-        'Data Loading Error',
-        'Unable to fetch latest transparency data. Please check your connection and try again.',
+        t('citizen:mobileTransparency.errorTitle'),
+        t('citizen:mobileTransparency.errorDesc'),
         [
-          { text: 'Retry', onPress: () => fetchTransparencyData() },
-          { text: 'Cancel', style: 'cancel' }
+          { text: t('common:mobileNav.retry'), onPress: () => fetchTransparencyData() },
+          { text: t('common:mobileNav.cancel'), style: 'cancel' }
         ]
       );
       
@@ -83,8 +88,8 @@ const CitizenTransparencyScreen = ({ navigation }) => {
         </TouchableOpacity>
         
         <View style={styles.headerTextContainer}>
-          <Text style={styles.headerTitle}>Transparency</Text>
-          <Text style={styles.headerSubtitle}>Real-time civic statistics</Text>
+          <Text style={styles.headerTitle}>{t('common:mobileNav.transparency')}</Text>
+          <Text style={styles.headerSubtitle}>{t('citizen:mobileTransparency.subtitle')}</Text>
         </View>
         
         <TouchableOpacity 
@@ -112,7 +117,7 @@ const CitizenTransparencyScreen = ({ navigation }) => {
           <Ionicons name="clipboard" size={24} color="#1A1A1A" />
         </View>
         <Text style={styles.overviewValue}>{statsData.totalComplaints}</Text>
-        <Text style={styles.overviewLabel}>Total Reports</Text>
+        <Text style={styles.overviewLabel}>{t('citizen:mobileTransparency.totalReports')}</Text>
       </View>
       
       <View style={styles.overviewCard}>
@@ -120,7 +125,7 @@ const CitizenTransparencyScreen = ({ navigation }) => {
           <Ionicons name="checkmark-circle" size={24} color="#1A1A1A" />
         </View>
         <Text style={styles.overviewValue}>{statsData.resolvedComplaints}</Text>
-        <Text style={styles.overviewLabel}>Resolved</Text>
+        <Text style={styles.overviewLabel}>{t('common:statusFilters.resolved')}</Text>
       </View>
       
       <View style={styles.overviewCard}>
@@ -128,14 +133,14 @@ const CitizenTransparencyScreen = ({ navigation }) => {
           <Ionicons name="time" size={24} color="#1A1A1A" />
         </View>
         <Text style={styles.overviewValue}>{statsData.pendingComplaints}</Text>
-        <Text style={styles.overviewLabel}>Pending</Text>
+        <Text style={styles.overviewLabel}>{t('common:statusFilters.pending')}</Text>
       </View>
     </View>
   );
 
   const renderResolutionRate = () => (
     <View style={styles.sectionContainer}>
-      <Text style={styles.sectionTitle}>Resolution Rate</Text>
+      <Text style={styles.sectionTitle}>{t('citizen:mobileTransparency.resolutionRate')}</Text>
       <View style={styles.resolutionContainer}>
         <View style={styles.progressCircle}>
           <View style={styles.progressInnerCircle}>
@@ -146,13 +151,20 @@ const CitizenTransparencyScreen = ({ navigation }) => {
         </View>
         <View style={styles.resolutionText}>
           <Text style={styles.resolutionTitle}>
-            {statsData.resolutionRate >= 70 ? 'Excellent Progress!' : 
-             statsData.resolutionRate >= 60 ? 'Good Progress!' : 
-             'Improving'}
+            {statsData.resolutionRate >= 70
+              ? t('citizen:mobileTransparency.excellentProgress')
+              : statsData.resolutionRate >= 60
+              ? t('citizen:mobileTransparency.goodProgress')
+              : t('citizen:mobileTransparency.improving')}
           </Text>
           <Text style={styles.resolutionDescription}>
-            {statsData.resolvedComplaints} out of {statsData.totalComplaints} issues resolved.
-            {statsData.avgResolutionTime && ` Average resolution time: ${statsData.avgResolutionTime} days.`}
+            {t('citizen:mobileTransparency.resolvedSummary', {
+              resolved: statsData.resolvedComplaints,
+              total: statsData.totalComplaints,
+            })}
+            {statsData.avgResolutionTime
+              ? ` ${t('citizen:mobileTransparency.avgResolutionTime', { days: statsData.avgResolutionTime })}`
+              : ''}
           </Text>
         </View>
       </View>
@@ -161,7 +173,7 @@ const CitizenTransparencyScreen = ({ navigation }) => {
 
   const renderCategoryBreakdown = () => (
     <View style={styles.sectionContainer}>
-      <Text style={styles.sectionTitle}>Category Breakdown</Text>
+      <Text style={styles.sectionTitle}>{t('citizen:mobileTransparency.categoryBreakdown')}</Text>
       <View style={styles.categoriesContainer}>
         {statsData.categoryStats.map((category, index) => {
           const percentage = statsData.totalComplaints > 0
@@ -181,9 +193,12 @@ const CitizenTransparencyScreen = ({ navigation }) => {
                 />
               </View>
               <View style={styles.categoryInfo}>
-                <Text style={styles.categoryName}>{category.name}</Text>
+                <Text style={styles.categoryName}>{getCategoryLabel(category.name, t)}</Text>
                 <Text style={styles.categoryCount}>
-                  {category.total} issues ({category.resolved} resolved)
+                  {t('citizen:mobileTransparency.categoryCount', {
+                    total: category.total,
+                    resolved: category.resolved,
+                  })}
                 </Text>
               </View>
               <Text style={styles.categoryPercentage}>{percentage}%</Text>
@@ -196,41 +211,48 @@ const CitizenTransparencyScreen = ({ navigation }) => {
 
   const renderImpactStats = () => (
     <View style={styles.sectionContainer}>
-      <Text style={styles.sectionTitle}>Community Impact</Text>
+      <Text style={styles.sectionTitle}>{t('citizen:mobileTransparency.communityImpact')}</Text>
       <View style={styles.impactContainer}>
         <View style={styles.impactItem}>
           <MaterialCommunityIcons name="account-group" size={28} color="#1A1A1A" />
           <Text style={styles.impactValue}>
             {TransparencyService.formatPeopleImpacted(statsData.impactStats.peopleImpacted)}
           </Text>
-          <Text style={styles.impactLabel}>People Impacted</Text>
+          <Text style={styles.impactLabel}>{t('citizen:mobileTransparency.peopleImpacted')}</Text>
         </View>
         
         <View style={styles.impactItem}>
           <MaterialCommunityIcons name="trending-up" size={28} color="#1A1A1A" />
           <Text style={styles.impactValue}>{statsData.impactStats.highPriorityIssues}</Text>
-          <Text style={styles.impactLabel}>High Priority</Text>
+          <Text style={styles.impactLabel}>{t('citizen:mobileTransparency.highPriority')}</Text>
         </View>
         
         <View style={styles.impactItem}>
           <Ionicons name="timer-outline" size={28} color="#1A1A1A" />
           <Text style={styles.impactValue}>
-            {statsData.avgResolutionTime ? `${statsData.avgResolutionTime} days` : 'N/A'}
+            {statsData.avgResolutionTime
+              ? t('citizen:mobileTransparency.daysCount', { days: statsData.avgResolutionTime })
+              : t('common:mobileNav.na')}
           </Text>
-          <Text style={styles.impactLabel}>Avg. Resolution</Text>
+          <Text style={styles.impactLabel}>{t('citizen:mobileTransparency.avgResolution')}</Text>
         </View>
       </View>
       
       {statsData.votingStats && (
         <View style={styles.votingStatsContainer}>
-          <Text style={styles.votingStatsTitle}>Community Engagement</Text>
+          <Text style={styles.votingStatsTitle}>{t('citizen:mobileTransparency.communityEngagement')}</Text>
           <View style={styles.votingStatsRow}>
             <Text style={styles.votingStatsText}>
-              {statsData.votingStats.totalVotes} total votes • {statsData.votingStats.engagementRate}% engagement
+              {t('citizen:mobileTransparency.engagementSummary', {
+                votes: statsData.votingStats.totalVotes,
+                rate: statsData.votingStats.engagementRate,
+              })}
             </Text>
           </View>
           <Text style={styles.votingStatsSubtext}>
-            {statsData.votingStats.highEngagementComplaints} issues with high community support
+            {t('citizen:mobileTransparency.highSupportIssues', {
+              count: statsData.votingStats.highEngagementComplaints,
+            })}
           </Text>
         </View>
       )}
@@ -239,10 +261,10 @@ const CitizenTransparencyScreen = ({ navigation }) => {
 
   const renderMonthlyCounts = () => (
     <View style={styles.sectionContainer}>
-      <Text style={styles.sectionTitle}>Monthly Trends</Text>
+      <Text style={styles.sectionTitle}>{t('citizen:mobileTransparency.monthlyTrends')}</Text>
       <View style={styles.chartContainer}>
-        {statsData.monthlyData.map((item, index) => {
-          const maxCount = Math.max(...statsData.monthlyData.map(d => d.total));
+        {(translatedMonthlyData.length > 0 ? translatedMonthlyData : statsData.monthlyData).map((item, index, arr) => {
+          const maxCount = Math.max(...arr.map(d => d.total));
           const barHeight = maxCount > 0 ? (item.total / maxCount) * 100 : 0;
           const resolvedHeight = item.total > 0 ? (item.resolved / item.total) * barHeight : 0;
           
@@ -263,7 +285,7 @@ const CitizenTransparencyScreen = ({ navigation }) => {
                       styles.chartResolvedBar,
                       {
                         height: resolvedHeight,
-                        backgroundColor: index === statsData.monthlyData.length - 1 ? '#1A1A1A' : '#52d681'
+                        backgroundColor: index === arr.length - 1 ? '#1A1A1A' : '#52d681'
                       }
                     ]}
                   />
@@ -279,11 +301,11 @@ const CitizenTransparencyScreen = ({ navigation }) => {
       <View style={styles.chartLegend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendColor, { backgroundColor: '#e3f5ff' }]} />
-          <Text style={styles.legendText}>Total Reports</Text>
+          <Text style={styles.legendText}>{t('citizen:mobileTransparency.totalReports')}</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendColor, { backgroundColor: '#1A1A1A' }]} />
-          <Text style={styles.legendText}>Resolved</Text>
+          <Text style={styles.legendText}>{t('common:statusFilters.resolved')}</Text>
         </View>
       </View>
     </View>
@@ -297,7 +319,7 @@ const CitizenTransparencyScreen = ({ navigation }) => {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#1A1A1A" />
           <Text style={styles.loadingText}>
-            {refreshing ? 'Refreshing transparency data...' : 'Loading transparency data...'}
+            {refreshing ? t('citizen:mobileTransparency.refreshing') : t('citizen:mobileTransparency.loading')}
           </Text>
         </View>
       ) : (
@@ -327,10 +349,10 @@ const CitizenTransparencyScreen = ({ navigation }) => {
           {error && (
             <View style={styles.errorContainer}>
               <MaterialCommunityIcons name="alert-circle" size={48} color="#1A1A1A" />
-              <Text style={styles.errorText}>Failed to load data</Text>
+              <Text style={styles.errorText}>{t('citizen:transparency.loadFailed')}</Text>
               <Text style={styles.errorSubtext}>{error}</Text>
               <TouchableOpacity style={styles.retryButton} onPress={fetchTransparencyData}>
-                <Text style={styles.retryButtonText}>Retry</Text>
+                <Text style={styles.retryButtonText}>{t('common:mobileNav.retry')}</Text>
               </TouchableOpacity>
             </View>
           )}

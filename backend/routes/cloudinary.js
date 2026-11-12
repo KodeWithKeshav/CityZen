@@ -5,6 +5,9 @@ const axios = require('axios');
 
 // POST /cloudinary/delete-image
 router.post('/delete-image', async (req, res) => {
+  if (!req.user || !req.user.isAuthenticated) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
   const { public_id } = req.body || {};
   if (typeof public_id !== 'string' || !public_id.trim()) {
     return res.status(400).json({ error: 'public_id required' });

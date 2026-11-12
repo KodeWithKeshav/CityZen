@@ -47,7 +47,8 @@ class HeatMapService {
           resolved_at,
           location_address,
           title,
-          description
+          description,
+          image_urls
         `)
         .not('location_latitude', 'is', null)
         .not('location_longitude', 'is', null);
@@ -192,8 +193,14 @@ class HeatMapService {
         const weight = this.getComplaintWeight(complaintWithStatus);
         
         // Return both lat/lng and latitude/longitude for maximum compatibility
+        const firstImageUrl = Array.isArray(complaint.image_urls)
+          ? (complaint.image_urls[0] || null)
+          : (typeof complaint.image_urls === 'string' && complaint.image_urls.trim() ? complaint.image_urls.trim() : null);
+
         return {
           id: complaint.id,
+          title: complaint.title || null,
+          imageUrl: complaint.image_url || firstImageUrl,
           lat: lat,
           lng: lng,
           latitude: lat, // Add latitude for react-native-maps Heatmap component

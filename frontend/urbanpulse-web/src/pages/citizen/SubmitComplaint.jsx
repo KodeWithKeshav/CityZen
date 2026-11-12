@@ -404,18 +404,18 @@ export default function SubmitComplaint() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header section */}
       <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-2">
         <div>
-          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
             <span>URBAN AUDIT</span>
             <span>/</span>
             <span>INCIDENT INTAKE</span>
             <span>/</span>
             <span className="text-black font-semibold">DISPATCH PROTOCOL</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 uppercase">
             File Incident Dispatch
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans">
@@ -428,11 +428,11 @@ export default function SubmitComplaint() {
       </div>
 
       {/* Stepper Timeline */}
-      <div className="grid grid-cols-5 border border-neutral-200 bg-white">
+      <div className="flex overflow-x-auto sm:grid sm:grid-cols-5 border border-neutral-200 bg-white">
         {STEPS.map((s, i) => (
           <div
             key={s.id}
-            className={`p-3 border-r last:border-r-0 border-neutral-200 transition-colors ${
+            className={`p-3 min-w-[115px] sm:min-w-0 flex-shrink-0 border-r last:border-r-0 border-neutral-200 transition-colors ${
               i === step
                 ? 'bg-neutral-900 text-white'
                 : i < step
@@ -452,7 +452,7 @@ export default function SubmitComplaint() {
       </div>
 
       {/* Step Form Box */}
-      <div className="border border-neutral-200 bg-white p-6 md:p-8">
+      <div className="border border-neutral-200 bg-white p-4 sm:p-6 md:p-8">
         {/* Step 0: Classification */}
         {step === 0 && (
           <div className="space-y-6">
@@ -522,7 +522,7 @@ export default function SubmitComplaint() {
               </p>
             </div>
 
-            <div className="border-2 border-dashed border-neutral-300 p-8 text-center bg-neutral-50">
+            <div className="border-2 border-dashed border-neutral-300 p-5 sm:p-8 text-center bg-neutral-50">
               <label className="cursor-pointer inline-flex flex-col items-center justify-center">
                 <HiUpload className="w-8 h-8 text-neutral-600 mb-2" />
                 <span className="font-mono text-xs uppercase tracking-wider font-bold text-neutral-900 bg-white px-4 py-2 border border-neutral-300 hover:border-black transition-colors">
@@ -633,11 +633,11 @@ export default function SubmitComplaint() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                   <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700">
                     {t('form.descriptionLabel')}
                   </label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <select
                       value={form.language}
                       onChange={e => setField('language', e.target.value)}
@@ -855,27 +855,27 @@ export default function SubmitComplaint() {
             </div>
 
             <div className="border border-neutral-200 divide-y divide-neutral-200 font-mono text-xs">
-              <div className="p-3 flex justify-between">
+              <div className="p-3 flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-neutral-500">CLASSIFICATION</span>
                 <span className="font-bold text-neutral-900">
                   {ISSUE_TYPES.find(i => i.value === form.issueType)?.label}
                 </span>
               </div>
-              <div className="p-3 flex justify-between">
+              <div className="p-3 flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-neutral-500">EVIDENCE AUDIT</span>
                 <span className="font-bold text-neutral-900">
                   {imageValidated ? 'NEURAL MATCH VERIFIED' : 'BYPASSED'}
                 </span>
               </div>
-              <div className="p-3 flex justify-between">
+              <div className="p-3 flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-neutral-500">INCIDENT TITLE</span>
-                <span className="font-bold text-neutral-900">{form.title}</span>
+                <span className="font-bold text-neutral-900 break-words">{form.title}</span>
               </div>
-              <div className="p-3 flex justify-between">
+              <div className="p-3 flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-neutral-500">SEVERITY TIER</span>
                 <span className="font-bold text-neutral-900 uppercase">{form.priority}</span>
               </div>
-              <div className="p-3 flex justify-between">
+              <div className="p-3 flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-neutral-500">COORDINATES</span>
                 <span className="font-bold text-neutral-900">
                   {form.location.latitude}, {form.location.longitude}

@@ -10,12 +10,12 @@ class NewsService {
     this.lastLocationTime = null;
     this.CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
     this.LOCATION_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
-    
+
     // News API configuration
     this.NEWS_API_KEY = process.env.EXPO_PUBLIC_NEWS_API_KEY || 'demo_key';
     this.NEWS_API_URL = process.env.EXPO_PUBLIC_NEWS_API_URL || 'https://newsapi.org/v2';
     this.USE_REAL_API = this.NEWS_API_KEY !== 'demo_key';
-    
+
     console.log(`📰 NewsService initialized with ${this.USE_REAL_API ? 'REAL' : 'DEMO'} API`);
   }
 
@@ -31,7 +31,7 @@ class NewsService {
       if (!userLocation) {
         try {
           userLocation = await LocationService.getCurrentLocation();
-        } catch (error) {
+        } catch {
           console.log('📰 Could not get location, using India as default');
           userLocation = { city: null, region: null, country: 'India' };
         }
@@ -43,11 +43,11 @@ class NewsService {
 
       // Build API URL
       let apiUrl = `${this.NEWS_API_URL}/everything?apiKey=${this.NEWS_API_KEY}`;
-      
+
       // Add location-based search terms
       const searchTerms = this.buildSearchTerms(userLocation, category);
       apiUrl += `&q=${encodeURIComponent(searchTerms)}`;
-      
+
       // Additional parameters
       apiUrl += '&language=en';
       apiUrl += '&sortBy=publishedAt';
@@ -56,20 +56,20 @@ class NewsService {
 
       console.log('📰 Fetching from NewsAPI...');
       const response = await fetch(apiUrl);
-      
+
       if (!response.ok) {
         throw new Error(`NewsAPI error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
-      
+
       if (data.status !== 'ok') {
         throw new Error(`NewsAPI error: ${data.message || 'Unknown error'}`);
       }
 
       // Transform NewsAPI data to our format
       const transformedNews = this.transformNewsAPIData(data.articles, userLocation);
-      
+
       console.log(`📰 Fetched ${transformedNews.length} real news articles for ${locationQuery}`);
       return transformedNews;
 
@@ -83,7 +83,7 @@ class NewsService {
   // Build location query for news search
   buildLocationQuery(location) {
     if (!location) return 'India';
-    
+
     // Avoid Delhi if user specifically requested non-Delhi news
     if (location.city && location.city.toLowerCase() !== 'delhi') {
       return `${location.city}, ${location.region || location.country}`;
@@ -97,7 +97,7 @@ class NewsService {
   // Build search terms for NewsAPI
   buildSearchTerms(location, category = null) {
     const terms = [];
-    
+
     // Add location terms
     if (location?.city && location.city.toLowerCase() !== 'delhi') {
       terms.push(location.city);
@@ -108,7 +108,7 @@ class NewsService {
     if (location?.country) {
       terms.push(location.country);
     }
-    
+
     // Add category terms if specified
     if (category) {
       const categoryTerms = this.getCategorySearchTerms(category);
@@ -117,12 +117,12 @@ class NewsService {
       // Default civic-related terms
       terms.push('civic', 'municipal', 'city', 'infrastructure', 'public services');
     }
-    
+
     // Ensure we have some search terms
     if (terms.length === 0) {
       terms.push('India', 'news');
     }
-    
+
     return terms.join(' OR ');
   }
 
@@ -138,7 +138,7 @@ class NewsService {
       'Security': ['security', 'police', 'safety', 'crime'],
       'Education': ['education', 'school', 'university', 'students']
     };
-    
+
     return categoryMap[category] || ['news'];
   }
 
@@ -149,10 +149,10 @@ class NewsService {
       .map((article, index) => {
         // Determine category based on content
         const category = this.determineCategory(article.title + ' ' + article.description);
-        
+
         // Determine priority based on keywords
         const priority = this.determinePriority(article.title + ' ' + article.description);
-        
+
         return {
           id: `real_news_${index}_${Date.now()}`,
           headline: article.title,
@@ -174,8 +174,6 @@ class NewsService {
 
   // Determine news category from content
   determineCategory(content) {
-    const contentLower = content.toLowerCase();
-    
     if (/emergency|fire|disaster|rescue|accident|bomb|terror/i.test(content)) return 'Emergency';
     if (/traffic|transport|metro|road|highway|vehicle/i.test(content)) return 'Traffic';
     if (/weather|rain|flood|storm|cyclone|temperature/i.test(content)) return 'Weather';
@@ -185,18 +183,16 @@ class NewsService {
     if (/police|security|crime|safety|law/i.test(content)) return 'Security';
     if (/education|school|university|student|exam/i.test(content)) return 'Education';
     if (/election|vote|politics|government|minister/i.test(content)) return 'Civic Services';
-    
+
     return 'Civic Services'; // Default category
   }
 
   // Determine priority from content
   determinePriority(content) {
-    const contentLower = content.toLowerCase();
-    
     if (/urgent|emergency|breaking|alert|critical|disaster/i.test(content)) return 'urgent';
     if (/important|significant|major|serious|warning/i.test(content)) return 'high';
     if (/update|report|announce|plan|develop/i.test(content)) return 'medium';
-    
+
     return 'medium'; // Default priority
   }
 
@@ -212,11 +208,6 @@ class NewsService {
   // Placeholder Delhi news data (fallback when API is not available)
   getPlaceholderDelhiNews() {
     const currentDate = new Date();
-    const todayStr = currentDate.toLocaleDateString('en-IN', { 
-      day: 'numeric', 
-      month: 'long', 
-      year: 'numeric' 
-    });
 
     return [
       {
@@ -402,25 +393,25 @@ class NewsService {
       }
 
       console.log('📰 Fetching fresh news...');
-      
+
       // Try to get user location for location-based news
       let userLocation = null;
       try {
         userLocation = await LocationService.getCurrentLocation();
         console.log(`📰 Got user location: ${userLocation.city || userLocation.region || 'Unknown'}`);
-      } catch (error) {
+      } catch {
         console.log('📰 Could not get user location, using default');
       }
 
       // Get real news with location filtering
       const newsData = await this.getRealNews(userLocation);
-      
+
       // Update cache
       this.cache = newsData;
       this.lastFetchTime = now;
 
       console.log(`📰 Fetched ${newsData.length} news articles`);
-      
+
       return {
         success: true,
         news: newsData,
@@ -429,7 +420,7 @@ class NewsService {
       };
     } catch (error) {
       console.error('❌ Error fetching news:', error);
-      
+
       // Fallback to placeholder data
       const fallbackData = this.getPlaceholderDelhiNews();
       return {
@@ -437,11 +428,6 @@ class NewsService {
         news: fallbackData,
         source: 'fallback',
         error: error.message
-      };
-    }
-  }
-        error: error.message,
-        source: this.cache ? 'cache_fallback' : 'empty'
       };
     }
   }
@@ -477,7 +463,7 @@ class NewsService {
         return { success: false, news: [] };
       }
 
-      const categoryNews = result.news.filter(article => 
+      const categoryNews = result.news.filter(article =>
         article.category.toLowerCase() === category.toLowerCase()
       );
 
@@ -496,7 +482,7 @@ class NewsService {
   formatTimeAgo(date) {
     const now = new Date();
     const diffInMinutes = Math.floor((now - date) / (1000 * 60));
-    
+
     if (diffInMinutes < 60) {
       return `${diffInMinutes}m ago`;
     } else if (diffInMinutes < 1440) {
