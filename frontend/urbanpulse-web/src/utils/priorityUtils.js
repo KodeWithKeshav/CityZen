@@ -15,9 +15,10 @@
  * Returns null if the value cannot be parsed or is null/undefined.
  */
 export function normalizePriorityScore(raw) {
-  if (raw === null || raw === undefined || raw === '') return null;
+  if (raw === null || raw === undefined || typeof raw === 'boolean') return null;
+  if (typeof raw === 'string' && raw.trim() === '') return null;
   const num = Number(raw);
-  if (isNaN(num)) return null;
+  if (!Number.isFinite(num)) return null;
 
   // 0.0 to 1.0 decimal scale (e.g. 0.85 -> 85)
   if (num > 0 && num <= 1.0) {
@@ -38,14 +39,11 @@ export function normalizePriorityScore(raw) {
  */
 export function getRawPriority(complaint) {
   if (!complaint || typeof complaint !== 'object') return null;
-  if (complaint.priorityScore !== undefined && complaint.priorityScore !== null) {
-    return complaint.priorityScore;
-  }
-  if (complaint.priority_score !== undefined && complaint.priority_score !== null) {
-    return complaint.priority_score;
-  }
-  if (typeof complaint.priority === 'number') {
-    return complaint.priority;
+  const candidates = [complaint.priorityScore, complaint.priority_score, complaint.priority];
+  for (const val of candidates) {
+    if (normalizePriorityScore(val) !== null) {
+      return val;
+    }
   }
   return null;
 }
