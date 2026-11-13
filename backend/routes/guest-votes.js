@@ -22,19 +22,22 @@ const { deviceIdColumnAvailable } = require('../services/schemaAvailability');
  */
 router.post('/', async (req, res) => {
   try {
-    const { complaintId, deviceId } = req.body;
+    const { complaintId, deviceId } = req.body || {};
 
-    if (!complaintId) {
+    if (typeof complaintId !== 'string' || !complaintId.trim()) {
       return res.status(400).json({
         success: false,
         message: 'Missing required parameter: complaintId',
       });
     }
 
+    const normalizedComplaintId = complaintId.trim();
+    const normalizedDeviceId = typeof deviceId === 'string' && deviceId.trim() ? deviceId.trim() : null;
+
     const { data: complaint, error: complaintError } = await supabase
       .from('complaints')
       .select('id')
-      .eq('id', complaintId)
+      .eq('id', normalizedComplaintId)
       .single();
 
     if (complaintError || !complaint) {
@@ -47,16 +50,16 @@ router.post('/', async (req, res) => {
     // Only dedupe by device once the column exists - otherwise fall back
     // to the pre-migration behavior (every guest vote counts, no undo)
     // rather than erroring on a missing column.
-    const canDedupe = deviceId && (await deviceIdColumnAvailable(supabase));
-    const identity = canDedupe ? { deviceId } : {};
+    const canDedupe = Boolean(normalizedDeviceId && (await deviceIdColumnAvailable(supabase)));
+    const identity = canDedupe ? { deviceId: normalizedDeviceId } : {};
 
-    const { action, voteCount } = await toggleUpvote(supabase, complaintId, identity);
+    const { action, voteCount } = await toggleUpvote(supabase, normalizedComplaintId, identity);
 
     return res.status(200).json({
       success: true,
       message: action === 'voted' ? 'Vote added successfully' : 'Vote removed successfully',
       data: {
-        complaint_id: complaintId,
+        complaint_id: normalizedComplaintId,
         action,
         userVoted: action === 'voted',
         voteCount,
@@ -85,10 +88,20 @@ router.get('/status/:complaintId', async (req, res) => {
     const { complaintId } = req.params;
     const { deviceId } = req.query;
 
+    if (!complaintId || !complaintId.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required parameter: complaintId',
+      });
+    }
+
+    const normalizedComplaintId = complaintId.trim();
+    const normalizedDeviceId = typeof deviceId === 'string' && deviceId.trim() ? deviceId.trim() : null;
+
     const { data: complaint, error: complaintError } = await supabase
       .from('complaints')
       .select('vote_count')
-      .eq('id', complaintId)
+      .eq('id', normalizedComplaintId)
       .single();
 
     if (complaintError || !complaint) {
@@ -99,21 +112,25 @@ router.get('/status/:complaintId', async (req, res) => {
     }
 
     let hasVoted = false;
-    const canDedupe = deviceId && (await deviceIdColumnAvailable(supabase));
+    const canDedupe = Boolean(normalizedDeviceId && (await deviceIdColumnAvailable(supabase)));
     if (canDedupe) {
-      const { data: vote } = await supabase
+      const { data: vote, error: voteError } = await supabase
         .from('complaint_votes')
         .select('vote_type')
-        .eq('complaint_id', complaintId)
-        .eq('device_id', deviceId)
+        .eq('complaint_id', normalizedComplaintId)
+        .eq('device_id', normalizedDeviceId)
         .maybeSingle();
-      hasVoted = vote?.vote_type === 'upvote';
+      if (voteError) {
+        console.error('❌ Error querying guest vote status:', voteError.message);
+      } else {
+        hasVoted = vote?.vote_type === 'upvote';
+      }
     }
 
     return res.status(200).json({
       success: true,
       data: {
-        complaintId,
+        complaintId: normalizedComplaintId,
         voteCount: complaint.vote_count || 0,
         userVoteStatus: {
           hasVoted,

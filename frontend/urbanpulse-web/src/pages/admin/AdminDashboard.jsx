@@ -1,25 +1,22 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
-import { Doughnut } from 'react-chartjs-2'
-import {
-  Chart as ChartJS, CategoryScale, LinearScale, BarElement,
-  Title, Tooltip, Legend, ArcElement
-} from 'chart.js'
 import { HiRefresh, HiArrowRight } from 'react-icons/hi'
-import { format } from 'date-fns'
+import { formatLocalizedDateTime } from '../../utils/dateLocale'
 import { getPriorityTier } from '../../utils/priorityUtils'
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement)
+import { useTranslatedList, useTranslatedText } from '../../context/TranslationContext'
+import StatusDoughnutChart from '../../components/StatusDoughnutChart'
 
 export default function AdminDashboard() {
-  const { t } = useTranslation('admin')
+  const { t, i18n } = useTranslation(['admin', 'common'])
   const { user } = useAuth()
   const navigate = useNavigate()
   const [data, setData] = useState(null)
+  const [recentList, setRecentList] = useState([])
+  const [rejectedFallback, setRejectedFallback] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -33,9 +30,51 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     try {
-      const res = await makeApiCall(apiClient.admin.dashboard)
-      if (res.success) setData(res.data)
-    } catch (err) {
+      const [dashResult, queueResult] = await Promise.allSettled([
+        makeApiCall(apiClient.admin.dashboard),
+        makeApiCall(apiClient.admin.priorityQueue),
+      ])
+
+      if (dashResult.status === 'fulfilled' && dashResult.value?.success) {
+        setData(dashResult.value.data)
+      } else {
+        const msg =
+          dashResult.status === 'fulfilled'
+            ? dashResult.value?.message || dashResult.value?.error
+            : null
+        toast.error(msg || t('dashboard.loadFailed'))
+      }
+
+      let complaintsArr = null
+      if (queueResult.status === 'fulfilled' && queueResult.value?.success) {
+        const payload = queueResult.value.data?.complaints || queueResult.value.complaints || queueResult.value.data
+        if (Array.isArray(payload)) complaintsArr = payload
+      }
+
+      if (!complaintsArr) {
+        try {
+          const fallbackRes = await makeApiCall(apiClient.complaints.all)
+          const payload = fallbackRes?.complaints || fallbackRes?.data
+          if (fallbackRes?.success && Array.isArray(payload)) {
+            complaintsArr = payload
+          }
+        } catch {
+          // Keep dashboard usable even if recent submissions stream fails
+        }
+      }
+
+      if (Array.isArray(complaintsArr)) {
+        const sortedByRecent = [...complaintsArr].sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.created_at || 0).getTime()
+          const dateB = new Date(b.createdAt || b.created_at || 0).getTime()
+          return (Number.isNaN(dateB) ? 0 : dateB) - (Number.isNaN(dateA) ? 0 : dateA)
+        })
+        setRecentList(sortedByRecent)
+        setRejectedFallback(
+          complaintsArr.filter(c => (c.status || '').toLowerCase() === 'rejected').length
+        )
+      }
+    } catch {
       toast.error(t('dashboard.loadFailed'))
     } finally {
       setLoading(false)
@@ -53,13 +92,17 @@ export default function AdminDashboard() {
   }
 
   const statsRaw = data?.overview || data?.stats || data?.complaints || {}
+  const totalComplaints = statsRaw.total ?? statsRaw.totalComplaints ?? 0
+  const resolvedComplaints = statsRaw.resolved ?? statsRaw.resolvedComplaints ?? 0
   const complaints = {
-    total: statsRaw.total || statsRaw.totalComplaints || 0,
-    resolved: statsRaw.resolved || statsRaw.resolvedComplaints || 0,
-    pending: statsRaw.pending || statsRaw.pendingComplaints || 0,
-    inProgress: statsRaw.inProgress || statsRaw.inProgressComplaints || statsRaw.in_progress || 0,
-    rejected: statsRaw.rejected || 0,
-    resolutionRate: statsRaw.resolutionRate || (statsRaw.total ? Math.round((statsRaw.resolved / statsRaw.total) * 100) : 0),
+    total: totalComplaints,
+    resolved: resolvedComplaints,
+    pending: statsRaw.pending ?? statsRaw.pendingComplaints ?? 0,
+    inProgress: statsRaw.inProgress ?? statsRaw.inProgressComplaints ?? statsRaw.in_progress ?? 0,
+    rejected: statsRaw.rejected ?? rejectedFallback ?? 0,
+    resolutionRate:
+      statsRaw.resolutionRate ??
+      (totalComplaints > 0 ? Math.round((resolvedComplaints / totalComplaints) * 100) : 0),
   }
   const users = data?.users || {}
 
@@ -87,29 +130,49 @@ export default function AdminDashboard() {
     }]
   }
 
-  const recentComplaints = data?.topComplaints || data?.recentComplaints || []
+  const dashboardRecent = data?.topComplaints || data?.recentComplaints
+  const recentComplaints =
+    Array.isArray(dashboardRecent) && dashboardRecent.length > 0
+      ? dashboardRecent
+      : recentList
+  const normalizedRecent = useMemo(
+    () =>
+      recentComplaints.slice(0, 5).map(c => ({
+        ...c,
+        citizenName: c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || c.full_name || '',
+      })),
+    [recentComplaints]
+  )
+  const visibleRecentComplaints = useTranslatedList(normalizedRecent, [
+    'title',
+    'complaintTitle',
+    'description',
+    'citizenName',
+  ])
+  const translatedAdminName = useTranslatedText(user?.fullName || user?.full_name || user?.name || '')
+  const translatedDepartment = useTranslatedText(user?.department || '')
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
             <span>{t('dashboard.breadcrumbMunicipal')}</span>
             <span>/</span>
             <span>{t('dashboard.breadcrumbOversight')}</span>
             <span>/</span>
             <span className="text-black font-semibold">{t('dashboard.breadcrumbConsole')}</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 uppercase">
             {t('dashboard.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans">
-            {t('dashboard.authenticatedAdmin')} <strong className="text-black uppercase">{user?.fullName || t('dashboard.chiefDispatcher')}</strong> ({user?.department || t('dashboard.civicInfraDept')})
+            {t('dashboard.authenticatedAdmin')} <strong className="text-black uppercase">{translatedAdminName || user?.fullName || user?.full_name || user?.name || t('dashboard.chiefDispatcher')}</strong> ({translatedDepartment || user?.department || t('dashboard.civicInfraDept')})
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={onRefresh}
             disabled={refreshing}
@@ -128,7 +191,7 @@ export default function AdminDashboard() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 font-mono text-xs text-neutral-400">
+        <div className="grid grid-cols-1 min-[400px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 font-mono text-xs text-neutral-400">
           {[1, 2, 3, 4, 5, 6].map(i => (
             <div key={i} className="border border-neutral-200 p-4 h-24 bg-white animate-pulse" />
           ))}
@@ -136,7 +199,7 @@ export default function AdminDashboard() {
       ) : (
         <>
           {/* Top Metrics Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 min-[400px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {stats.map(s => (
               <div key={s.label} className="border border-neutral-200 bg-white p-4 font-mono">
                 <span className="text-[9px] text-neutral-500 uppercase tracking-wider block mb-1 truncate" title={s.label}>
@@ -153,32 +216,17 @@ export default function AdminDashboard() {
           </div>
 
           {/* Middle Operational Section: Distribution & Recent Incidents */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
             {/* Status Donut */}
-            <div className="border border-neutral-200 bg-white p-6 font-mono">
-              <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4 text-xs">
+            <div className="border border-neutral-200 bg-white p-4 sm:p-6 font-mono flex flex-col">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3 mb-4 text-xs">
                 <span className="font-bold uppercase tracking-wider text-neutral-900">
                   {t('dashboard.statusAllocation')}
                 </span>
                 <span className="text-neutral-500">{t('dashboard.liveCohort')}</span>
               </div>
               {complaints.total > 0 ? (
-                <div className="max-w-[220px] mx-auto py-2">
-                  <Doughnut
-                    data={doughnutData}
-                    options={{
-                      plugins: {
-                        legend: {
-                          position: 'bottom',
-                          labels: {
-                            font: { family: 'monospace', size: 9 },
-                            boxWidth: 10,
-                          }
-                        }
-                      }
-                    }}
-                  />
-                </div>
+                <StatusDoughnutChart data={doughnutData} maxChartWidth="max-w-[230px]" />
               ) : (
                 <p className="text-neutral-400 text-xs text-center py-10">
                   {t('dashboard.noActiveTelemetry')}
@@ -187,13 +235,13 @@ export default function AdminDashboard() {
             </div>
 
             {/* Recent Incidents Table / Stream */}
-            <div className="border border-neutral-200 bg-white p-6 lg:col-span-2">
-              <div className="flex items-center justify-between border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
-                <div>
+            <div className="border border-neutral-200 bg-white p-4 sm:p-6 lg:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-3 mb-4 font-mono text-xs">
+                <div className="flex flex-wrap items-center gap-x-2">
                   <span className="font-bold uppercase tracking-wider text-neutral-900">
                     {t('dashboard.recentIntakeDossiers')}
                   </span>
-                  <span className="text-neutral-500 ml-2">{t('dashboard.mostRecentSubmissions')}</span>
+                  <span className="text-neutral-500">{t('dashboard.mostRecentSubmissions')}</span>
                 </div>
                 <button
                   onClick={() => navigate('/admin/complaints')}
@@ -209,30 +257,31 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <div className="divide-y divide-neutral-100">
-                  {recentComplaints.slice(0, 5).map(c => {
+                  {visibleRecentComplaints.map(c => {
                     const statusKey = (c.status || 'pending').toLowerCase()
                     const statusInfo = STATUS_CONFIG[statusKey] || {
                       label: (c.status || t('status.pending')).toUpperCase(),
                       bg: 'bg-neutral-100 text-neutral-800 border-neutral-300'
                     }
-                    const timeStr = c.createdAt ? format(new Date(c.createdAt), 'yyyy-MM-dd HH:mm') : '—'
+                    const rawDate = c.createdAt || c.created_at
+                    const timeStr = formatLocalizedDateTime(rawDate, i18n.language) || '—'
 
                     return (
                       <div
                         key={c._id || c.id}
                         onClick={() => navigate(`/admin/complaints/${c._id || c.id}`)}
-                        className="py-3 flex items-center justify-between gap-3 hover:bg-neutral-50 px-2 cursor-pointer transition-colors"
+                        className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 hover:bg-neutral-50 px-2 cursor-pointer transition-colors"
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-0.5">
+                          <div className="flex flex-wrap items-center gap-2 mb-0.5">
                             <span className="font-mono text-xs text-neutral-400">
-                              #{(c._id || c.id || '').slice(-6).toUpperCase()}
+                              #{String(c._id || c.id || '').slice(-6).toUpperCase()}
                             </span>
                             <span className={`px-2 py-0.5 border font-mono text-[9px] uppercase tracking-wider ${statusInfo.bg}`}>
                               {statusInfo.label}
                             </span>
                             {(() => {
-                              const pTier = getPriorityTier(c)
+                              const pTier = getPriorityTier(c, t)
                               if (pTier.score === null) return null
                               return (
                                 <span className={`px-1.5 py-0.5 border font-mono text-[9px] uppercase tracking-wider ${pTier.badgeClass}`}>
@@ -246,8 +295,8 @@ export default function AdminDashboard() {
                           </h4>
                         </div>
 
-                        <div className="font-mono text-xs text-neutral-500 text-right flex-shrink-0">
-                          <div>{c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || t('verifiedCitizen')}</div>
+                        <div className="font-mono text-xs text-neutral-500 text-left sm:text-right flex-shrink-0">
+                          <div>{c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || c.full_name || t('verifiedCitizen')}</div>
                           <div className="text-[10px] text-neutral-400">{timeStr}</div>
                         </div>
                       </div>

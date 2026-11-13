@@ -5,22 +5,24 @@
 function getServerConfig() {
   // Use SERVER_HOST from env if available, otherwise bind to all interfaces
   const host = process.env.SERVER_HOST || '0.0.0.0';
-  const port = process.env.PORT || 3001;
-  
-  // For cloud deployments, use the provided external URL or construct based on environment
+  const parsedPort = Number.parseInt(process.env.PORT, 10);
+  const port = Number.isInteger(parsedPort) && parsedPort >= 0 && parsedPort <= 65535 ? parsedPort : 3001;
+  const displayHost = (!process.env.SERVER_HOST || process.env.SERVER_HOST === '0.0.0.0')
+    ? 'localhost'
+    : process.env.SERVER_HOST;
+
+  // For cloud deployments, use the provided external URL or fall back to local host/port
   let baseUrl;
   if (process.env.NODE_ENV === 'production') {
-    // For Render, the URL is typically https://your-app-name.onrender.com
-    baseUrl = process.env.RENDER_EXTERNAL_URL || process.env.SERVER_URL || `https://your-app.onrender.com`;
+    const externalUrl = process.env.RENDER_EXTERNAL_URL || process.env.SERVER_URL;
+    baseUrl = externalUrl ? externalUrl.trim().replace(/\/+$/, '') : `http://${displayHost}:${port}`;
   } else {
-    // For development, use the SERVER_HOST or localhost
-    const displayHost = process.env.SERVER_HOST || 'localhost';
     baseUrl = `http://${displayHost}:${port}`;
   }
-  
+
   return {
     host,
-    port: parseInt(port),
+    port,
     url: baseUrl
   };
 }

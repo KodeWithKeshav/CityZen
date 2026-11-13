@@ -1,10 +1,10 @@
 const axios = require('axios');
 
-// Simple in-memory cache
+// Per-coordinate in-memory cache (bounded to avoid unbounded growth)
 const weatherCache = {
-  data: null,
-  timestamp: null,
-  CACHE_DURATION: 15 * 60 * 1000 // 15 minutes
+  entries: new Map(),
+  CACHE_DURATION: 15 * 60 * 1000, // 15 minutes
+  MAX_ENTRIES: 100
 };
 
 const mapWeatherCodeToDescription = (code) => {
@@ -47,23 +47,30 @@ const isHeavyRainCode = (code) => {
 };
 
 const getWeather = async (lat = 13.0827, lon = 80.2707) => {
-  const cacheKey = `${lat},${lon}`;
+  const numLat = Number(lat);
+  const numLon = Number(lon);
+  if (!Number.isFinite(numLat) || numLat < -90 || numLat > 90 || !Number.isFinite(numLon) || numLon < -180 || numLon > 180) {
+    throw new Error('Invalid latitude or longitude');
+  }
+
+  const cacheKey = `${numLat.toFixed(2)},${numLon.toFixed(2)}`;
+  const cachedEntry = weatherCache.entries.get(cacheKey);
   
-  if (weatherCache.data && weatherCache.timestamp) {
-    const now = new Date().getTime();
-    if (now - weatherCache.timestamp < weatherCache.CACHE_DURATION) {
-      console.log('Returning cached weather data');
-      return weatherCache.data;
-    }
+  if (cachedEntry && (Date.now() - cachedEntry.timestamp < weatherCache.CACHE_DURATION)) {
+    console.log('Returning cached weather data for', cacheKey);
+    return cachedEntry.data;
   }
 
   try {
-    console.log(`Fetching live weather data for lat=${lat}, lon=${lon}...`);
+    console.log(`Fetching live weather data for lat=${numLat}, lon=${numLon}...`);
     // Using Open-Meteo free API as requested
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FKolkata`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${numLat}&longitude=${numLon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`;
     
-    const response = await axios.get(url);
+    const response = await axios.get(url, { timeout: 10000 });
     const data = response.data;
+    if (!data || !data.current || !data.daily || !Array.isArray(data.daily.time)) {
+      throw new Error('Invalid weather API response');
+    }
 
     // Sanitize dry thunderstorms (Open-Meteo often predicts WMO 95 but with 0% rain in tropical areas)
     const sanitizeCode = (code, rainProb, precipitation = 0) => {
@@ -73,8 +80,13 @@ const getWeather = async (lat = 13.0827, lon = 80.2707) => {
       return code;
     };
 
-    const todayRainProb = data.daily.precipitation_probability_max[0] || 0;
-    const sanitizedCurrentCode = sanitizeCode(data.current.weather_code, todayRainProb, data.current.precipitation);
+    const precipProbs = Array.isArray(data.daily.precipitation_probability_max) ? data.daily.precipitation_probability_max : [];
+    const weatherCodes = Array.isArray(data.daily.weather_code) ? data.daily.weather_code : [];
+    const minTemps = Array.isArray(data.daily.temperature_2m_min) ? data.daily.temperature_2m_min : [];
+    const maxTemps = Array.isArray(data.daily.temperature_2m_max) ? data.daily.temperature_2m_max : [];
+
+    const todayRainProb = precipProbs[0] ?? 0;
+    const sanitizedCurrentCode = sanitizeCode(data.current.weather_code, todayRainProb, data.current.precipitation ?? 0);
 
     // Process current weather
     const current = {
@@ -90,14 +102,14 @@ const getWeather = async (lat = 13.0827, lon = 80.2707) => {
 
     // Process 7-day forecast
     const forecast = data.daily.time.map((time, index) => {
-      const rainProb = data.daily.precipitation_probability_max[index] || 0;
-      const rawCode = data.daily.weather_code[index];
+      const rainProb = precipProbs[index] ?? 0;
+      const rawCode = weatherCodes[index];
       const safeCode = sanitizeCode(rawCode, rainProb, 0);
 
       return {
         date: time,
-        minTemp: data.daily.temperature_2m_min[index],
-        maxTemp: data.daily.temperature_2m_max[index],
+        minTemp: minTemps[index],
+        maxTemp: maxTemps[index],
         condition: mapWeatherCodeToDescription(safeCode),
         weatherCode: safeCode,
         rainProbability: rainProb
@@ -105,9 +117,9 @@ const getWeather = async (lat = 13.0827, lon = 80.2707) => {
     });
 
     // Check if heavy rain is expected in the next 48 hours (today or tomorrow)
-    const todayCode = forecast[0].weatherCode;
-    const tomorrowCode = forecast[1].weatherCode;
-    const tomorrowRainProb = data.daily.precipitation_probability_max[1];
+    const todayCode = forecast[0]?.weatherCode;
+    const tomorrowCode = forecast[1]?.weatherCode;
+    const tomorrowRainProb = precipProbs[1] ?? 0;
 
     // Smarter logic: Don't just rely on WMO code (sometimes it predicts dry thunderstorms).
     // Require a significant chance of rain (>40%) alongside the code, or a very high probability (>70%).
@@ -122,24 +134,30 @@ const getWeather = async (lat = 13.0827, lon = 80.2707) => {
       alertMessage = "Heavy rainfall expected. Higher chance of waterlogging and drain complaints. Stay safe!";
     }
 
+    const isDefaultChennai = Math.abs(numLat - 13.0827) < 0.05 && Math.abs(numLon - 80.2707) < 0.05;
     const processedData = {
       current,
       forecast,
       isHeavyRainExpected,
       alertMessage,
-      location: "Chennai" // Defaulting to Chennai as requested
+      location: isDefaultChennai ? "Chennai" : `${numLat.toFixed(2)}, ${numLon.toFixed(2)}`
     };
 
-    // Cache the data
-    weatherCache.data = processedData;
-    weatherCache.timestamp = new Date().getTime();
+    // Cache the data per coordinate key (evict oldest if at capacity)
+    if (weatherCache.entries.size >= weatherCache.MAX_ENTRIES && !weatherCache.entries.has(cacheKey)) {
+      weatherCache.entries.delete(weatherCache.entries.keys().next().value);
+    }
+    weatherCache.entries.set(cacheKey, {
+      data: processedData,
+      timestamp: Date.now()
+    });
 
     return processedData;
   } catch (error) {
     console.error('Error fetching weather data:', error.message);
-    // If API fails, return cached data even if stale, or null
-    if (weatherCache.data) {
-      return weatherCache.data;
+    // If API fails, return stale cached data for this location if available
+    if (cachedEntry?.data) {
+      return cachedEntry.data;
     }
     throw new Error('Failed to fetch weather data');
   }

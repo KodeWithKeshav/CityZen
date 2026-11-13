@@ -55,28 +55,30 @@ function applyIdentityFilter(query, identity) {
 }
 
 async function findExistingVote(supabase, complaintId, identity) {
-  if (!identity.userId && !identity.deviceId) return null;
+  const safeIdentity = identity || {};
+  if (!safeIdentity.userId && !safeIdentity.deviceId) return null;
 
   const { data, error } = await applyIdentityFilter(
     supabase.from('complaint_votes').select('*').eq('complaint_id', complaintId),
-    identity
-  ).maybeSingle();
+    safeIdentity
+  ).limit(1);
 
   if (error) throw new Error(error.message);
-  return data;
+  return Array.isArray(data) && data.length > 0 ? data[0] : null;
 }
 
 function buildVoteRow(complaintId, identity) {
+  const safeIdentity = identity || {};
   const row = {
     complaint_id: complaintId,
     vote_type: 'upvote',
     created_at: new Date().toISOString(),
-    user_id: identity.userId || null,
+    user_id: safeIdentity.userId || null,
   };
   // Only set device_id when the caller has confirmed the column exists -
   // omitting it entirely (rather than passing null) keeps this working on
   // a database that hasn't run the migration yet.
-  if (identity.deviceId) row.device_id = identity.deviceId;
+  if (safeIdentity.deviceId) row.device_id = safeIdentity.deviceId;
   return row;
 }
 
@@ -86,11 +88,19 @@ function buildVoteRow(complaintId, identity) {
  * removes a vote - use toggleUpvote() for an explicit vote button.
  */
 async function castUpvote(supabase, complaintId, identity) {
-  const existing = await findExistingVote(supabase, complaintId, identity);
+  const safeIdentity = identity || {};
+  const existing = await findExistingVote(supabase, complaintId, safeIdentity);
+  let alreadyVoted = !!existing && existing.vote_type === 'upvote';
 
   if (!existing) {
-    const { error } = await supabase.from('complaint_votes').insert([buildVoteRow(complaintId, identity)]);
-    if (error) throw new Error(error.message);
+    const { error } = await supabase.from('complaint_votes').insert([buildVoteRow(complaintId, safeIdentity)]);
+    if (error) {
+      if (error.code === '23505') {
+        alreadyVoted = true;
+      } else {
+        throw new Error(error.message);
+      }
+    }
   } else if (existing.vote_type !== 'upvote') {
     const { error } = await supabase
       .from('complaint_votes')
@@ -100,7 +110,7 @@ async function castUpvote(supabase, complaintId, identity) {
   }
 
   const voteCount = await recomputeVoteCount(supabase, complaintId);
-  return { voteCount, alreadyVoted: !!existing && existing.vote_type === 'upvote' };
+  return { voteCount, alreadyVoted };
 }
 
 /**
@@ -109,13 +119,21 @@ async function castUpvote(supabase, complaintId, identity) {
  * "vote again" means "undo my vote", not "flip to a downvote").
  */
 async function toggleUpvote(supabase, complaintId, identity) {
-  const existing = await findExistingVote(supabase, complaintId, identity);
+  const safeIdentity = identity || {};
+  const existing = await findExistingVote(supabase, complaintId, safeIdentity);
 
   let action;
   if (!existing) {
-    const { error } = await supabase.from('complaint_votes').insert([buildVoteRow(complaintId, identity)]);
-    if (error) throw new Error(error.message);
-    action = 'voted';
+    const { error } = await supabase.from('complaint_votes').insert([buildVoteRow(complaintId, safeIdentity)]);
+    if (error) {
+      if (error.code === '23505') {
+        action = 'voted';
+      } else {
+        throw new Error(error.message);
+      }
+    } else {
+      action = 'voted';
+    }
   } else if (existing.vote_type === 'upvote') {
     const { error } = await supabase.from('complaint_votes').delete().eq('id', existing.id);
     if (error) throw new Error(error.message);

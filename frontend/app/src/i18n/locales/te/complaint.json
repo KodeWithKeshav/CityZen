@@ -8,18 +8,48 @@
     "stepOf": "దశ {{current}} / {{total}}"
   },
   "categories": {
-    "pothole": { "label": "గుంత", "desc": "రోడ్డులో పగులు, గుంత, లేదా తీవ్ర నష్టం" },
-    "fallen_tree": { "label": "పడిపోయిన చెట్టు", "desc": "రహదారిని అడ్డుకునే చెట్టు లేదా కొమ్మ" },
-    "garbage_dumping": { "label": "చెత్త డంపింగ్", "desc": "చట్టవిరుద్ధమైన మున్సిపల్ లేదా వాణిజ్య వ్యర్థాల పారవేత" },
-    "stray_cattle": { "label": "వీధి పశువులు", "desc": "ట్రాఫిక్‌కు ఆటంకం కలిగించే పశువులు" },
-    "fallen_electric_pole": { "label": "పడిపోయిన విద్యుత్ స్తంభం", "desc": "దెబ్బతిన్న స్తంభం, బహిర్గత తీగలు, లేదా ట్రాన్స్‌ఫార్మర్ వైఫల్యం" },
-    "concrete_structure_damage": { "label": "నిర్మాణ నష్టం", "desc": "పగుళ్లు, వంతెన అరుగుదల, లేదా రోడ్డు కుంగిపోవడం" },
-    "road_waterlogging": { "label": "రోడ్డు నీటి నిల్వ", "desc": "వర్షపు నీటి నిల్వ లేదా డ్రైనేజీ పొంగిపోవడం" }
+    "pothole": {
+      "label": "గుంత",
+      "desc": "రోడ్డులో పగులు, గుంత, లేదా తీవ్ర నష్టం"
+    },
+    "fallen_tree": {
+      "label": "పడిపోయిన చెట్టు",
+      "desc": "రహదారిని అడ్డుకునే చెట్టు లేదా కొమ్మ"
+    },
+    "garbage_dumping": {
+      "label": "చెత్త డంపింగ్",
+      "desc": "చట్టవిరుద్ధమైన మున్సిపల్ లేదా వాణిజ్య వ్యర్థాల పారవేత"
+    },
+    "stray_cattle": {
+      "label": "వీధి పశువులు",
+      "desc": "ట్రాఫిక్‌కు ఆటంకం కలిగించే పశువులు"
+    },
+    "fallen_electric_pole": {
+      "label": "పడిపోయిన విద్యుత్ స్తంభం",
+      "desc": "దెబ్బతిన్న స్తంభం, బహిర్గత తీగలు, లేదా ట్రాన్స్‌ఫార్మర్ వైఫల్యం"
+    },
+    "concrete_structure_damage": {
+      "label": "నిర్మాణ నష్టం",
+      "desc": "పగుళ్లు, వంతెన అరుగుదల, లేదా రోడ్డు కుంగిపోవడం"
+    },
+    "road_waterlogging": {
+      "label": "రోడ్డు నీటి నిల్వ",
+      "desc": "వర్షపు నీటి నిల్వ లేదా డ్రైనేజీ పొంగిపోవడం"
+    }
   },
   "privacyLevels": {
-    "exact": { "label": "ఖచ్చితమైన GPS", "desc": "±5–10మీ ఖచ్చితత్వం" },
-    "street": { "label": "వీధి స్థాయి", "desc": "±25మీ ఖచ్చితత్వం" },
-    "area": { "label": "పరిసర ప్రాంతం", "desc": "±150మీ వార్డు వ్యాసార్థ అంచనా" }
+    "exact": {
+      "label": "ఖచ్చితమైన GPS",
+      "desc": "±5–10మీ ఖచ్చితత్వం"
+    },
+    "street": {
+      "label": "వీధి స్థాయి",
+      "desc": "±25మీ ఖచ్చితత్వం"
+    },
+    "area": {
+      "label": "పరిసర ప్రాంతం",
+      "desc": "±150మీ వార్డు వ్యాసార్థ అంచనా"
+    }
   },
   "languages": {
     "en": "English",
@@ -66,5 +96,114 @@
     "micError": "మైక్రోఫోన్‌ను సక్రియం చేయలేకపోయింది",
     "uploadError": "ట్రాన్స్క్రిప్షన్ సేవను చేరుకోలేకపోయింది.",
     "failed": "వాయిస్ గుర్తింపు విఫలమైంది. దయచేసి మళ్లీ ప్రయత్నించండి లేదా మీ ఫిర్యాదును టైప్ చేయండి."
+  },
+  "mobileSubmit": {
+    "allowExactLocation": "ఖచ్చితమైన స్థానాన్ని అనుమతించండి",
+    "allowLocation": "స్థానాన్ని అనుమతించండి",
+    "cameraPermDesc": "పౌర సమస్య ఫోటో తీయడానికి దయచేసి కెమెరా అనుమతి ఇవ్వండి.",
+    "categoryLabel": "వర్గం",
+    "complaintDetails": "ఫిర్యాదు వివరాలు",
+    "complaintIdLabel": "ఫిర్యాదు ID",
+    "connectionErrorTitle": "కనెక్షన్ లోపం",
+    "contentMismatchDesc": "ఈ వివరణ ఎంచుకున్న సమస్య రకంతో సరిపోలడం లేదు. సమర్పించే ముందు వివరణను సవరించండి లేదా సూచించిన వర్గాన్ని ఎంచుకోండి.",
+    "contentMismatchTitle": "వివరణ సమస్యతో సరిపోలడం లేదు",
+    "descMismatchDesc": "వివరణ ఎంచుకున్న సమస్య రకంతో సరిపోలడం లేదు. దయచేసి మీ వివరణను సవరించండి.",
+    "descMismatchTitle": "వివరణ సమస్య రకంతో సరిపోలడం లేదు",
+    "done": "పూర్తయింది",
+    "endpointNotFoundDesc": "API ఎండ్‌పాయింట్ కనుగొనబడలేదు. దయచేసి యాప్‌ను అప్‌డేట్ చేయండి.",
+    "enterDescription": "దయచేసి సమస్య వివరణను నమోదు చేయండి",
+    "enterTitle": "దయచేసి ఫిర్యాదుకు శీర్షికను నమోదు చేయండి",
+    "getLocation": "స్థానాన్ని పొందండి",
+    "goToPhotoStep": "ఫోటో దశకు వెళ్లండి",
+    "highPriorityDesc": "కీలక మౌలిక సదుపాయాలకు సమీపంలో ఉన్నందున మీ ఫిర్యాదు {{level}} ప్రాధాన్యతగా గుర్తించబడింది. తక్షణ శ్రద్ధ వహించబడుతుంది.",
+    "highPriorityTitle": "అధిక ప్రాధాన్యత ఫిర్యాదు గుర్తించబడింది",
+    "invalidDataDesc": "చెల్లని డేటా సమర్పించబడింది. దయచేసి అన్ని ఫీల్డ్‌లను తనిఖీ చేయండి.",
+    "issueTypeChangedDesc": "సమస్య రకం మారినందున, మీ ఫోటోను మళ్లీ తనిఖీ చేయాలి. దయచేసి ఫోటో దశకు తిరిగి వెళ్లి కొత్త రకానికి సరిపోయే ఫోటోను జోడించండి.",
+    "issueTypeChangedTitle": "సమస్య రకం మార్చబడింది",
+    "later": "తర్వాత",
+    "locationAccuracyLabel": "స్థాన ఖచ్చితత్వం",
+    "locationCapturedDesc": "ఖచ్చితత్వం: ±{{radius}}మీ ({{precision}})\nగోప్యత స్థాయి: {{privacyLevel}}\nసమీప మౌలిక సదుపాయాల ఆధారంగా మీ ఫిర్యాదుకు ప్రాధాన్యత ఇవ్వబడుతుంది.",
+    "locationCapturedTitle": "స్థానం విజయవంతంగా పొందబడింది!",
+    "locationErrorDesc": "స్థానాన్ని పొందలేకపోయాము. మీరు మళ్లీ ప్రయత్నించవచ్చు లేదా స్థానం లేకుండా సమర్పించవచ్చు (తక్కువ ప్రాధాన్యత).",
+    "locationErrorTitle": "స్థానం లోపం",
+    "locationNormalDesc": "మీ ఫిర్యాదుకు ప్రాధాన్యత ఇవ్వడానికి మరియు సరైన మునిసిపల్ కార్యాలయానికి పంపడానికి మీ స్థానాన్ని పొందుతాము. వీధి-స్థాయి ఖచ్చితత్వంతో మీ గోప్యత రక్షించబడుతుంది.",
+    "locationRequiredContinueDesc": "ప్రాధాన్యత అంచనా కోసం స్థానం అవసరం. మీరు ఇప్పుడు మీ స్థానాన్ని పొందాలనుకుంటున్నారా?",
+    "locationRequiredTitle": "స్థానం అవసరం",
+    "locationUrgentDesc": "{{category}} ఫిర్యాదుల కోసం అత్యవసర స్పందనకు ప్రాధాన్యత ఇవ్వడానికి మీ ఖచ్చితమైన స్థానం అవసరం. ఇది సమీప బృందానికి పంపడానికి సహాయపడుతుంది.",
+    "networkFailedDesc": "సర్వర్‌కి కనెక్ట్ కాలేదు. దయచేసి మీ ఇంటర్నెట్ కనెక్షన్‌ను తనిఖీ చేయండి.",
+    "nextSteps": "తదుపరి దశలు",
+    "photoMismatchDesc": "ఫోటో ఎంచుకున్న సమస్య రకంతో సరిపోలడం లేదు. దయచేసి వెనక్కి వెళ్లి సరిపోయే ఫోటోను జోడించండి లేదా తొలగించండి.",
+    "photoMismatchTitle": "ఫోటో సమస్య రకంతో సరిపోలడం లేదు",
+    "photoNotValidatedDesc": "ఎంచుకున్న సమస్య రకానికి మీ ఫోటో ధృవీకరించబడలేదు. దయచేసి ఫోటో దశకు వెళ్లి మళ్లీ ధృవీకరించండి లేదా తొలగించండి.",
+    "photoNotValidatedTitle": "ఫోటో ధృవీకరించబడలేదు",
+    "photoPermDesc": "ఫోటోను ఎంచుకోవడానికి దయచేసి గ్యాలరీ అనుమతిని ఇవ్వండి.",
+    "pickImageFailed": "చిత్రాన్ని ఎంచుకోవడంలో విఫలమైంది",
+    "priorityAnalysis": "ప్రాధాన్యత విశ్లేషణ",
+    "priorityLevelLabel": "ప్రాధాన్యత స్థాయి",
+    "selectCategoryError": "దయచేసి ఫిర్యాదు వర్గాన్ని ఎంచుకోండి",
+    "serverErrorDesc": "సర్వర్ లోపం. దయచేసి తర్వాత మళ్లీ ప్రయత్నించండి.",
+    "serverErrorTitle": "సర్వర్ లోపం",
+    "serviceErrorTitle": "సేవా లోపం",
+    "skipLocation": "స్థానాన్ని దాటవేయండి",
+    "statusLabel": "స్థితి",
+    "submitConnFallback": "దయచేసి మీ కనెక్షన్‌ను తనిఖీ చేసి మళ్లీ ప్రయత్నించండి.",
+    "submitFailedTitle": "సమర్పణ విఫలమైంది",
+    "submittedLabel": "సమర్పించబడింది",
+    "successSubtitle": "మీ పౌర ఫిర్యాదు నమోదు చేయబడింది మరియు చర్య కోసం పంపబడింది.",
+    "successTitle": "ఫిర్యాదు సమర్పించబడింది!",
+    "switchCategoryTo": "వర్గాన్ని \"{{category}}\"కు మార్చండి",
+    "takePhotoFailed": "ఫోటో తీయడంలో విఫలమైంది",
+    "timeoutDesc": "అభ్యర్థన సమయం ముగిసింది. కనెక్షన్‌ను తనిఖీ చేసి మళ్లీ ప్రయత్నించండి.",
+    "titleLabel": "శీర్షిక",
+    "understood": "అర్థమైంది",
+    "validationErrorDesc": "చిత్రాన్ని ధృవీకరించడంలో విఫలమైంది. దయచేసి మీ కనెక్షన్‌ను తనిఖీ చేసి మళ్లీ ప్రయత్నించండి.",
+    "validationErrorTitle": "ధృవీకరణ లోపం",
+    "viewOnMap": "మ్యాప్‌లో చూడండి",
+    "votesLabel": "ఓట్లు",
+    "validIssueDetectedTitle": "సరైన పౌర సమస్య గుర్తించబడింది",
+    "confidenceScoreLabel": "నమ్మక స్కోర్: {{score}}%",
+    "imageValidationFailedTitle": "చిత్ర నిర్ధారణ విఫలమైంది",
+    "imageValidationFailedDesc": "నమ్మక స్కోర్: {{score}}%\nఎంచుకున్న చిత్రం సరైన పౌర సమస్యను చూపుతున్నట్లు లేదు. దయచేసి వేరే చిత్రాన్ని ఎంచుకోండి.",
+    "imageValidationSubmitAnywayDesc": "నమ్మక స్కోర్: {{score}}%\n\nఎంచుకున్న చిత్రం సరైన పౌర సమస్యను చూపుతున్నట్లు లేదు. అత్యవసర సమస్యల కోసం మీరు ఇంకా సమర్పించవచ్చు.",
+    "changeImage": "చిత్రాన్ని మార్చండి",
+    "submitAnyway": "ఏమైనా సమర్పించండి",
+    "validationFailedFallback": "నిర్ధారణ విఫలమైంది.",
+    "tryAgain": "మళ్ళీ ప్రయత్నించండి",
+    "keepAnyway": "ఏమైనా ఉంచండి",
+    "skipValidation": "నిర్ధారణను దాటవేయండి",
+    "selectIssueImageError": "దయచేసి పౌర సమస్య యొక్క చిత్రాన్ని ఎంచుకోండి",
+    "expectedResponseLabel": "ఆశించిన స్పందన",
+    "processingFallback": "ప్రాసెస్ అవుతోంది",
+    "reasoningLabel": "కారణం",
+    "viewDetails": "వివరాలను చూడండి",
+    "provideFeedback": "అభిప్రాయం ఇవ్వండి",
+    "totalScoreLabel": "మొత్తం స్కోర్",
+    "locationAnalysisHeader": "స్థాన విశ్లేషణ",
+    "scoreLabel": "స్కోర్",
+    "facilitiesNearbyLabel": "సమీపంలోని సౌకర్యాలు",
+    "privacyLabel": "గోప్యత",
+    "imageAnalysisHeader": "చిత్ర విశ్లేషణ",
+    "validatingCivicIssue": "పౌర సమస్య నిర్ధారించబడుతోంది...",
+    "civicIssueFallback": "పౌర సమస్య",
+    "validIssueClassification": "సరైన పౌర సమస్య గుర్తించబడింది (వర్గీకరణ: {{classification}})",
+    "submitCivicComplaintTitle": "పౌర ఫిర్యాదును సమర్పించండి",
+    "submitCivicComplaintSubtitle": "AI-ఆధారిత ప్రాధాన్యత స్కోరింగ్‌తో పౌర సమస్యలను నివేదించండి",
+    "complaintCategoryRequired": "ఫిర్యాదు వర్గం *",
+    "locationOptionalFieldLabel": "స్థానం",
+    "locationOptionalPlaceholder": "సమస్య స్థలం లేదా చిరునామా (ఐచ్ఛికం)",
+    "locationPriorityAssessmentRequired": "స్థాన ప్రాధాన్యత అంచనా *",
+    "locationAutoCaptureHint": "మీరు ఫిర్యాదు వర్గాన్ని ఎంచుకున్నప్పుడు స్థానం స్వయంచాలకంగా నమోదు చేయబడుతుంది",
+    "capturingLocationStatus": "మీ స్థానం నమోదు చేయబడుతోంది...",
+    "accuracyInline": "ఖచ్చితత్వం: ±{{radius}}m ({{precision}})",
+    "privacyInline": "గోప్యత: {{description}}",
+    "recaptureLocation": "స్థానాన్ని మళ్ళీ నమోదు చేయండి",
+    "captureLocationNow": "ఇప్పుడే స్థానాన్ని నమోదు చేయండి",
+    "locationPriorityAnalysisTitle": "స్థాన ప్రాధాన్యత విశ్లేషణ",
+    "priorityLevelInline": "ప్రాధాన్యత స్థాయి: {{level}} ({{score}}%)",
+    "issuePhotoRequired": "సమస్య ఫోటో *",
+    "issuePhotoHint": "పౌర సమస్యను చూపే స్పష్టమైన ఫోటోను అప్‌లోడ్ చేయండి. మా AI దానిని ధృవీకరిస్తుంది.",
+    "takePhoto": "ఫోటో తీయండి",
+    "chooseFromGallery": "గ్యాలరీ నుండి ఎంచుకోండి",
+    "submitComplaintBtn": "ఫిర్యాదును సమర్పించండి"
   }
 }

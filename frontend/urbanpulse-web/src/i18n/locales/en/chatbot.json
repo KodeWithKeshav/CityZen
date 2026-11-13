@@ -25,5 +25,27 @@
     "thinking": "Thinking...",
     "alwaysHereToHelp": "Always here to help",
     "inputPlaceholder": "Ask me about the app or civic issues..."
+  },
+  "floating": {
+    "welcome": "👋 Hi! I'm your CityZen AI Assistant. Ask me anything about reporting civic issues, navigating the app, or tracking your complaints!",
+    "title": "CityZen AI",
+    "subtitle": "Civic Intelligence Assistant",
+    "clearChat": "Clear chat",
+    "goTo": "Go to",
+    "takeMeThere": "Take me there",
+    "aiGenerated": "✦ AI generated",
+    "aiNav": "✦ AI + Navigation",
+    "askAnything": "Ask anything…",
+    "fallbackError": "I couldn't process that. Please try again.",
+    "connectionError": "⚠️ Unable to reach the AI. Please check your connection and try again.",
+    "tooltip": "CityZen AI Assistant",
+    "navigateTo": "Navigate to",
+    "goNow": "Go now"
+  },
+  "sources": {
+    "knowledge_base": "Knowledge Base",
+    "knowledge_base_fallback": "KB Fallback",
+    "groq": "Groq AI",
+    "groq_tool": "AI + Navigate"
   }
 }

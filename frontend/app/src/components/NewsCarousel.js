@@ -9,12 +9,16 @@ import {
   Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
+import { useTranslatedList } from '../context/TranslationContext';
+import { formatLocalizedRelativeTime } from '../utils/dateLocale';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.65; // Reduced from 0.75
 
 const NewsCarousel = ({ news = [], onNewsPress }) => {
+  const { t, i18n } = useTranslation(['citizen', 'common']);
+  const translatedNews = useTranslatedList(news, ['headline', 'summary', 'category', 'source', 'readTime']);
   if (!news || news.length === 0) {
     return null;
   }
@@ -25,9 +29,9 @@ const NewsCarousel = ({ news = [], onNewsPress }) => {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Ionicons name="newspaper-outline" size={20} color="#2E86C1" />
-          <Text style={styles.headerTitle}>Civic News Report</Text>
+          <Text style={styles.headerTitle}>{t('citizen:feed.municipalBulletins', 'Civic News Report')}</Text>
         </View>
-        <Text style={styles.headerTime}>Today</Text>
+        <Text style={styles.headerTime}>{t('citizen:feed.liveFeed', 'Today')}</Text>
       </View>
 
       {/* Horizontal News Carousel */}
@@ -39,7 +43,7 @@ const NewsCarousel = ({ news = [], onNewsPress }) => {
         snapToInterval={CARD_WIDTH + 12} // Reduced from 15
         snapToAlignment="start"
       >
-        {news.map((article, index) => (
+        {translatedNews.map((article, index) => (
           <TouchableOpacity
             key={article.id}
             style={[styles.newsCard, { marginLeft: index === 0 ? 15 : 0 }]} // Reduced from 20
@@ -54,7 +58,7 @@ const NewsCarousel = ({ news = [], onNewsPress }) => {
                 resizeMode="cover"
               />
               {/* Category Badge */}
-              <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor(article.category) }]}>
+              <View style={[styles.categoryBadge, { backgroundColor: getCategoryColor(news[index]?.category || article.category) }]}>
                 <Text style={styles.categoryText}>{article.category}</Text>
               </View>
               {/* Priority Indicator */}
@@ -73,12 +77,14 @@ const NewsCarousel = ({ news = [], onNewsPress }) => {
               <Text style={styles.summary} numberOfLines={2}>
                 {article.summary}
               </Text>
-              
+
               {/* Footer */}
               <View style={styles.footer}>
                 <View style={styles.sourceContainer}>
                   <Ionicons name="time-outline" size={12} color="#666" />
-                  <Text style={styles.timeText}>{getTimeAgo(article.publishedAt)}</Text>
+                  <Text style={styles.timeText}>
+                    {formatLocalizedRelativeTime(article.publishedAt, t('citizen:feed.recently', 'Recently'), i18n.language)}
+                  </Text>
                 </View>
                 <Text style={styles.readTime}>{article.readTime}</Text>
               </View>
@@ -102,23 +108,6 @@ const getCategoryColor = (category) => {
     'Education': '#34495e'
   };
   return colors[category] || '#95a5a6';
-};
-
-// Helper function to format time
-const getTimeAgo = (publishedAt) => {
-  const now = new Date();
-  const published = new Date(publishedAt);
-  const diffInMinutes = Math.floor((now - published) / (1000 * 60));
-
-  if (diffInMinutes < 60) {
-    return `${diffInMinutes}m`;
-  } else if (diffInMinutes < 24 * 60) {
-    const hours = Math.floor(diffInMinutes / 60);
-    return `${hours}h`;
-  } else {
-    const days = Math.floor(diffInMinutes / (24 * 60));
-    return `${days}d`;
-  }
 };
 
 const styles = StyleSheet.create({

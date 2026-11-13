@@ -4,9 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
 import { HiSearch, HiUsers, HiRefresh, HiChevronRight } from 'react-icons/hi'
+import { formatLocalizedDate } from '../../utils/dateLocale'
+import { useTranslatedList } from '../../context/TranslationContext'
 
 export default function CitizenManagement() {
-  const { t } = useTranslation('admin')
+  const { t, i18n } = useTranslation('admin')
   const [citizens, setCitizens] = useState([])
   const [filtered, setFiltered] = useState([])
   const [loading, setLoading] = useState(true)
@@ -17,18 +19,20 @@ export default function CitizenManagement() {
     setLoading(true)
     try {
       const res = await makeApiCall(apiClient.admin.citizens)
-      const rawArray = res.data?.citizens || res.data || []
-      const dataArray = (Array.isArray(rawArray) ? rawArray : []).map(c => ({
-        ...c,
-        fullName: c.fullName || c.full_name,
-        phoneNumber: c.phoneNumber || c.phone_number,
-        createdAt: c.createdAt || c.created_at,
-      }))
-      if (res.success || Array.isArray(dataArray)) {
+      const rawArray = res?.data?.citizens || res?.data
+      if (res?.success && Array.isArray(rawArray)) {
+        const dataArray = rawArray.map(c => ({
+          ...c,
+          fullName: c.fullName || c.full_name,
+          phoneNumber: c.phoneNumber || c.phone_number,
+          createdAt: c.createdAt || c.created_at,
+        }))
         setCitizens(dataArray)
         setFiltered(dataArray)
+      } else {
+        toast.error(res?.message || res?.error || t('citizenManagement.loadFailed'))
       }
-    } catch (err) {
+    } catch {
       toast.error(t('citizenManagement.loadFailed'))
     } finally {
       setLoading(false)
@@ -44,31 +48,43 @@ export default function CitizenManagement() {
       setFiltered(citizens)
       return
     }
-    const q = search.toLowerCase()
+    const q = search.trim().toLowerCase()
     setFiltered(
       citizens.filter(
         c =>
           (c.fullName || '').toLowerCase().includes(q) ||
           (c.email || '').toLowerCase().includes(q) ||
-          (c.phoneNumber || '').includes(q) ||
-          (c._id || c.id || '').toLowerCase().includes(q)
+          String(c.phoneNumber || '').toLowerCase().includes(q) ||
+          String(c._id || c.id || '').toLowerCase().includes(q)
       )
     )
   }, [search, citizens])
 
+  const translatedFiltered = useTranslatedList(filtered, ['fullName', 'address'])
+
+  const getInitial = (name) => {
+    const str = (name || 'C').trim()
+    if (!str) return 'C'
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+      const first = new Intl.Segmenter().segment(str)[Symbol.iterator]().next().value
+      if (first?.segment) return first.segment.toUpperCase()
+    }
+    return str.charAt(0).toUpperCase()
+  }
+
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-12">
+    <div className="max-w-7xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
             <span>{t('citizenManagement.breadcrumbDirectory')}</span>
             <span>/</span>
             <span>{t('citizenManagement.breadcrumbVerified')}</span>
             <span>/</span>
             <span className="text-black font-semibold">{t('citizenManagement.breadcrumbRoster')}</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 uppercase">
             {t('citizenManagement.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans">
@@ -78,10 +94,11 @@ export default function CitizenManagement() {
 
         <button
           onClick={fetchCitizens}
-          className="p-2 border border-neutral-300 hover:border-black transition-colors"
+          disabled={loading}
+          className="self-start md:self-auto p-2 border border-neutral-300 hover:border-black transition-colors disabled:opacity-50"
           title={t('citizenManagement.refreshTooltip')}
         >
-          <HiRefresh className="w-4 h-4 text-neutral-800" />
+          <HiRefresh className={`w-4 h-4 text-neutral-800 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
@@ -97,7 +114,7 @@ export default function CitizenManagement() {
           />
         </div>
 
-        <div className="flex justify-between items-center text-xs font-mono text-neutral-500 pt-2 mt-2 border-t border-neutral-100">
+        <div className="flex flex-wrap justify-between items-center gap-2 text-xs font-mono text-neutral-500 pt-2 mt-2 border-t border-neutral-100">
           <span>{t('citizenManagement.enrolledCount', { count: filtered.length, total: citizens.length })}</span>
           <span>{t('citizenManagement.identityProtocol')}</span>
         </div>
@@ -119,68 +136,115 @@ export default function CitizenManagement() {
           </p>
         </div>
       ) : (
-        <div className="border border-neutral-200 bg-white overflow-x-auto">
-          <table className="w-full text-left font-mono text-xs border-collapse">
-            <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.identity')}</th>
-                <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.email')}</th>
-                <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.phone')}</th>
-                <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.residence')}</th>
-                <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.enrolled')}</th>
-                <th className="p-3 text-right">{t('citizenManagement.table.profile')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-neutral-200 text-neutral-800">
-              {filtered.map(c => {
-                const initial = (c.fullName || 'C').charAt(0).toUpperCase()
-                const dateStr = c.createdAt
-                  ? new Date(c.createdAt).toLocaleDateString('en-IN', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                    })
-                  : '—'
+        <>
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3">
+            {translatedFiltered.map(c => {
+              const initial = getInitial(c.fullName)
+              const dateStr = formatLocalizedDate(c.createdAt, {}, i18n.language) || '—'
 
-                return (
-                  <tr
-                    key={c._id || c.id}
-                    onClick={() => navigate(`/admin/citizens/${c._id || c.id}`)}
-                    className="hover:bg-neutral-50 cursor-pointer transition-colors"
-                  >
-                    <td className="p-3 border-r border-neutral-200">
-                      <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 bg-neutral-900 text-white flex items-center justify-center font-mono font-bold text-xs flex-shrink-0">
-                          {initial}
-                        </div>
-                        <span className="font-bold text-neutral-900 font-sans text-sm">
-                          {c.fullName || t('citizenManagement.anonymousResident')}
-                        </span>
+              return (
+                <div
+                  key={c._id || c.id}
+                  onClick={() => navigate(`/admin/citizens/${c._id || c.id}`)}
+                  className="border border-neutral-200 hover:border-black bg-white p-4 space-y-3 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 bg-neutral-900 text-white flex items-center justify-center font-mono font-bold text-xs flex-shrink-0">
+                        {initial}
                       </div>
-                    </td>
-                    <td className="p-3 border-r border-neutral-200 text-neutral-600">
-                      {c.email || '—'}
-                    </td>
-                    <td className="p-3 border-r border-neutral-200 text-neutral-600">
-                      {c.phoneNumber || '—'}
-                    </td>
-                    <td className="p-3 border-r border-neutral-200 text-neutral-500 max-w-xs truncate">
-                      {c.address || t('citizenManagement.wardUnassigned')}
-                    </td>
-                    <td className="p-3 border-r border-neutral-200 text-neutral-500 whitespace-nowrap">
-                      {dateStr}
-                    </td>
-                    <td className="p-3 text-right whitespace-nowrap font-bold">
-                      <span className="text-black hover:underline inline-flex items-center gap-1 text-[11px]">
-                        {t('citizenManagement.dossier')} <HiChevronRight className="w-3.5 h-3.5" />
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-neutral-900 font-sans text-sm truncate">
+                          {c.fullName || t('citizenManagement.anonymousResident')}
+                        </div>
+                        <div className="font-mono text-[11px] text-neutral-600 truncate">
+                          {c.email || '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-black font-mono font-bold inline-flex items-center gap-1 text-[11px] flex-shrink-0">
+                      {t('citizenManagement.dossier')} <HiChevronRight className="w-3.5 h-3.5" />
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-neutral-100 font-mono text-[11px] text-neutral-600">
+                    <div>
+                      <span className="text-[10px] text-neutral-400 uppercase block">{t('citizenManagement.table.phone')}</span>
+                      <span className="truncate block">{c.phoneNumber || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-neutral-400 uppercase block">{t('citizenManagement.table.enrolled')}</span>
+                      <span>{dateStr}</span>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-[10px] text-neutral-400 uppercase block">{t('citizenManagement.table.residence')}</span>
+                      <span className="truncate block text-neutral-700">{c.address || t('citizenManagement.wardUnassigned')}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block border border-neutral-200 bg-white overflow-x-auto">
+            <table className="w-full text-left font-mono text-xs border-collapse">
+              <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.identity')}</th>
+                  <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.email')}</th>
+                  <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.phone')}</th>
+                  <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.residence')}</th>
+                  <th className="p-3 border-r border-neutral-200">{t('citizenManagement.table.enrolled')}</th>
+                  <th className="p-3 text-right">{t('citizenManagement.table.profile')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200 text-neutral-800">
+                {translatedFiltered.map(c => {
+                  const initial = getInitial(c.fullName)
+                  const dateStr = formatLocalizedDate(c.createdAt, {}, i18n.language) || '—'
+
+                  return (
+                    <tr
+                      key={c._id || c.id}
+                      onClick={() => navigate(`/admin/citizens/${c._id || c.id}`)}
+                      className="hover:bg-neutral-50 cursor-pointer transition-colors"
+                    >
+                      <td className="p-3 border-r border-neutral-200">
+                        <div className="flex items-center gap-3">
+                          <div className="w-7 h-7 bg-neutral-900 text-white flex items-center justify-center font-mono font-bold text-xs flex-shrink-0">
+                            {initial}
+                          </div>
+                          <span className="font-bold text-neutral-900 font-sans text-sm">
+                            {c.fullName || t('citizenManagement.anonymousResident')}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-3 border-r border-neutral-200 text-neutral-600">
+                        {c.email || '—'}
+                      </td>
+                      <td className="p-3 border-r border-neutral-200 text-neutral-600">
+                        {c.phoneNumber || '—'}
+                      </td>
+                      <td className="p-3 border-r border-neutral-200 text-neutral-500 max-w-xs truncate">
+                        {c.address || t('citizenManagement.wardUnassigned')}
+                      </td>
+                      <td className="p-3 border-r border-neutral-200 text-neutral-500 whitespace-nowrap">
+                        {dateStr}
+                      </td>
+                      <td className="p-3 text-right whitespace-nowrap font-bold">
+                        <span className="text-black hover:underline inline-flex items-center gap-1 text-[11px]">
+                          {t('citizenManagement.dossier')} <HiChevronRight className="w-3.5 h-3.5" />
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )

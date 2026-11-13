@@ -5,15 +5,15 @@ const sharp = require('sharp');
 // Civic_Issue_Context_Filter_Report step that normalizes detections into a
 // fixed set of civic-issue classes and strips raw polygon points, so the
 // `detections` payload below is already small.
-const ROBOFLOW_API_URL = process.env.ROBOFLOW_API_URL || 'https://serverless.roboflow.com';
-const ROBOFLOW_WORKSPACE = process.env.ROBOFLOW_WORKSPACE;
-const ROBOFLOW_WORKFLOW = process.env.ROBOFLOW_WORKFLOW;
-const ROBOFLOW_API_KEY = process.env.ROBOFLOW_API_KEY;
-// Separate workflow (SAM3 + Depth Estimation + a custom geometry-extraction
-// step) used only for pothole footprint/depth estimation -- see
-// services/potholeGeometryService.js. Kept out of ROBOFLOW_WORKFLOW above so
-// the existing validate/explain hot path never pays for a depth-model call.
-const ROBOFLOW_GEOMETRY_WORKFLOW = process.env.ROBOFLOW_GEOMETRY_WORKFLOW;
+function getRoboflowConfig() {
+    return {
+        apiUrl: (process.env.ROBOFLOW_API_URL || 'https://serverless.roboflow.com').replace(/\/+$/, ''),
+        workspace: process.env.ROBOFLOW_WORKSPACE,
+        workflow: process.env.ROBOFLOW_WORKFLOW,
+        geometryWorkflow: process.env.ROBOFLOW_GEOMETRY_WORKFLOW,
+        apiKey: process.env.ROBOFLOW_API_KEY,
+    };
+}
 
 const REQUEST_TIMEOUT_MS = 20000;
 const MAX_RETRIES = 2; // total attempts = 3
@@ -57,7 +57,8 @@ function sleep(ms) {
  * workflow slug is targeted.
  */
 async function runWorkflow(workflowSlug, workflowLabel, image, parameters) {
-    if (!ROBOFLOW_API_KEY || !ROBOFLOW_WORKSPACE || !workflowSlug) {
+    const { apiUrl, workspace, apiKey } = getRoboflowConfig();
+    if (!apiKey || !workspace || !workflowSlug) {
         throw new RoboflowWorkflowError(
             `Roboflow is not configured for ${workflowLabel} (missing ROBOFLOW_API_KEY / ROBOFLOW_WORKSPACE / workflow slug env var)`
         );
@@ -69,7 +70,7 @@ async function runWorkflow(workflowSlug, workflowLabel, image, parameters) {
         throw new RoboflowWorkflowError('Image URL inputs to Roboflow must be https');
     }
 
-    const endpoint = `${ROBOFLOW_API_URL}/${ROBOFLOW_WORKSPACE}/workflows/${workflowSlug}`;
+    const endpoint = `${apiUrl}/${workspace}/workflows/${workflowSlug}`;
     const body = { inputs: { image }, ...(parameters ? { parameters } : {}) };
 
     let lastError;
@@ -78,7 +79,7 @@ async function runWorkflow(workflowSlug, workflowLabel, image, parameters) {
             const response = await axios.post(endpoint, body, {
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${ROBOFLOW_API_KEY}`,
+                    Authorization: `Bearer ${apiKey}`,
                 },
                 timeout: REQUEST_TIMEOUT_MS,
             });
@@ -106,7 +107,7 @@ async function runWorkflow(workflowSlug, workflowLabel, image, parameters) {
 }
 
 async function runCityZenWorkflow(image, parameters) {
-    return runWorkflow(ROBOFLOW_WORKFLOW, 'CityZen SAM3', image, parameters);
+    return runWorkflow(getRoboflowConfig().workflow, 'CityZen SAM3', image, parameters);
 }
 
 /**
@@ -122,7 +123,7 @@ async function runCityZenWorkflow(image, parameters) {
  */
 async function runPotholeGeometryWorkflow(imageUrl) {
     const result = await runWorkflow(
-        ROBOFLOW_GEOMETRY_WORKFLOW,
+        getRoboflowConfig().geometryWorkflow,
         'pothole geometry',
         { type: 'url', value: imageUrl }
     );
@@ -168,13 +169,14 @@ async function validateImageWithRoboflow(imageUrl, expectedCategory) {
         );
         const label = CIVIC_ISSUE_LABELS[primary.class] || primary.class;
 
-        const needsCategoryCheck = expectedCategory && expectedCategory !== 'others' && CIVIC_ISSUE_LABELS[expectedCategory];
+        const normExpected = typeof expectedCategory === 'string' ? expectedCategory.trim().toLowerCase() : null;
+        const needsCategoryCheck = normExpected && normExpected !== 'others' && Object.prototype.hasOwnProperty.call(CIVIC_ISSUE_LABELS, normExpected);
 
         if (needsCategoryCheck) {
-            const matchingDetection = detections.find((d) => d.class === expectedCategory);
+            const matchingDetection = detections.find((d) => d.class === normExpected);
 
             if (!matchingDetection) {
-                const expectedLabel = CIVIC_ISSUE_LABELS[expectedCategory] || expectedCategory;
+                const expectedLabel = CIVIC_ISSUE_LABELS[normExpected] || normExpected;
                 return {
                     success: true,
                     confidence: primary.confidence ?? 0,
@@ -194,9 +196,9 @@ async function validateImageWithRoboflow(imageUrl, expectedCategory) {
                 modelConfidence: matchConfidence,
                 allowUpload: true,
                 categoryMatch: true,
-                message: `Detected Issue: ${CIVIC_ISSUE_LABELS[expectedCategory]}`,
+                message: `Detected Issue: ${CIVIC_ISSUE_LABELS[normExpected]}`,
                 detections,
-                primaryClass: expectedCategory,
+                primaryClass: normExpected,
             };
         }
 
@@ -242,20 +244,31 @@ async function renderPotholeMaskOverlay(imageBuffer, instances) {
     const metadata = await sharp(imageBuffer).metadata();
     const width = metadata.width;
     const height = metadata.height;
+    if (!width || !height) {
+        throw new RoboflowWorkflowError('Unable to determine image dimensions for mask overlay');
+    }
 
     let svgPaths = '';
     for (const inst of instances) {
-        const points = inst.rim_points_px;
-        if (!points || points.length < 3) continue;
+        const rawPoints = inst?.rim_points_px;
+        if (!Array.isArray(rawPoints)) continue;
+        const points = rawPoints.filter(
+            (p) => Array.isArray(p) && p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1])
+        );
+        if (points.length < 3) continue;
         const pointsStr = points.map((p) => `${p[0]},${p[1]}`).join(' ');
 
         svgPaths += `<polygon points="${pointsStr}" fill="rgba(147, 51, 234, 0.45)" stroke="#9333ea" stroke-width="4" stroke-linejoin="round" />`;
 
         const confText = `pothole ${Math.round((inst.confidence || 0) * 100)}%`;
-        const [minX, minY] = inst.bbox_xyxy ? [inst.bbox_xyxy[0], inst.bbox_xyxy[1]] : (inst.centroid_px || [points[0][0], points[0][1]]);
-        const tagX = Math.max(10, minX);
-        const tagY = Math.max(25, minY - 10);
+        const [minX, minY] = Array.isArray(inst.bbox_xyxy) && Number.isFinite(inst.bbox_xyxy[0]) && Number.isFinite(inst.bbox_xyxy[1])
+            ? [inst.bbox_xyxy[0], inst.bbox_xyxy[1]]
+            : (Array.isArray(inst.centroid_px) && Number.isFinite(inst.centroid_px[0]) && Number.isFinite(inst.centroid_px[1])
+                ? inst.centroid_px
+                : [points[0][0], points[0][1]]);
         const textWidth = confText.length * 9 + 16;
+        const tagX = Math.max(10, Math.min(Math.max(10, width - textWidth - 10), minX));
+        const tagY = Math.max(25, Math.min(height - 10, minY - 10));
 
         svgPaths += `
             <rect x="${tagX}" y="${tagY - 18}" width="${textWidth}" height="24" rx="4" fill="#9333ea" />

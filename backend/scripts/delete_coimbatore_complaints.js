@@ -1,14 +1,27 @@
-require('dotenv').config({ path: '../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const { createClient } = require('@supabase/supabase-js');
 
-const supabaseUrl = 'https://edragfuoklcgdgtospuq.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkcmFnZnVva2xjZ2RndG9zcHVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1NDE3MjMsImV4cCI6MjA3MjExNzcyM30.A58Ms03zTZC6J5OuhQbkkZQy-5uTxgu4vlLilrjPEwo';
+const supabaseUrl = process.env.SUPABASE_URL?.trim();
+const supabaseKey = (
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY
+)?.trim();
+
+if (!supabaseUrl || !supabaseKey) {
+    console.error(
+        'Missing required Supabase environment variables: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY).'
+    );
+    process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+const CHUNK_SIZE = 100;
+const confirmed = process.argv.includes('--confirm') || process.argv.includes('--yes');
+
 async function deleteComplaints() {
     console.log("Locating complaints in Coimbatore...");
-    
+
     // First, select them to see exactly how many we are deleting
     const { data: complaints, error: selectError } = await supabase
         .from('complaints')
@@ -19,7 +32,8 @@ async function deleteComplaints() {
         .lte('location_longitude', 77.2);
 
     if (selectError) {
-        console.error("Error fetching complaints:", selectError);
+        console.error("Error fetching complaints:", selectError.message || selectError);
+        process.exitCode = 1;
         return;
     }
 
@@ -29,35 +43,51 @@ async function deleteComplaints() {
     }
 
     const complaintIds = complaints.map(c => c.id);
-    console.log(`Ready to delete ${complaintIds.length} complaints.`);
-
-    // Perform deletion using the retrieved IDs
-    const { data: deleted, error: deleteError } = await supabase
-        .from('complaints')
-        .delete()
-        .in('id', complaintIds);
-
-    if (deleteError) {
-        console.error("Error during deletion:", deleteError.message);
+    if (!confirmed) {
+        console.log(`Dry-run: found ${complaintIds.length} complaints in Coimbatore region.`);
+        console.log("Re-run with --confirm to delete these complaints.");
         return;
     }
 
-    console.log(`Successfully deleted ${complaintIds.length} complaints.`);
+    console.log(`Ready to delete ${complaintIds.length} complaints.`);
+
+    let totalDeleted = 0;
+    for (let i = 0; i < complaintIds.length; i += CHUNK_SIZE) {
+        const batch = complaintIds.slice(i, i + CHUNK_SIZE);
+        const { data: deleted, error: deleteError } = await supabase
+            .from('complaints')
+            .delete()
+            .in('id', batch)
+            .select('id');
+
+        if (deleteError) {
+            console.error("Error during deletion:", deleteError.message);
+            process.exitCode = 1;
+            return;
+        }
+        totalDeleted += Array.isArray(deleted) ? deleted.length : 0;
+    }
+
+    console.log(`Successfully deleted ${totalDeleted} of ${complaintIds.length} complaints.`);
 
     // Verify deletion
     const { count, error: countError } = await supabase
         .from('complaints')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .gte('location_latitude', 10.9)
         .lte('location_latitude', 11.2)
         .gte('location_longitude', 76.8)
         .lte('location_longitude', 77.2);
 
     if (countError) {
-        console.error("Error verifying deletion:", countError);
+        console.error("Error verifying deletion:", countError.message || countError);
+        process.exitCode = 1;
     } else {
         console.log(`Verification: ${count} complaints remaining in Coimbatore area.`);
     }
 }
 
-deleteComplaints();
+deleteComplaints().catch((err) => {
+    console.error("Unexpected error deleting complaints:", err);
+    process.exitCode = 1;
+});

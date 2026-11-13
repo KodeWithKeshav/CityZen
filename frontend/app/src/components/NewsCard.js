@@ -9,45 +9,52 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
+import { useTranslatedObject } from '../context/TranslationContext';
+import { formatLocalizedRelativeTime } from '../utils/dateLocale';
 
 const { width } = Dimensions.get('window');
 
 const NewsCard = ({ article, onPress, style }) => {
-  if (!article) return null;
+  const { t, i18n } = useTranslation(['citizen', 'common']);
+  const activeArticle = useTranslatedObject(article, ['headline', 'summary', 'category', 'source', 'readTime']);
+  if (!activeArticle) return null;
 
   return (
     <TouchableOpacity
       style={[styles.container, style]}
-      onPress={() => onPress && onPress(article)}
+      onPress={() => onPress && onPress(activeArticle)}
       activeOpacity={0.95}
     >
       {/* News Label */}
       <View style={styles.newsLabel}>
         <Ionicons name="newspaper" size={14} color="#fff" />
-        <Text style={styles.newsLabelText}>CITY NEWS</Text>
+        <Text style={styles.newsLabelText}>{t('citizen:feed.municipalBulletins', 'CITY NEWS')}</Text>
       </View>
 
       <View style={styles.content}>
         {/* Text Content */}
         <View style={styles.textContent}>
           <Text style={styles.headline} numberOfLines={3}>
-            {article.headline}
+            {activeArticle.headline}
           </Text>
           <Text style={styles.summary} numberOfLines={2}>
-            {article.summary}
+            {activeArticle.summary}
           </Text>
           
           {/* Footer */}
           <View style={styles.footer}>
             <View style={styles.sourceInfo}>
-              <View style={[styles.categoryDot, { backgroundColor: getCategoryColor(article.category) }]} />
-              <Text style={styles.categoryText}>{article.category}</Text>
+              <View style={[styles.categoryDot, { backgroundColor: getCategoryColor(article?.category) }]} />
+              <Text style={styles.categoryText}>{activeArticle.category}</Text>
               <Text style={styles.separator}>•</Text>
-              <Text style={styles.timeText}>{getTimeAgo(article.publishedAt)}</Text>
+              <Text style={styles.timeText}>
+                {formatLocalizedRelativeTime(activeArticle.publishedAt, t('citizen:feed.recently', 'Recently'), i18n.language)}
+              </Text>
             </View>
             <View style={styles.readTimeContainer}>
               <Ionicons name="time-outline" size={12} color="#666" />
-              <Text style={styles.readTime}>{article.readTime}</Text>
+              <Text style={styles.readTime}>{activeArticle.readTime}</Text>
             </View>
           </View>
         </View>
@@ -55,12 +62,12 @@ const NewsCard = ({ article, onPress, style }) => {
         {/* Image */}
         <View style={styles.imageContainer}>
           <Image
-            source={{ uri: article.imageUrl }}
+            source={{ uri: activeArticle.imageUrl }}
             style={styles.image}
             resizeMode="cover"
           />
           {/* Priority Badge */}
-          {article.priority === 'high' && (
+          {activeArticle.priority === 'high' && (
             <View style={styles.priorityBadge}>
               <Ionicons name="flash" size={10} color="#fff" />
             </View>
@@ -71,7 +78,9 @@ const NewsCard = ({ article, onPress, style }) => {
       {/* Source Attribution */}
       <View style={styles.sourceContainer}>
         <Ionicons name="radio-outline" size={12} color="#3498db" />
-        <Text style={styles.sourceText}>Source: {article.source}</Text>
+        <Text style={styles.sourceText}>
+          {t('citizen:feed.issuedBy', { source: activeArticle.source, defaultValue: `Source: ${activeArticle.source}` })}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -93,9 +102,11 @@ const getCategoryColor = (category) => {
 
 // Helper function to format time
 const getTimeAgo = (publishedAt) => {
+  if (!publishedAt) return 'Recently';
   const now = new Date();
   const published = new Date(publishedAt);
-  const diffInMinutes = Math.floor((now - published) / (1000 * 60));
+  if (Number.isNaN(published.getTime())) return 'Recently';
+  const diffInMinutes = Math.max(0, Math.floor((now - published) / (1000 * 60)));
 
   if (diffInMinutes < 60) {
     return `${diffInMinutes}m ago`;

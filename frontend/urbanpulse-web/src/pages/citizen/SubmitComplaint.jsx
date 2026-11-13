@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { makeApiCall, apiClient } from '../../services/api'
+import { makeApiCall, apiClient, authStorage } from '../../services/api'
 import toast from 'react-hot-toast'
 import {
   HiCheckCircle,
@@ -108,10 +108,16 @@ export default function SubmitComplaint() {
   }
 
   const handleImageUpload = async (e) => {
-    const file = e.target.files[0]
+    const file = e.target.files?.[0]
     if (!file) return
     if (!form.issueType) {
       toast.error('Select an issue classification first')
+      e.target.value = ''
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Image file must be 10MB or smaller')
+      e.target.value = ''
       return
     }
 
@@ -120,13 +126,16 @@ export default function SubmitComplaint() {
     setImageValidated(false)
     try {
       // 1. Upload to Cloudinary
-      const CLOUDINARY_URL = 'https://api.cloudinary.com/v1_1/dsvc9y4rq/image/upload'
+      const CLOUDINARY_URL = import.meta.env.VITE_CLOUDINARY_URL || 'https://api.cloudinary.com/v1_1/dsvc9y4rq/image/upload'
+      const CLOUDINARY_PRESET = import.meta.env.VITE_CLOUDINARY_PRESET || 'damage'
       const data = new FormData()
       data.append('file', file)
-      data.append('upload_preset', 'damage')
+      data.append('upload_preset', CLOUDINARY_PRESET)
       const cloudRes = await fetch(CLOUDINARY_URL, { method: 'POST', body: data })
-      const cloudResult = await cloudRes.json()
-      if (!cloudResult.secure_url) throw new Error('Image upload failed')
+      const cloudResult = await cloudRes.json().catch(() => ({}))
+      if (!cloudRes.ok || !cloudResult.secure_url) {
+        throw new Error(cloudResult?.error?.message || 'Image upload failed')
+      }
 
       const uploadedUrl = cloudResult.secure_url
 
@@ -147,7 +156,9 @@ export default function SubmitComplaint() {
         setPhotoSkipped(false)
         toast.success(result.message || 'Evidence validated against classification')
       } else {
-        setField('imageUrl', uploadedUrl)
+        setField('imageUrl', '')
+        setField('aiConfidence', null)
+        setField('imagePrimaryClass', null)
         setImageValidated(false)
         setImageError(result.message || 'The submitted image failed neural verification for this classification.')
       }
@@ -155,6 +166,7 @@ export default function SubmitComplaint() {
       setImageError('Neural validation error: ' + err.message)
     } finally {
       setValidatingImage(false)
+      e.target.value = ''
     }
   }
 
@@ -208,6 +220,24 @@ export default function SubmitComplaint() {
     }
   }
 
+  const isMountedRef = useRef(true)
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      if (analysisTimer.current) clearTimeout(analysisTimer.current)
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.onstop = null
+          mediaRecorderRef.current.stop()
+        } catch {
+          // ignore
+        }
+      }
+      stopMediaStream()
+    }
+  }, [])
+
   const handleVoiceInput = async () => {
     if (isRecording) {
       mediaRecorderRef.current?.stop()
@@ -233,6 +263,7 @@ export default function SubmitComplaint() {
 
       recorder.onstop = async () => {
         stopMediaStream()
+        if (!isMountedRef.current) return
         setIsRecording(false)
         setTranscribing(true)
 
@@ -242,23 +273,29 @@ export default function SubmitComplaint() {
           formData.append('audio', audioBlob, 'recording.webm')
           formData.append('language', form.language)
 
+          const token = authStorage.getToken()
           const response = await fetch(apiClient.transcribe.audio, {
             method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
             body: formData,
           })
-          const result = await response.json()
+          const result = await response.json().catch(() => ({}))
 
+          if (!isMountedRef.current) return
           if (response.ok && result.success && result.transcript) {
-            setField('description', form.description ? `${form.description} ${result.transcript}` : result.transcript)
+            setForm(p => ({
+              ...p,
+              description: p.description ? `${p.description} ${result.transcript}` : result.transcript,
+            }))
             toast.success(t('voice.appended'))
           } else {
             toast.error(result.message || t('voice.failed'))
           }
         } catch (err) {
           console.error('Transcription upload failed:', err)
-          toast.error(t('voice.uploadError'))
+          if (isMountedRef.current) toast.error(t('voice.uploadError'))
         } finally {
-          setTranscribing(false)
+          if (isMountedRef.current) setTranscribing(false)
         }
       }
 
@@ -307,10 +344,11 @@ export default function SubmitComplaint() {
     setLoading(true)
     try {
       const payload = {
-        title: form.title,
-        description: form.description,
+        title: form.title.trim(),
+        description: form.description.trim(),
         category: form.issueType,
-        complaintTitle: form.title,
+        complaintTitle: form.title.trim(),
+        priority: form.priority,
         language: form.language,
         imageUrl: form.imageUrl || undefined,
         locationData: {
@@ -333,8 +371,14 @@ export default function SubmitComplaint() {
         body: JSON.stringify(payload),
       })
       if (res.success) {
-        toast.success('Civic incident registered successfully!')
+        if (res.duplicate) {
+          toast(res.message || 'This issue was already reported nearby; your vote was added.', { icon: 'ℹ️' })
+        } else {
+          toast.success('Civic incident registered successfully!')
+        }
         navigate('/citizen/feed')
+      } else {
+        toast.error(res.message || res.error || 'Dispatch submission failed')
       }
     } catch (err) {
       toast.error(err.message || 'Dispatch submission failed')
@@ -347,27 +391,31 @@ export default function SubmitComplaint() {
     if (step === 0) return !!form.issueType
     if (step === 1) return imageValidated || photoSkipped
     if (step === 2) {
-      if (form.title.length < 3 || form.description.length < 10) return false
+      if (form.title.trim().length < 3 || form.description.trim().length < 10) return false
       if (contentAnalysis?.hardBlocked) return false
       return true
     }
-    if (step === 3) return !!(form.location.latitude && form.location.longitude)
+    if (step === 3) {
+      const lat = parseFloat(form.location.latitude)
+      const lng = parseFloat(form.location.longitude)
+      return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
+    }
     return true
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header section */}
       <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-2">
         <div>
-          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
             <span>URBAN AUDIT</span>
             <span>/</span>
             <span>INCIDENT INTAKE</span>
             <span>/</span>
             <span className="text-black font-semibold">DISPATCH PROTOCOL</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 uppercase">
             File Incident Dispatch
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans">
@@ -380,11 +428,11 @@ export default function SubmitComplaint() {
       </div>
 
       {/* Stepper Timeline */}
-      <div className="grid grid-cols-5 border border-neutral-200 bg-white">
+      <div className="flex overflow-x-auto sm:grid sm:grid-cols-5 border border-neutral-200 bg-white">
         {STEPS.map((s, i) => (
           <div
             key={s.id}
-            className={`p-3 border-r last:border-r-0 border-neutral-200 transition-colors ${
+            className={`p-3 min-w-[115px] sm:min-w-0 flex-shrink-0 border-r last:border-r-0 border-neutral-200 transition-colors ${
               i === step
                 ? 'bg-neutral-900 text-white'
                 : i < step
@@ -404,7 +452,7 @@ export default function SubmitComplaint() {
       </div>
 
       {/* Step Form Box */}
-      <div className="border border-neutral-200 bg-white p-6 md:p-8">
+      <div className="border border-neutral-200 bg-white p-4 sm:p-6 md:p-8">
         {/* Step 0: Classification */}
         {step === 0 && (
           <div className="space-y-6">
@@ -474,7 +522,7 @@ export default function SubmitComplaint() {
               </p>
             </div>
 
-            <div className="border-2 border-dashed border-neutral-300 p-8 text-center bg-neutral-50">
+            <div className="border-2 border-dashed border-neutral-300 p-5 sm:p-8 text-center bg-neutral-50">
               <label className="cursor-pointer inline-flex flex-col items-center justify-center">
                 <HiUpload className="w-8 h-8 text-neutral-600 mb-2" />
                 <span className="font-mono text-xs uppercase tracking-wider font-bold text-neutral-900 bg-white px-4 py-2 border border-neutral-300 hover:border-black transition-colors">
@@ -585,11 +633,11 @@ export default function SubmitComplaint() {
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
                   <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700">
                     {t('form.descriptionLabel')}
                   </label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <select
                       value={form.language}
                       onChange={e => setField('language', e.target.value)}
@@ -651,6 +699,11 @@ export default function SubmitComplaint() {
                         >
                           {t('authenticity.reassignTo', { category: contentAnalysis.suggestedCategory.replace(/_/g, ' ') })}
                         </button>
+                      )}
+                      {contentAnalysis.hardBlocked && (
+                        <p className="text-xs font-sans mt-1 font-medium">
+                          {t('authenticity.mustFix')}
+                        </p>
                       )}
                       {contentAnalysis.flagged && !contentAnalysis.hardBlocked && (
                         <p className="text-xs font-sans mt-1 italic">
@@ -802,27 +855,27 @@ export default function SubmitComplaint() {
             </div>
 
             <div className="border border-neutral-200 divide-y divide-neutral-200 font-mono text-xs">
-              <div className="p-3 flex justify-between">
+              <div className="p-3 flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-neutral-500">CLASSIFICATION</span>
                 <span className="font-bold text-neutral-900">
                   {ISSUE_TYPES.find(i => i.value === form.issueType)?.label}
                 </span>
               </div>
-              <div className="p-3 flex justify-between">
+              <div className="p-3 flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-neutral-500">EVIDENCE AUDIT</span>
                 <span className="font-bold text-neutral-900">
                   {imageValidated ? 'NEURAL MATCH VERIFIED' : 'BYPASSED'}
                 </span>
               </div>
-              <div className="p-3 flex justify-between">
+              <div className="p-3 flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-neutral-500">INCIDENT TITLE</span>
-                <span className="font-bold text-neutral-900">{form.title}</span>
+                <span className="font-bold text-neutral-900 break-words">{form.title}</span>
               </div>
-              <div className="p-3 flex justify-between">
+              <div className="p-3 flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-neutral-500">SEVERITY TIER</span>
                 <span className="font-bold text-neutral-900 uppercase">{form.priority}</span>
               </div>
-              <div className="p-3 flex justify-between">
+              <div className="p-3 flex flex-col sm:flex-row sm:justify-between gap-1">
                 <span className="text-neutral-500">COORDINATES</span>
                 <span className="font-bold text-neutral-900">
                   {form.location.latitude}, {form.location.longitude}

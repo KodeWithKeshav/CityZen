@@ -9,13 +9,13 @@ const toggleGuestVoteStatus = async (complaintId) => {
   try {
     const guestVotes = await AsyncStorage.getItem('guestVotes');
     let votesMap = guestVotes ? JSON.parse(guestVotes) : {};
-    
+
     // Toggle the vote status
     votesMap[complaintId] = !votesMap[complaintId];
-    
+
     await AsyncStorage.setItem('guestVotes', JSON.stringify(votesMap));
     console.log(`📱 Guest vote toggled for complaint ${complaintId}: ${votesMap[complaintId]}`);
-    
+
     return votesMap[complaintId];
   } catch (error) {
     console.error('❌ Error toggling guest vote status:', error);
@@ -30,18 +30,18 @@ const toggleGuestVoteStatus = async (complaintId) => {
 export const getDeviceId = async () => {
   try {
     let deviceId = await AsyncStorage.getItem('deviceId');
-    
+
     if (!deviceId) {
       // Generate a unique device ID
       const timestamp = Date.now();
       const random = Math.random().toString(36).substring(2);
       const platform = Platform.OS;
       deviceId = `${platform}-${timestamp}-${random}`;
-      
+
       await AsyncStorage.setItem('deviceId', deviceId);
       console.log('📱 Generated new device ID:', deviceId);
     }
-    
+
     return deviceId;
   } catch (error) {
     console.error('❌ Error getting device ID:', error);
@@ -59,11 +59,11 @@ export const getDeviceId = async () => {
 export const handleVoting = async (complaintId, apiClient, makeApiCall) => {
   try {
     console.log('🗳️ Starting vote process for complaint:', complaintId);
-    
+
     // First, try authenticated voting
     try {
       const authToken = await AsyncStorage.getItem('authToken');
-      
+
       if (authToken) {
         console.log('🔐 Attempting authenticated vote...');
         const voteResponse = await makeApiCall(
@@ -75,7 +75,7 @@ export const handleVoting = async (complaintId, apiClient, makeApiCall) => {
             })
           }
         );
-        
+
         if (voteResponse.success) {
           console.log('✅ Authenticated vote successful');
           return voteResponse;
@@ -83,15 +83,15 @@ export const handleVoting = async (complaintId, apiClient, makeApiCall) => {
       }
     } catch (authError) {
       console.log('⚠️ Authenticated voting failed, trying guest voting:', authError.message);
-      
+
       // If authentication error, try guest voting
-      if (authError.message.includes('Authentication required') || 
-          authError.message.includes('401') ||
-          authError.message.includes('Unauthorized')) {
-        
+      if (authError.message.includes('Authentication required') ||
+        authError.message.includes('401') ||
+        authError.message.includes('Unauthorized')) {
+
         console.log('🔄 Falling back to guest voting...');
         const deviceId = await getDeviceId();
-        
+
         const guestVoteResponse = await makeApiCall(
           `${apiClient.baseUrl}/api/guest-votes`,
           {
@@ -102,7 +102,7 @@ export const handleVoting = async (complaintId, apiClient, makeApiCall) => {
             })
           }
         );
-        
+
         if (guestVoteResponse.success) {
           console.log('✅ Guest vote successful');
           // Update local storage to track this guest vote
@@ -116,11 +116,11 @@ export const handleVoting = async (complaintId, apiClient, makeApiCall) => {
         throw authError;
       }
     }
-    
+
     // If we reach here without success, try guest voting as final fallback
     console.log('🔄 Final fallback to guest voting...');
     const deviceId = await getDeviceId();
-    
+
     const guestVoteResponse = await makeApiCall(
       `${apiClient.baseUrl}/api/guest-votes`,
       {
@@ -131,7 +131,7 @@ export const handleVoting = async (complaintId, apiClient, makeApiCall) => {
         })
       }
     );
-    
+
     if (guestVoteResponse.success) {
       console.log('✅ Fallback guest vote successful');
       // Update local storage to track this guest vote
@@ -140,7 +140,7 @@ export const handleVoting = async (complaintId, apiClient, makeApiCall) => {
     } else {
       throw new Error(guestVoteResponse.message || 'All voting methods failed');
     }
-    
+
   } catch (error) {
     console.error('❌ Error in voting process:', error);
     throw error;
@@ -156,36 +156,37 @@ export const handleVoting = async (complaintId, apiClient, makeApiCall) => {
 export const getVoteStatus = async (complaintId, apiClient, makeApiCall = null) => {
   try {
     const authToken = await AsyncStorage.getItem('authToken');
-    
+
     if (authToken && makeApiCall) {
       // Try to get authenticated vote status first
       try {
         const response = await makeApiCall(
-          `${apiClient.baseUrl}/api/complaints/${complaintId}/vote-status`
+          `${apiClient.baseUrl}/api/complaints/vote/status?complaintIds=${encodeURIComponent(complaintId)}`
         );
-        
-        if (response.success) {
-          return response.data;
+
+        if (response.success && response.data) {
+          const hasVoted = Boolean(response.data[complaintId]);
+          return { hasVoted, userVoted: hasVoted };
         }
-      } catch (authError) {
+      } catch {
         console.log('⚠️ Authenticated vote status check failed, trying guest status');
       }
     }
-    
+
     // Fallback to guest vote status
     const deviceId = await getDeviceId();
     const response = await fetch(
       `${apiClient.baseUrl}/api/guest-votes/status/${complaintId}?deviceId=${deviceId}`
     );
-    
+
     const data = await response.json();
-    
+
     if (data.success) {
       return data.data;
     } else {
       throw new Error(data.message || 'Failed to get vote status');
     }
-    
+
   } catch (error) {
     console.error('❌ Error getting vote status:', error);
     // Return default status if all methods fail

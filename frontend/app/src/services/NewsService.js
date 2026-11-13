@@ -11,31 +11,33 @@ class NewsService {
     this.CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
     this.LOCATION_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
     
-    // News API configuration - Force real API
-    this.NEWS_API_KEY = 'a7c4dd34b48e43ef843e3a9e9743b0b0'; // Direct hardcoded API key
+    // News API configuration from environment
+    this.NEWS_API_KEY = process.env.EXPO_PUBLIC_NEWS_API_KEY || '';
     this.NEWS_API_URL = 'https://newsapi.org/v2';
-    this.USE_REAL_API = true; // Always use real API
+    this.USE_REAL_API = Boolean(this.NEWS_API_KEY);
     
     // Debug logging
     console.log('🔧 NewsService Configuration:');
-    console.log('API Key:', this.NEWS_API_KEY.substring(0, 8) + '...');
+    console.log('API Key:', this.NEWS_API_KEY ? 'SET' : 'NOT SET');
     console.log('API URL:', this.NEWS_API_URL);
     console.log('USE_REAL_API:', this.USE_REAL_API);
-    
-    console.log(`📰 NewsService initialized with REAL API (hardcoded)`);
   }
 
   // Get real news from NewsAPI based on location
   async getRealNews(userLocation = null, category = null) {
     try {
+      if (!this.NEWS_API_KEY) {
+        throw new Error('News API key not configured');
+      }
+
       console.log('📰 getRealNews called - Starting real API fetch');
-      console.log('📰 API Key:', this.NEWS_API_KEY.substring(0, 8) + '...');
 
       // Get user location if not provided
       if (!userLocation) {
         try {
           console.log('📰 Getting user location...');
-          userLocation = await LocationService.getCurrentLocation();
+          const coords = await LocationService.getExactLocation();
+          userLocation = coords ? { ...coords, city: null, region: null, country: 'India' } : { city: null, region: null, country: 'India' };
           console.log('📰 Location obtained:', userLocation);
         } catch (error) {
           console.log('📰 Could not get location, using India as default');
@@ -88,13 +90,6 @@ class NewsService {
         const transformedNews = this.transformNewsAPIData(fallbackData.articles, userLocation);
         console.log(`📰 SUCCESS (fallback): Fetched ${transformedNews.length} news articles`);
         return transformedNews;
-      }
-      
-      if (!response.ok) {
-        console.log('📰 Response not OK, status:', response.status);
-        const errorText = await response.text();
-        console.log('📰 Error response:', errorText);
-        throw new Error(`NewsAPI error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -471,7 +466,10 @@ class NewsService {
       // Try to get user location for location-based news
       let userLocation = null;
       try {
-        userLocation = await LocationService.getCurrentLocation();
+        const coords = await LocationService.getExactLocation();
+        if (coords) {
+          userLocation = { ...coords, city: null, region: null, country: 'India' };
+        }
         console.log(`📰 Got user location: ${(userLocation && userLocation.city) || (userLocation && userLocation.region) || 'Unknown'}`);
       } catch (error) {
         console.log('📰 Could not get user location, using default');
@@ -593,8 +591,11 @@ class NewsService {
 
   // Format time for display
   formatTimeAgo(date) {
+    if (!date) return 'Recently';
+    const parsed = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(parsed.getTime())) return 'Recently';
     const now = new Date();
-    const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+    const diffInMinutes = Math.max(0, Math.floor((now - parsed) / (1000 * 60)));
     
     if (diffInMinutes < 60) {
       return `${diffInMinutes}m ago`;

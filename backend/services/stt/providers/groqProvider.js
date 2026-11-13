@@ -25,17 +25,17 @@ const GROQ_LANGUAGE_MAP = {
  * @param {string} [params.language] - language code ('en', 'hi', etc.)
  * @returns {Promise<{ transcript: string, languageUsed: string, provider: string }>}
  */
-async function transcribe({ audioPath, language = 'en' }) {
-  const apiKey = process.env.GROQ_API_KEY;
+async function transcribe({ audioPath, language = 'en' } = {}) {
+  const apiKey = (process.env.GROQ_API_KEY || '').trim();
   if (!apiKey) {
     throw new Error('GROQ_API_KEY is not configured in backend environment.');
   }
 
-  if (!fs.existsSync(audioPath)) {
+  if (!audioPath || typeof audioPath !== 'string' || !fs.existsSync(audioPath)) {
     throw new Error(`Audio file not found at path: ${audioPath}`);
   }
 
-  const ext = path.extname(audioPath) || '.webm';
+  const ext = (path.extname(audioPath) || '.webm').toLowerCase();
   const filename = path.basename(audioPath) || `audio${ext}`;
 
   // Map MIME type based on file extension
@@ -44,6 +44,8 @@ async function transcribe({ audioPath, language = 'en' }) {
   else if (ext === '.mp3') contentType = 'audio/mpeg';
   else if (ext === '.m4a' || ext === '.mp4') contentType = 'audio/mp4';
   else if (ext === '.ogg') contentType = 'audio/ogg';
+  else if (ext === '.flac') contentType = 'audio/flac';
+  else if (ext === '.aac') contentType = 'audio/aac';
 
   const formData = new FormData();
   formData.append('file', fs.createReadStream(audioPath), {

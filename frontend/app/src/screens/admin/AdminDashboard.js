@@ -12,12 +12,16 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
+import { useTranslatedText } from '../../context/TranslationContext';
 import EnvironmentalTheme from '../../theme/EnvironmentalTheme';
 
 const { width } = Dimensions.get('window');
 
 const AdminDashboard = ({ navigation }) => {
+  const { t } = useTranslation(['admin', 'common', 'citizen']);
   const [userData, setUserData] = useState(null);
+  const translatedAdminName = useTranslatedText(userData?.fullName);
   const [dashboardStats, setDashboardStats] = useState({
     totalComplaints: 0,
     pendingComplaints: 0,
@@ -54,12 +58,12 @@ const AdminDashboard = ({ navigation }) => {
 
   const handleLogout = async () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      t('common:buttons.logout'),
+      t('citizen:dashboard.logoutConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:buttons.cancel'), style: 'cancel' },
         {
-          text: 'Logout',
+          text: t('common:buttons.logout'),
           style: 'destructive',
           onPress: async () => {
             await AsyncStorage.multiRemove(['authToken', 'userData']);
@@ -86,18 +90,18 @@ const AdminDashboard = ({ navigation }) => {
             <View style={styles.titleContainer}>
               <View style={styles.titleRow}>
                 <Ionicons name="shield-checkmark" size={28} color="#ffffff" />
-                <Text style={styles.title}>EcoAdmin</Text>
+                <Text style={styles.title}>{t('admin:mobileAdmin.ecoAdminTitle')}</Text>
               </View>
               <Text style={styles.welcomeText}>
-                Managing environmental governance, {userData?.fullName || 'Administrator'}!
+                {t('admin:mobileAdmin.managingEnvGov', { name: translatedAdminName || userData?.fullName || t('admin:mobileAdmin.administratorDefault') })}
               </Text>
             </View>
             <TouchableOpacity 
               style={styles.adminBadge}
-              onPress={() => Alert.alert('Admin Profile', 'Environmental admin profile')}
+              onPress={() => Alert.alert(t('admin:mobileAdmin.adminProfileTitle'), t('admin:mobileAdmin.envAdminProfileDesc'))}
             >
               <Ionicons name="star" size={16} color="#ffffff" />
-              <Text style={styles.adminBadgeText}>ADMIN</Text>
+              <Text style={styles.adminBadgeText}>{t('admin:mobileAdmin.adminBadge')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -112,9 +116,9 @@ const AdminDashboard = ({ navigation }) => {
           <View style={styles.cardHeader}>
             <View style={styles.cardTitleRow}>
               <Ionicons name="analytics" size={24} color={EnvironmentalTheme.secondary.main} />
-              <Text style={styles.cardTitle}>Environmental Overview</Text>
+              <Text style={styles.cardTitle}>{t('admin:mobileAdmin.envOverview')}</Text>
             </View>
-            <Text style={styles.cardSubtitle}>Real-time environmental data</Text>
+            <Text style={styles.cardSubtitle}>{t('admin:mobileAdmin.realtimeEnvData')}</Text>
           </View>
           
           <View style={styles.statsGrid}>
@@ -126,7 +130,7 @@ const AdminDashboard = ({ navigation }) => {
                 <Ionicons name="document-text" size={24} color={EnvironmentalTheme.primary.main} />
               </View>
               <Text style={styles.statNumber}>{dashboardStats.totalComplaints}</Text>
-              <Text style={styles.statLabel}>Total Reports</Text>
+              <Text style={styles.statLabel}>{t('admin:mobileAdmin.totalReports')}</Text>
             </LinearGradient>
 
             <LinearGradient
@@ -137,7 +141,7 @@ const AdminDashboard = ({ navigation }) => {
                 <Ionicons name="time" size={24} color={EnvironmentalTheme.accent.amber} />
               </View>
               <Text style={styles.statNumber}>{dashboardStats.pendingComplaints}</Text>
-              <Text style={styles.statLabel}>Pending</Text>
+              <Text style={styles.statLabel}>{t('common:status.pending')}</Text>
             </LinearGradient>
 
             <LinearGradient
@@ -148,7 +152,7 @@ const AdminDashboard = ({ navigation }) => {
                 <Ionicons name="checkmark-circle" size={24} color={EnvironmentalTheme.status.success} />
               </View>
               <Text style={styles.statNumber}>{dashboardStats.resolvedComplaints}</Text>
-              <Text style={styles.statLabel}>Resolved</Text>
+              <Text style={styles.statLabel}>{t('common:status.resolved')}</Text>
             </LinearGradient>
 
             <LinearGradient
@@ -159,7 +163,7 @@ const AdminDashboard = ({ navigation }) => {
                 <Ionicons name="people" size={24} color={EnvironmentalTheme.accent.teal} />
               </View>
               <Text style={styles.statNumber}>{dashboardStats.totalUsers}</Text>
-              <Text style={styles.statLabel}>Eco Citizens</Text>
+              <Text style={styles.statLabel}>{t('admin:mobileAdmin.ecoCitizens')}</Text>
             </LinearGradient>
           </View>
         </LinearGradient>
@@ -172,15 +176,15 @@ const AdminDashboard = ({ navigation }) => {
           <View style={styles.cardHeader}>
             <View style={styles.cardTitleRow}>
               <Ionicons name="settings" size={24} color={EnvironmentalTheme.primary.main} />
-              <Text style={styles.cardTitle}>Environmental Management</Text>
+              <Text style={styles.cardTitle}>{t('admin:mobileAdmin.envManagement')}</Text>
             </View>
-            <Text style={styles.cardSubtitle}>Manage eco-friendly operations</Text>
+            <Text style={styles.cardSubtitle}>{t('admin:mobileAdmin.manageEcoOps')}</Text>
           </View>
           
           <View style={styles.actionContainer}>
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => Alert.alert('Environmental Reports', 'Manage all environmental reports')}
+              onPress={() => Alert.alert(t('admin:mobileAdmin.envReportsTitle'), t('admin:mobileAdmin.manageAllEnvReports'))}
             >
               <LinearGradient
                 colors={[EnvironmentalTheme.primary.main, EnvironmentalTheme.primary.light]}
@@ -190,8 +194,8 @@ const AdminDashboard = ({ navigation }) => {
                   <Ionicons name="document-text" size={24} color="#ffffff" />
                 </View>
                 <View style={styles.actionTextContainer}>
-                  <Text style={styles.actionButtonText}>Report Management</Text>
-                  <Text style={styles.actionSubtext}>Review environmental issues</Text>
+                  <Text style={styles.actionButtonText}>{t('admin:mobileAdmin.reportManagement')}</Text>
+                  <Text style={styles.actionSubtext}>{t('admin:mobileAdmin.reviewEnvIssues')}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.8)" />
               </LinearGradient>
@@ -199,7 +203,7 @@ const AdminDashboard = ({ navigation }) => {
 
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => Alert.alert('Priority Queue', 'Handle urgent environmental issues')}
+              onPress={() => Alert.alert(t('admin:mobileAdmin.priorityQueueTitle'), t('admin:mobileAdmin.handleUrgentEnvIssues'))}
             >
               <LinearGradient
                 colors={[EnvironmentalTheme.accent.amber, EnvironmentalTheme.status.warning]}
@@ -209,8 +213,8 @@ const AdminDashboard = ({ navigation }) => {
                   <Ionicons name="warning" size={24} color="#ffffff" />
                 </View>
                 <View style={styles.actionTextContainer}>
-                  <Text style={styles.actionButtonText}>Priority Queue</Text>
-                  <Text style={styles.actionSubtext}>Handle urgent eco-issues</Text>
+                  <Text style={styles.actionButtonText}>{t('admin:mobileAdmin.priorityQueueTitle')}</Text>
+                  <Text style={styles.actionSubtext}>{t('admin:mobileAdmin.handleUrgentEco')}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.8)" />
               </LinearGradient>
@@ -218,7 +222,7 @@ const AdminDashboard = ({ navigation }) => {
 
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => Alert.alert('Eco Analytics', 'Environmental data and insights')}
+              onPress={() => Alert.alert(t('admin:mobileAdmin.ecoAnalyticsTitle'), t('admin:mobileAdmin.envDataInsights'))}
             >
               <LinearGradient
                 colors={[EnvironmentalTheme.accent.teal, EnvironmentalTheme.secondary.light]}
@@ -228,8 +232,8 @@ const AdminDashboard = ({ navigation }) => {
                   <Ionicons name="map" size={24} color="#ffffff" />
                 </View>
                 <View style={styles.actionTextContainer}>
-                  <Text style={styles.actionButtonText}>Eco Analytics</Text>
-                  <Text style={styles.actionSubtext}>Environmental insights</Text>
+                  <Text style={styles.actionButtonText}>{t('admin:mobileAdmin.ecoAnalyticsTitle')}</Text>
+                  <Text style={styles.actionSubtext}>{t('admin:mobileAdmin.envInsightsSub')}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.8)" />
               </LinearGradient>
@@ -237,18 +241,18 @@ const AdminDashboard = ({ navigation }) => {
 
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => Alert.alert('Citizen Management', 'Manage eco-citizen accounts')}
+              onPress={() => Alert.alert(t('admin:mobileAdmin.citizenManagement'), t('admin:mobileAdmin.manageEcoCitizenAccounts'))}
             >
               <LinearGradient
-                colors={[EnvironmentalTheme.accent.lime, EnvironmentalTheme.primary.light]}
+                colors={[EnvironmentalTheme.accent.teal, EnvironmentalTheme.primary.light]}
                 style={styles.actionGradient}
               >
                 <View style={styles.actionIconContainer}>
                   <Ionicons name="people" size={24} color="#ffffff" />
                 </View>
                 <View style={styles.actionTextContainer}>
-                  <Text style={styles.actionButtonText}>Citizen Management</Text>
-                  <Text style={styles.actionSubtext}>Manage eco-accounts</Text>
+                  <Text style={styles.actionButtonText}>{t('admin:mobileAdmin.citizenManagement')}</Text>
+                  <Text style={styles.actionSubtext}>{t('admin:mobileAdmin.manageEcoAccounts')}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.8)" />
               </LinearGradient>
@@ -256,7 +260,7 @@ const AdminDashboard = ({ navigation }) => {
 
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => Alert.alert('Environmental Reports', 'Generate sustainability reports')}
+              onPress={() => Alert.alert(t('admin:mobileAdmin.envReportsTitle'), t('admin:mobileAdmin.generateSustainabilityDesc'))}
             >
               <LinearGradient
                 colors={[EnvironmentalTheme.secondary.main, EnvironmentalTheme.secondary.light]}
@@ -266,8 +270,8 @@ const AdminDashboard = ({ navigation }) => {
                   <Ionicons name="bar-chart" size={24} color="#ffffff" />
                 </View>
                 <View style={styles.actionTextContainer}>
-                  <Text style={styles.actionButtonText}>Sustainability Reports</Text>
-                  <Text style={styles.actionSubtext}>Generate eco-insights</Text>
+                  <Text style={styles.actionButtonText}>{t('admin:mobileAdmin.sustainabilityReports')}</Text>
+                  <Text style={styles.actionSubtext}>{t('admin:mobileAdmin.generateEcoInsights')}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.8)" />
               </LinearGradient>
@@ -282,20 +286,20 @@ const AdminDashboard = ({ navigation }) => {
         >
           <View style={styles.cardHeader}>
             <View style={styles.cardTitleRow}>
-              <Ionicons name="time" size={24} color={EnvironmentalTheme.accent.brown} />
-              <Text style={styles.cardTitle}>Recent Activity</Text>
+              <Ionicons name="time" size={24} color={EnvironmentalTheme.accent.amber} />
+              <Text style={styles.cardTitle}>{t('admin:mobileAdmin.recentActivity')}</Text>
             </View>
             <TouchableOpacity>
-              <Text style={styles.viewAllText}>View All</Text>
+              <Text style={styles.viewAllText}>{t('common:buttons.viewAll')}</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
               <Ionicons name="leaf-outline" size={48} color={EnvironmentalTheme.primary.main} />
             </View>
-            <Text style={styles.emptyStateTitle}>No Recent Activity</Text>
+            <Text style={styles.emptyStateTitle}>{t('admin:mobileAdmin.noRecentActivity')}</Text>
             <Text style={styles.emptyStateText}>
-              Environmental activity will appear here
+              {t('admin:mobileAdmin.envActivityAppear')}
             </Text>
           </View>
         </LinearGradient>
@@ -308,32 +312,32 @@ const AdminDashboard = ({ navigation }) => {
           <View style={styles.cardHeader}>
             <View style={styles.cardTitleRow}>
               <Ionicons name="person-circle" size={24} color={EnvironmentalTheme.secondary.main} />
-              <Text style={styles.cardTitle}>Environmental Administrator</Text>
+              <Text style={styles.cardTitle}>{t('admin:mobileAdmin.envAdministrator')}</Text>
             </View>
           </View>
           <View style={styles.infoContainer}>
             <View style={styles.infoRow}>
               <View style={styles.infoLabelContainer}>
                 <Ionicons name="mail" size={20} color={EnvironmentalTheme.secondary.main} />
-                <Text style={styles.infoLabel}>Official Email</Text>
+                <Text style={styles.infoLabel}>{t('admin:mobileAdmin.officialEmail')}</Text>
               </View>
               <Text style={styles.infoValue}>{userData?.email}</Text>
             </View>
             <View style={styles.infoRow}>
               <View style={styles.infoLabelContainer}>
                 <Ionicons name="call" size={20} color={EnvironmentalTheme.primary.main} />
-                <Text style={styles.infoLabel}>Contact</Text>
+                <Text style={styles.infoLabel}>{t('admin:mobileAdmin.contactLabel')}</Text>
               </View>
               <Text style={styles.infoValue}>{userData?.phoneNumber}</Text>
             </View>
             <View style={styles.infoRow}>
               <View style={styles.infoLabelContainer}>
                 <Ionicons name="shield-checkmark" size={20} color={EnvironmentalTheme.status.success} />
-                <Text style={styles.infoLabel}>Role</Text>
+                <Text style={styles.infoLabel}>{t('admin:mobileAdmin.roleLabel')}</Text>
               </View>
               <View style={styles.adminStatusBadge}>
                 <Ionicons name="leaf" size={16} color={EnvironmentalTheme.secondary.main} />
-                <Text style={styles.adminStatusText}>Eco Administrator</Text>
+                <Text style={styles.adminStatusText}>{t('admin:mobileAdmin.ecoAdministrator')}</Text>
               </View>
             </View>
           </View>
@@ -346,7 +350,7 @@ const AdminDashboard = ({ navigation }) => {
             style={styles.logoutGradient}
           >
             <Ionicons name="log-out" size={24} color={EnvironmentalTheme.status.error} />
-            <Text style={styles.logoutButtonText}>Sign Out</Text>
+            <Text style={styles.logoutButtonText}>{t('common:buttons.signOut')}</Text>
           </LinearGradient>
         </TouchableOpacity>
         

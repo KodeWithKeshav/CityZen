@@ -1,6 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { geometryColumnsAvailable, GEOMETRY_PLACEHOLDER, languageColumnAvailable } = require('../services/schemaAvailability');
+const { geometryColumnsAvailable, GEOMETRY_PLACEHOLDER, languageColumnAvailable, contentFlagColumnsAvailable } = require('../services/schemaAvailability');
+const { authenticateUser, authorizeUserType } = require('../middleware/auth');
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isValidUuid(value) {
+  return typeof value === 'string' && UUID_REGEX.test(value.trim());
+}
+
+function sanitizeSearchTerm(term) {
+  if (typeof term !== 'string') return '';
+  return term.trim().replace(/[,()\\]/g, ' ').replace(/\s+/g, ' ').trim();
+}
 
 // Test endpoint
 router.get('/test', (req, res) => {
@@ -10,6 +21,12 @@ router.get('/test', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Require authenticated admin for all operational admin-enhanced endpoints
+router.use(
+  (req, res, next) => (req.user === undefined ? authenticateUser(req, res, next) : next()),
+  authorizeUserType(['admin'])
+);
 
 // Minimal working dashboard
 router.get('/dashboard/overview', async (req, res) => {
@@ -34,12 +51,14 @@ router.get('/dashboard/overview', async (req, res) => {
     const resolvedComplaints = complaints?.filter(c => c.status === 'resolved').length || 0;
     const pendingComplaints = complaints?.filter(c => c.status === 'pending').length || 0;
     const inProgressComplaints = complaints?.filter(c => c.status === 'in_progress').length || 0;
+    const rejectedComplaints = complaints?.filter(c => c.status === 'rejected').length || 0;
 
     console.log('📊 Dashboard stats:', {
       total: totalComplaints,
       pending: pendingComplaints,
       inProgress: inProgressComplaints,
-      resolved: resolvedComplaints
+      resolved: resolvedComplaints,
+      rejected: rejectedComplaints
     });
 
     res.json({
@@ -50,10 +69,11 @@ router.get('/dashboard/overview', async (req, res) => {
           resolvedComplaints,
           pendingComplaints,
           inProgressComplaints,
+          rejectedComplaints,
           resolutionRate: totalComplaints > 0 ? Math.round((resolvedComplaints / totalComplaints) * 100) : 0
         },
         topPriorityComplaints: complaints
-          ?.filter(c => c.priority_score)
+          ?.filter(c => c.priority_score !== null && c.priority_score !== undefined)
           ?.sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0))
           ?.slice(0, 5) || []
       }
@@ -71,10 +91,10 @@ router.get('/dashboard/overview', async (req, res) => {
 // Super minimal priority queue - FIXED with manual user lookup
 router.get('/complaints/priority-queue', async (req, res) => {
   try {
-    const { limit, page = 1, search, location, category, status, flagged } = req.query;
+    const { limit, page = 1, search, location, category, status, flagged, priority, days } = req.query;
     const supabase = req.app.get('supabase');
 
-    console.log('🔍 Fetching complaints for priority queue with filters:', { search, location, category, status, flagged });
+    console.log('🔍 Fetching complaints for priority queue with filters:', { search, location, category, status, flagged, priority, days });
 
     // Pothole geometry columns (database/add_pothole_geometry_columns.sql)
     // may not have been migrated onto this Supabase project yet - probe
@@ -84,35 +104,91 @@ router.get('/complaints/priority-queue', async (req, res) => {
     // (database/add_language_column_to_complaints.sql).
     const geometryReady = await geometryColumnsAvailable(supabase);
     const languageReady = await languageColumnAvailable(supabase);
+    const contentFlagReady = await contentFlagColumnsAvailable(supabase);
     const baseColumns = 'id, title, description, category, status, priority_score, location_address, created_at, user_id, verification_status, image_urls, vote_count';
     const geometryColumns = 'estimated_width_cm, estimated_length_cm, estimated_area_cm2, estimated_depth_cm, geometry_confidence, geometry_status';
 
-    const selectColumns = [baseColumns, geometryReady ? geometryColumns : null, languageReady ? 'language' : null]
+    const selectColumns = [
+      baseColumns,
+      contentFlagReady ? 'content_flagged, content_flag_reason' : null,
+      geometryReady ? geometryColumns : null,
+      languageReady ? 'language' : null,
+    ]
       .filter(Boolean)
       .join(', ');
 
-    // First get ALL complaints without joins to avoid schema issues
+    const parsedLimit = limit !== undefined && limit !== '' ? parseInt(limit, 10) : null;
+    const usePagination = Number.isFinite(parsedLimit) && parsedLimit > 0;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = usePagination ? Math.min(100, parsedLimit) : null;
+
+    // First get complaints without joins to avoid schema issues
     let complaintsQuery = supabase
       .from('complaints')
-      .select(selectColumns);
+      .select(selectColumns, usePagination ? { count: 'exact' } : undefined);
 
     // Add search functionality
-    if (search && search.trim()) {
-      const searchTerm = search.trim();
-      complaintsQuery = complaintsQuery.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%,location_address.ilike.%${searchTerm}%`);
+    const cleanSearch = sanitizeSearchTerm(search);
+    if (cleanSearch) {
+      complaintsQuery = complaintsQuery.or(`title.ilike.%${cleanSearch}%,description.ilike.%${cleanSearch}%,category.ilike.%${cleanSearch}%,location_address.ilike.%${cleanSearch}%`);
     }
 
     // Add filters
-    if (location && location.trim()) {
+    if (typeof location === 'string' && location.trim()) {
       complaintsQuery = complaintsQuery.ilike('location_address', `%${location.trim()}%`);
     }
 
-    if (category && category.trim()) {
+    if (typeof category === 'string' && category.trim()) {
       complaintsQuery = complaintsQuery.eq('category', category.trim());
     }
 
-    if (status && status.trim()) {
+    if (typeof status === 'string' && status.trim()) {
       complaintsQuery = complaintsQuery.eq('status', status.trim());
+    }
+
+    if (flagged === 'true') {
+      if (contentFlagReady) {
+        complaintsQuery = complaintsQuery.eq('content_flagged', true);
+      } else {
+        return res.json({
+          success: true,
+          data: {
+            complaints: [],
+            pagination: {
+              total: 0,
+              page: pageNum,
+              limit: limitNum || 0,
+              totalPages: 0
+            }
+          }
+        });
+      }
+    }
+
+    if (typeof priority === 'string' && priority.trim()) {
+      const priorityFilters = {
+        LOW: 'and(priority_score.gte.0,priority_score.lt.0.4),and(priority_score.gt.1,priority_score.lt.4),and(priority_score.gt.10,priority_score.lt.40)',
+        MEDIUM: 'and(priority_score.gte.0.4,priority_score.lt.0.6),and(priority_score.gte.4,priority_score.lt.6),and(priority_score.gte.40,priority_score.lt.60)',
+        HIGH: 'and(priority_score.gte.0.6,priority_score.lt.0.8),and(priority_score.gte.6,priority_score.lt.8),and(priority_score.gte.60,priority_score.lt.80)',
+        CRITICAL: 'and(priority_score.gte.0.8,priority_score.lte.1),and(priority_score.gte.8,priority_score.lte.10),priority_score.gte.80'
+      };
+      const orFilter = priorityFilters[priority.trim().toUpperCase()];
+      if (orFilter) {
+        complaintsQuery = complaintsQuery.or(orFilter);
+      }
+    }
+
+    if (days !== undefined && days !== '') {
+      const daysNum = parseInt(days, 10);
+      if (!Number.isFinite(daysNum) || daysNum <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid days filter; must be a positive integer'
+        });
+      }
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - daysNum);
+      complaintsQuery = complaintsQuery.gte('created_at', daysAgo.toISOString());
     }
 
     // Add ordering
@@ -120,12 +196,13 @@ router.get('/complaints/priority-queue', async (req, res) => {
       .order('priority_score', { ascending: false })
       .order('created_at', { ascending: false });
 
-    // Only apply limit if specified, otherwise get ALL complaints
-    if (limit) {
-      complaintsQuery = complaintsQuery.limit(parseInt(limit));
+    // Apply pagination when limit is specified, otherwise return all matching complaints
+    if (usePagination) {
+      const offset = (pageNum - 1) * limitNum;
+      complaintsQuery = complaintsQuery.range(offset, offset + limitNum - 1);
     }
 
-    let { data: complaints, error: complaintsError } = await complaintsQuery;
+    let { data: complaints, error: complaintsError, count } = await complaintsQuery;
 
     if (complaintsError) {
       console.error('Complaints query error:', complaintsError);
@@ -139,6 +216,9 @@ router.get('/complaints/priority-queue', async (req, res) => {
     // fields just come back null (renders as "no estimate" in the admin
     // UI, same as a complaint geometry estimation hasn't finished for)
     // until the migration is applied.
+    if (!contentFlagReady && complaints) {
+      complaints = complaints.map(c => ({ ...c, content_flagged: false, content_flag_reason: null }));
+    }
     if (!geometryReady && complaints) {
       complaints = complaints.map(c => ({ ...c, ...GEOMETRY_PLACEHOLDER }));
     }
@@ -176,16 +256,22 @@ router.get('/complaints/priority-queue', async (req, res) => {
     const transformedComplaints = complaints?.map(complaint => {
       const user = usersData[complaint.user_id];
       const name = user?.full_name || user?.email || 'Verified Citizen';
+      const normalizedUser = user
+        ? { ...user, full_name: user.full_name || name }
+        : { full_name: name, email: null };
       return {
         ...complaint,
-        users: user || { full_name: name, email: user?.email },
-        user: user || { full_name: name, email: user?.email },
+        users: normalizedUser,
+        user: normalizedUser,
         user_name: name,
         citizenName: name,
-        user_email: user?.email,
-        user_phone: user?.phone_number
+        user_email: user?.email || null,
+        user_phone: user?.phone_number || null
       };
     }) || [];
+
+    const totalCount = usePagination ? (count || 0) : transformedComplaints.length;
+    const totalPages = usePagination ? Math.max(1, Math.ceil(totalCount / limitNum)) : 1;
 
     console.log('✅ Priority queue response ready');
 
@@ -194,10 +280,10 @@ router.get('/complaints/priority-queue', async (req, res) => {
       data: {
         complaints: transformedComplaints,
         pagination: {
-          page: parseInt(page),
-          limit: limit ? parseInt(limit) : transformedComplaints.length,
-          totalPages: 1,
-          totalCount: transformedComplaints.length
+          page: pageNum,
+          limit: usePagination ? limitNum : transformedComplaints.length,
+          totalPages,
+          totalCount
         }
       }
     });
@@ -214,21 +300,26 @@ router.get('/complaints/priority-queue', async (req, res) => {
 // Citizens with ACTUAL complaint counts - FIXED with manual approach
 router.get('/citizens', async (req, res) => {
   try {
-    const { limit, search, sort = 'recent' } = req.query;
+    const { limit, page = 1, search, sort = 'recent' } = req.query;
     const supabase = req.app.get('supabase');
 
-    console.log('📊 Citizens endpoint called with params:', { limit, search, sort });
+    console.log('📊 Citizens endpoint called with params:', { limit, page, search, sort });
+
+    const parsedLimit = limit !== undefined && limit !== '' ? parseInt(limit, 10) : null;
+    const usePagination = Number.isFinite(parsedLimit) && parsedLimit > 0;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = usePagination ? Math.min(100, parsedLimit) : null;
 
     // Build query for users
     let query = supabase
       .from('users')
-      .select('id, full_name, email, created_at, phone_number, user_type')
+      .select('id, full_name, email, created_at, phone_number, user_type, is_active', usePagination ? { count: 'exact' } : undefined)
       .eq('user_type', 'citizen'); // Only get citizens
 
     // Add search functionality
-    if (search && search.trim()) {
-      const searchTerm = search.trim();
-      query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,phone_number.ilike.%${searchTerm}%`);
+    const cleanSearch = sanitizeSearchTerm(search);
+    if (cleanSearch) {
+      query = query.or(`full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%,phone_number.ilike.%${cleanSearch}%`);
     }
 
     // Add sorting
@@ -238,12 +329,13 @@ router.get('/citizens', async (req, res) => {
       query = query.order('created_at', { ascending: false });
     }
 
-    // Only apply limit if specified (remove default limit to show all users)
-    if (limit) {
-      query = query.limit(parseInt(limit));
+    // Apply pagination when limit is specified (unless sorting by complaint count across all citizens)
+    if (usePagination && sort !== 'complaints_count') {
+      const offset = (pageNum - 1) * limitNum;
+      query = query.range(offset, offset + limitNum - 1);
     }
 
-    const { data: users, error: usersError } = await query;
+    const { data: users, error: usersError, count } = await query;
 
     console.log('📊 Users query result:', { users: users?.length, error: usersError?.message });
 
@@ -281,7 +373,7 @@ router.get('/citizens', async (req, res) => {
     }
 
     // Transform to match expected format with REAL complaint counts
-    const citizens = users?.map(user => {
+    let citizens = users?.map(user => {
       const userComplaints = complaintCounts[user.id] || { total: 0, resolved: 0 };
       return {
         id: user.id,
@@ -289,12 +381,24 @@ router.get('/citizens', async (req, res) => {
         email: user.email,
         created_at: user.created_at,
         phone_number: user.phone_number,
+        is_active: user.is_active !== false,
         complaints_count: userComplaints.total,
         resolved_complaints: userComplaints.resolved,
-        status: 'active',
+        status: user.is_active === false ? 'inactive' : 'active',
         reputation_score: Math.min(50 + (userComplaints.total * 2), 100)
       };
     }) || [];
+
+    if (sort === 'complaints_count') {
+      citizens.sort((a, b) => b.complaints_count - a.complaints_count);
+      if (usePagination) {
+        const offset = (pageNum - 1) * limitNum;
+        citizens = citizens.slice(offset, offset + limitNum);
+      }
+    }
+
+    const totalCount = usePagination ? (count ?? citizens.length) : citizens.length;
+    const totalPages = usePagination ? Math.max(1, Math.ceil(totalCount / limitNum)) : 1;
 
     console.log('📊 Sending citizens response with count:', citizens.length);
 
@@ -303,11 +407,11 @@ router.get('/citizens', async (req, res) => {
       data: {
         citizens,
         pagination: {
-          page: 1,
-          limit: limit ? parseInt(limit) : null,
-          totalPages: 1,
-          totalCount: citizens.length,
-          hasMore: false
+          page: pageNum,
+          limit: limitNum,
+          totalPages,
+          totalCount,
+          hasMore: pageNum < totalPages
         }
       }
     });
@@ -329,14 +433,20 @@ router.get('/citizens/:citizenId/details', async (req, res) => {
 
     console.log('🔍 Getting citizen details for ID:', citizenId);
 
-    // Get citizen details
+    // Get citizen details (explicit safe columns - never expose password hash)
     const { data: citizen, error: citizenError } = await supabase
       .from('users')
-      .select('*')
+      .select('id, full_name, email, phone_number, user_type, address, is_active, created_at, updated_at, last_login')
       .eq('id', citizenId)
       .single();
 
     if (citizenError || !citizen) {
+      if (citizenError?.code === '22P02') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid citizen ID format'
+        });
+      }
       console.error('Citizen not found error:', citizenError);
       return res.status(404).json({
         success: false,
@@ -434,11 +544,16 @@ router.get('/citizens/:citizenId/details', async (req, res) => {
         }
       ];
 
+      const inProgressIdx = trackingStages.findIndex(stage => stage.status === 'in_progress');
+      const completedCount = trackingStages.filter(stage => stage.status === 'completed').length;
+      const currentStage = inProgressIdx !== -1
+        ? inProgressIdx + 1
+        : (complaint.status === 'resolved' ? 5 : Math.min(5, completedCount + 1));
+
       return {
         ...complaint,
         trackingStages,
-        currentStage: trackingStages.findIndex(stage => stage.status === 'in_progress') + 1 || 
-                     (complaint.status === 'resolved' ? 5 : trackingStages.filter(stage => stage.status === 'completed').length + 1)
+        currentStage
       };
     }) || [];
 
@@ -454,7 +569,10 @@ router.get('/citizens/:citizenId/details', async (req, res) => {
     res.json({
       success: true,
       data: {
-        citizen,
+        citizen: {
+          ...citizen,
+          status: citizen.is_active === false ? 'inactive' : 'active'
+        },
         complaints: complaintsWithTracking,
         stats
       }
@@ -469,6 +587,65 @@ router.get('/citizens/:citizenId/details', async (req, res) => {
   }
 });
 
+// Update Citizen Account Status (active / inactive / suspended / banned)
+router.put('/citizens/:citizenId/status', async (req, res) => {
+  try {
+    const { citizenId } = req.params;
+    const { status } = req.body || {};
+    const validStatuses = ['active', 'inactive', 'suspended', 'banned'];
+    const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+
+    if (!validStatuses.includes(normalizedStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    const supabase = req.app.get('supabase');
+    const { data: targetUser, error: lookupError } = await supabase
+      .from('users')
+      .select('id, user_type')
+      .eq('id', citizenId)
+      .single();
+
+    if (lookupError || !targetUser) {
+      if (lookupError?.code === '22P02') {
+        return res.status(400).json({ success: false, message: 'Invalid citizen ID format' });
+      }
+      return res.status(404).json({ success: false, message: 'Citizen not found' });
+    }
+
+    if (targetUser.user_type !== 'citizen') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only citizen accounts can be updated via this endpoint'
+      });
+    }
+
+    const isActive = normalizedStatus === 'active';
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update({ is_active: isActive, updated_at: new Date().toISOString() })
+      .eq('id', citizenId)
+      .select('id, email, full_name, is_active')
+      .single();
+
+    if (updateError) {
+      return res.status(500).json({ success: false, message: 'Failed to update citizen status' });
+    }
+
+    res.json({
+      success: true,
+      message: `Citizen status updated to ${normalizedStatus}`,
+      data: { ...updatedUser, status: normalizedStatus }
+    });
+  } catch (error) {
+    console.error('Update citizen status error:', error);
+    res.status(500).json({ success: false, message: 'Failed to update citizen status' });
+  }
+});
+
 // NEW: Delete Citizen and All Associated Data
 router.delete('/citizens/:citizenId', async (req, res) => {
   try {
@@ -477,16 +654,59 @@ router.delete('/citizens/:citizenId', async (req, res) => {
 
     console.log('🗑️ Deleting citizen and all associated data for ID:', citizenId);
 
+    // Verify citizen exists and is actually a citizen (never allow deleting admins here)
+    const { data: targetUser, error: targetError } = await supabase
+      .from('users')
+      .select('id, user_type')
+      .eq('id', citizenId)
+      .single();
+
+    if (targetError || !targetUser) {
+      if (targetError?.code === '22P02') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid citizen ID format'
+        });
+      }
+      return res.status(404).json({
+        success: false,
+        message: 'Citizen not found'
+      });
+    }
+
+    if (targetUser.user_type !== 'citizen') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only citizen accounts can be deleted via this endpoint'
+      });
+    }
+
     // Start transaction-like operations (delete in reverse dependency order)
     
-    // 1. Delete complaint_updates for this citizen's complaints
-    const { data: userComplaints } = await supabase
+    // 1. Delete dependent records for this citizen's complaints
+    const { data: userComplaints, error: fetchComplaintsError } = await supabase
       .from('complaints')
       .select('id')
       .eq('user_id', citizenId);
 
+    if (fetchComplaintsError) {
+      console.error('Error fetching citizen complaints before delete:', fetchComplaintsError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to look up citizen complaints'
+      });
+    }
+
     if (userComplaints && userComplaints.length > 0) {
       const complaintIds = userComplaints.map(c => c.id);
+
+      const { error: votesError } = await supabase
+        .from('complaint_votes')
+        .delete()
+        .in('complaint_id', complaintIds);
+      if (votesError) {
+        console.warn('Error deleting complaint_votes:', votesError.message);
+      }
       
       // Delete complaint_updates
       const { error: updatesError } = await supabase
@@ -509,6 +729,15 @@ router.delete('/citizens/:citizenId', async (req, res) => {
       }
     }
 
+    // Delete any votes cast by this user on other complaints
+    const { error: userVotesError } = await supabase
+      .from('complaint_votes')
+      .delete()
+      .eq('user_id', citizenId);
+    if (userVotesError) {
+      console.warn('Error deleting user complaint_votes:', userVotesError.message);
+    }
+
     // 2. Delete all complaints by this citizen
     const { error: complaintsError } = await supabase
       .from('complaints')
@@ -527,7 +756,8 @@ router.delete('/citizens/:citizenId', async (req, res) => {
     const { error: userError } = await supabase
       .from('users')
       .delete()
-      .eq('id', citizenId);
+      .eq('id', citizenId)
+      .eq('user_type', 'citizen');
 
     if (userError) {
       console.error('Error deleting user:', userError);
@@ -579,7 +809,14 @@ router.get('/complaints/:complaintId/details', async (req, res) => {
         .eq('id', complaintId)
         .single();
       if (basicErr || !cBasic) {
-        console.error('Complaint details error:', cErr || basicErr);
+        const finalErr = basicErr || cErr;
+        if (finalErr?.code === '22P02') {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid complaint ID format'
+          });
+        }
+        console.error('Complaint details error:', finalErr);
         return res.status(404).json({
           success: false,
           message: 'Complaint not found'
@@ -600,19 +837,29 @@ router.get('/complaints/:complaintId/details', async (req, res) => {
     }
 
     const registeredName = complaint.users?.full_name || complaint.user_name || 'Verified Citizen';
-    complaint.users = complaint.users || { full_name: registeredName, email: complaint.users?.email };
+    complaint.users = complaint.users
+      ? { ...complaint.users, full_name: complaint.users.full_name || registeredName }
+      : { full_name: registeredName, email: null };
     complaint.user = complaint.users;
     complaint.user_name = registeredName;
     complaint.citizenName = registeredName;
 
     // Get REAL workflow data from complaint_workflow table
-    const { data: workflow, error: workflowError } = await supabase
+    let { data: workflow, error: workflowError } = await supabase
       .from('complaint_workflow')
       .select('*')
       .eq('complaint_id', complaintId)
       .single();
 
     if (workflowError) {
+      if (workflowError.code !== 'PGRST116') {
+        console.error('Workflow query error:', workflowError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to load complaint workflow'
+        });
+      }
+
       console.warn('Workflow not found, creating default:', workflowError.message);
       
       // Create workflow entry if it doesn't exist
@@ -752,34 +999,80 @@ router.put('/complaints/:complaintId/stage/:stageId', async (req, res) => {
     }
 
     // Prepare update object based on stage
+    const nowIso = new Date().toISOString();
     const updateData = {
-      updated_at: new Date().toISOString()
+      updated_at: nowIso
     };
 
-    const stageName = ['', 'Initial Review', 'Assessment', 'Resolution'][parseInt(stageId)];
+    const stageName = ['', 'Initial Review', 'Assessment', 'Resolution'][parseInt(stageId, 10)];
+
+    let normalizedOfficerId;
+    if (assigned_officer_id !== undefined) {
+      if (assigned_officer_id === null || assigned_officer_id === '') {
+        normalizedOfficerId = null;
+      } else if (isValidUuid(assigned_officer_id)) {
+        normalizedOfficerId = assigned_officer_id.trim();
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid assigned_officer_id format'
+        });
+      }
+    }
+
+    let normalizedContractorId;
+    if (assigned_contractor_id !== undefined) {
+      if (assigned_contractor_id === null || assigned_contractor_id === '') {
+        normalizedContractorId = null;
+      } else if (isValidUuid(assigned_contractor_id)) {
+        normalizedContractorId = assigned_contractor_id.trim();
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid assigned_contractor_id format'
+        });
+      }
+    }
 
     if (stageId === '1') {
       updateData.step_1_status = actualStatus;
-      updateData.step_1_notes = notes;
-      // Skip officer assignment for now to avoid UUID issues
-      updateData.step_1_officer_id = null;
-      updateData.step_1_timestamp = new Date().toISOString();
+      if (notes !== undefined) updateData.step_1_notes = notes;
+      if (normalizedOfficerId !== undefined) updateData.step_1_officer_id = normalizedOfficerId;
+      updateData.step_1_timestamp = nowIso;
     } else if (stageId === '2') {
       updateData.step_2_status = actualStatus;
-      updateData.step_2_notes = notes;
-      // Skip officer assignment for now to avoid UUID issues
-      updateData.step_2_officer_id = null;
-      updateData.step_2_estimated_cost = estimated_cost;
-      updateData.step_2_timestamp = new Date().toISOString();
+      if (notes !== undefined) updateData.step_2_notes = notes;
+      if (normalizedOfficerId !== undefined) updateData.step_2_officer_id = normalizedOfficerId;
+      if (normalizedContractorId !== undefined) updateData.step_2_contractor_id = normalizedContractorId;
+      if (estimated_cost !== undefined) {
+        if (estimated_cost === null || estimated_cost === '') {
+          updateData.step_2_estimated_cost = null;
+        } else {
+          const parsedCost = Number(estimated_cost);
+          if (!Number.isFinite(parsedCost) || parsedCost < 0) {
+            return res.status(400).json({
+              success: false,
+              message: 'Invalid estimated_cost value'
+            });
+          }
+          updateData.step_2_estimated_cost = parsedCost;
+        }
+      }
+      updateData.step_2_timestamp = nowIso;
     } else if (stageId === '3') {
       updateData.step_3_status = actualStatus;
-      updateData.step_3_notes = notes;
-      // Skip contractor assignment for now to avoid UUID issues
-      updateData.step_3_contractor_id = null;
-      updateData.step_3_timestamp = new Date().toISOString();
-      
+      if (notes !== undefined) updateData.step_3_notes = notes;
+      if (normalizedOfficerId !== undefined) updateData.step_3_officer_id = normalizedOfficerId;
+      if (normalizedContractorId !== undefined) updateData.step_3_contractor_id = normalizedContractorId;
+      updateData.step_3_timestamp = nowIso;
+
+      if (actualStatus === 'in_progress' && !workflow.step_3_start_date) {
+        updateData.step_3_start_date = nowIso;
+      }
       if (actualStatus === 'completed') {
-        updateData.step_3_completion_date = new Date().toISOString();
+        updateData.step_3_completion_date = nowIso;
+      } else if (actualStatus === 'pending' || actualStatus === 'in_progress') {
+        updateData.step_3_completion_date = null;
       }
     }
 
@@ -829,7 +1122,8 @@ router.put('/complaints/:complaintId/stage/:stageId', async (req, res) => {
         .from('complaints')
         .update({ 
           status: newComplaintStatus,
-          updated_at: new Date().toISOString()
+          resolved_at: newComplaintStatus === 'resolved' ? nowIso : null,
+          updated_at: nowIso
         })
         .eq('id', complaintId);
 
@@ -839,18 +1133,18 @@ router.put('/complaints/:complaintId/stage/:stageId', async (req, res) => {
     }
 
     // Log the update
-    try {
-      await supabase
-        .from('complaint_updates')
-        .insert([{
-          complaint_id: complaintId,
-          updated_by_id: 'admin', // In real system, get from auth
-          old_status: workflow[`step_${stageId}_status`],
-          new_status: actualStatus,
-          update_notes: `${stageName}: ${notes || 'Status updated'}`,
-          created_at: new Date().toISOString()
-        }]);
-    } catch (logError) {
+    const { error: logError } = await supabase
+      .from('complaint_updates')
+      .insert([{
+        complaint_id: complaintId,
+        updated_by_id: isValidUuid(req.user?.id) ? req.user.id : null,
+        old_status: workflow[`step_${stageId}_status`],
+        new_status: actualStatus,
+        update_notes: `${stageName}: ${notes || 'Status updated'}`,
+        created_at: nowIso
+      }]);
+
+    if (logError) {
       console.warn('Failed to log update:', logError.message);
     }
 
@@ -860,14 +1154,14 @@ router.put('/complaints/:complaintId/stage/:stageId', async (req, res) => {
       success: true,
       message: `${stageName} updated to ${actualStatus}`,
       data: {
-        stage_id: parseInt(stageId),
+        stage_id: parseInt(stageId, 10),
         stage_name: stageName,
         stage_status: actualStatus,
         complaint_status: newComplaintStatus || 'unchanged',
         workflow_data: updatedWorkflow,
         assignments: {
-          officer: assigned_officer_id ? `Officer ${assigned_officer_id} assigned` : null,
-          contractor: assigned_contractor_id ? `Contractor ${assigned_contractor_id} assigned` : null
+          officer: normalizedOfficerId ? `Officer ${normalizedOfficerId} assigned` : null,
+          contractor: normalizedContractorId ? `Contractor ${normalizedContractorId} assigned` : null
         },
         notes: notes
       }
@@ -898,6 +1192,12 @@ router.post('/complaints/:complaintId/stage/next', async (req, res) => {
       .single();
 
     if (fetchError || !complaint) {
+      if (fetchError?.code === '22P02') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid complaint ID format'
+        });
+      }
       return res.status(404).json({
         success: false,
         message: 'Complaint not found'
@@ -925,11 +1225,12 @@ router.post('/complaints/:complaintId/stage/next', async (req, res) => {
 
     // Only update if status actually changes
     if (newStatus !== complaint.status) {
+      const nowIso = new Date().toISOString();
       const { data: updatedComplaint, error: updateError } = await supabase
         .from('complaints')
         .update({ 
           status: newStatus,
-          updated_at: new Date().toISOString()
+          updated_at: nowIso
         })
         .eq('id', complaintId)
         .select()
@@ -941,6 +1242,21 @@ router.post('/complaints/:complaintId/stage/next', async (req, res) => {
           success: false,
           message: updateError.message
         });
+      }
+
+      // Keep complaint_workflow step_1_status in sync if a workflow record exists and is still pending
+      const { error: wfSyncError } = await supabase
+        .from('complaint_workflow')
+        .update({
+          step_1_status: 'in_progress',
+          step_1_timestamp: nowIso,
+          updated_at: nowIso
+        })
+        .eq('complaint_id', complaintId)
+        .eq('step_1_status', 'pending');
+
+      if (wfSyncError) {
+        console.warn('Workflow sync warning:', wfSyncError.message);
       }
 
       console.log('✅ Stage progressed successfully');
@@ -967,22 +1283,72 @@ router.post('/complaints/:complaintId/stage/next', async (req, res) => {
   }
 });
 
-// MISSING ENDPOINT: Update complaint status (for reject/resolve) - ADDED
+// Update complaint status (for reject/resolve/in_progress/pending/cancelled)
 router.put('/complaints/:complaintId/status', async (req, res) => {
   try {
     const { complaintId } = req.params;
-    const { status } = req.body;
+    const { status, notes, oldStatus, adminId } = req.body;
     const supabase = req.app.get('supabase');
 
     console.log('🔄 Updating complaint status:', { complaintId, status });
 
+    const validStatuses = ['pending', 'in_progress', 'resolved', 'rejected', 'cancelled'];
+    if (typeof status !== 'string' || !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    const { data: existingComplaint, error: fetchError } = await supabase
+      .from('complaints')
+      .select('id, status')
+      .eq('id', complaintId)
+      .single();
+
+    if (fetchError || !existingComplaint) {
+      if (fetchError?.code === '22P02') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid complaint ID format'
+        });
+      }
+      return res.status(404).json({
+        success: false,
+        message: 'Complaint not found'
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+    const updatePayload = {
+      status,
+      updated_at: nowIso,
+      resolved_at: status === 'resolved' ? nowIso : null
+    };
+
+    if (notes !== undefined) {
+      updatePayload.resolution_notes = notes;
+    }
+
+    if (adminId !== undefined) {
+      if (adminId === null || adminId === '') {
+        updatePayload.assigned_admin_id = null;
+      } else if (isValidUuid(adminId)) {
+        updatePayload.assigned_admin_id = adminId.trim();
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid adminId format'
+        });
+      }
+    } else if (isValidUuid(req.user?.id)) {
+      updatePayload.assigned_admin_id = req.user.id;
+    }
+
     // Update complaint status
     const { data: updatedComplaint, error } = await supabase
       .from('complaints')
-      .update({ 
-        status,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', complaintId)
       .select()
       .single();
@@ -995,17 +1361,16 @@ router.put('/complaints/:complaintId/status', async (req, res) => {
       });
     }
 
-    // Log the status change
+    // Log the status change using real complaint_updates schema columns
     const { error: logError } = await supabase
       .from('complaint_updates')
       .insert({
         complaint_id: complaintId,
-        update_type: 'status_change',
-        previous_value: 'unknown',
-        new_value: status,
-        notes: `Status changed to ${status}`,
-        updated_by: 'admin',
-        created_at: new Date().toISOString()
+        updated_by_id: isValidUuid(req.user?.id) ? req.user.id : null,
+        old_status: oldStatus || existingComplaint.status || null,
+        new_status: status,
+        update_notes: notes || `Status changed to ${status}`,
+        created_at: nowIso
       });
 
     if (logError) {

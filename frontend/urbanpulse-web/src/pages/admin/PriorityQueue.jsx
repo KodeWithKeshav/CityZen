@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
-import { HiRefresh, HiExclamationCircle, HiFilter, HiChevronRight } from 'react-icons/hi'
-import { normalizePriorityScore, getPriorityTier } from '../../utils/priorityUtils'
+import { HiRefresh, HiExclamationCircle, HiChevronRight } from 'react-icons/hi'
+import { getPriorityTier, getCategoryLabel } from '../../utils/priorityUtils'
+import { useTranslatedList } from '../../context/TranslationContext'
 
 export default function PriorityQueue() {
+  const { t } = useTranslation(['admin', 'complaint', 'common'])
   const [queue, setQueue] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterTier, setFilterTier] = useState('all')
@@ -14,21 +17,32 @@ export default function PriorityQueue() {
   const fetchQueue = async () => {
     setLoading(true)
     try {
-      let res
+      let res = null
       try {
-        res = await makeApiCall(apiClient.admin.priorityQueue)
+        const pqRes = await makeApiCall(apiClient.admin.priorityQueue)
+        if (pqRes?.success) {
+          res = pqRes
+        }
       } catch {
+        // Fallback to all complaints if priorityQueue endpoint fails
+      }
+      if (!res) {
         res = await makeApiCall(apiClient.complaints.all)
       }
-      const data = res.data?.complaints || res.complaints || res.data || []
+      if (!res?.success) {
+        toast.error(res?.message || res?.error || t('priorityQueue.loadFailed'))
+        return
+      }
+      const rawData = res.data?.complaints || res.complaints || res.data
+      const data = Array.isArray(rawData) ? rawData : []
       const sorted = [...data].sort((a, b) => {
-        const scoreA = normalizePriorityScore(a.priorityScore ?? a.priority_score) ?? 0
-        const scoreB = normalizePriorityScore(b.priorityScore ?? b.priority_score) ?? 0
+        const scoreA = getPriorityTier(a).score ?? 0
+        const scoreB = getPriorityTier(b).score ?? 0
         return scoreB - scoreA
       })
       setQueue(sorted)
-    } catch (err) {
-      toast.error('Failed to load prioritized dispatch queue')
+    } catch {
+      toast.error(t('priorityQueue.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -38,42 +52,65 @@ export default function PriorityQueue() {
     fetchQueue()
   }, [])
 
-  const filteredQueue = queue.filter(c => {
-    const score = normalizePriorityScore(c.priorityScore ?? c.priority_score) ?? 0
-    if (filterTier === 'critical') return score >= 80
-    if (filterTier === 'high') return score >= 60 && score < 80
-    if (filterTier === 'medium') return score >= 40 && score < 60
-    if (filterTier === 'low') return score < 40
-    return true
-  })
+  const filteredQueue = useMemo(
+    () =>
+      queue.filter(c => {
+        const score = getPriorityTier(c).score ?? 0
+        if (filterTier === 'critical') return score >= 80
+        if (filterTier === 'high') return score >= 60 && score < 80
+        if (filterTier === 'medium') return score >= 40 && score < 60
+        if (filterTier === 'low') return score < 40
+        return true
+      }),
+    [queue, filterTier]
+  )
+
+  const normalizedQueue = useMemo(
+    () =>
+      filteredQueue.map(c => ({
+        ...c,
+        citizenName: c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || c.full_name || '',
+        assignedDept: c.assignedDept || c.assigned_department || '',
+      })),
+    [filteredQueue]
+  )
+
+  const translatedQueue = useTranslatedList(normalizedQueue, [
+    'title',
+    'complaintTitle',
+    'description',
+    'citizenName',
+    'assignedDept',
+  ])
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
+    <div className="max-w-6xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8 pb-12">
       {/* Header */}
       <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
-            <span>OPERATIONAL TIMELINE</span>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+            <span>{t('priorityQueue.breadcrumbTimeline')}</span>
             <span>/</span>
-            <span>TRIAGE SEQUENCING</span>
+            <span>{t('priorityQueue.breadcrumbSequencing')}</span>
             <span>/</span>
-            <span className="text-black font-semibold">PRIORITY DISPATCH</span>
+            <span className="text-black font-semibold">{t('priorityQueue.breadcrumbDispatch')}</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
-            Priority Queue
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+            {t('priorityQueue.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans">
-            AI-weighted triage sequencing calculating hazard probability, density, and civic concurrences.
+            {t('priorityQueue.subtitle')}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={fetchQueue}
-            className="p-2 border border-neutral-300 hover:border-black transition-colors"
-            title="Refresh Sequence"
+            disabled={loading}
+            className="p-2 border border-neutral-300 hover:border-black transition-colors disabled:opacity-50"
+            title={t('priorityQueue.refreshTooltip')}
           >
-            <HiRefresh className="w-4 h-4 text-neutral-800" />
+            <HiRefresh className={`w-4 h-4 text-neutral-800 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
@@ -82,31 +119,30 @@ export default function PriorityQueue() {
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border border-neutral-200 bg-white p-3 font-mono text-xs">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-neutral-400 text-[10px] uppercase tracking-wider mr-1">
-            SEVERITY TIERS:
+            {t('priorityQueue.severityTiers')}
           </span>
           {[
-            { id: 'all', label: 'ALL TIERS' },
-            { id: 'critical', label: 'CRITICAL (≥80)' },
-            { id: 'high', label: 'HIGH (60-79)' },
-            { id: 'medium', label: 'MODERATE (40-59)' },
-            { id: 'low', label: 'LOW (<40)' },
-          ].map(t => (
+            { id: 'all', label: t('priorityQueue.tiers.all') },
+            { id: 'critical', label: t('priorityQueue.tiers.critical') },
+            { id: 'high', label: t('priorityQueue.tiers.high') },
+            { id: 'medium', label: t('priorityQueue.tiers.medium') },
+            { id: 'low', label: t('priorityQueue.tiers.low') },
+          ].map(tier => (
             <button
-              key={t.id}
-              onClick={() => setFilterTier(t.id)}
-              className={`px-3 py-1.5 border uppercase tracking-wider transition-colors ${
-                filterTier === t.id
-                  ? 'bg-neutral-900 text-white border-black font-bold'
-                  : 'border-neutral-200 text-neutral-600 hover:border-black bg-neutral-50'
-              }`}
+              key={tier.id}
+              onClick={() => setFilterTier(tier.id)}
+              className={`px-3 py-1.5 border uppercase tracking-wider transition-colors ${filterTier === tier.id
+                ? 'bg-neutral-900 text-white border-black font-bold'
+                : 'border-neutral-200 text-neutral-600 hover:border-black bg-neutral-50'
+                }`}
             >
-              {t.label}
+              {tier.label}
             </button>
           ))}
         </div>
 
-        <div className="text-neutral-500 text-right">
-          TOTAL SEQUENCED: <strong className="text-black">{filteredQueue.length}</strong>
+        <div className="text-neutral-500 text-left sm:text-right">
+          {t('priorityQueue.totalSequenced')} <strong className="text-black">{filteredQueue.length}</strong>
         </div>
       </div>
 
@@ -121,10 +157,10 @@ export default function PriorityQueue() {
         <div className="border border-dashed border-neutral-300 bg-white p-12 text-center">
           <HiExclamationCircle className="w-10 h-10 text-neutral-400 mx-auto mb-3" />
           <h3 className="font-serif text-lg font-bold text-neutral-900 uppercase">
-            No Prioritized Incidents in this Cohort
+            {t('priorityQueue.noIncidentsTitle')}
           </h3>
           <p className="text-xs text-neutral-500 font-sans mt-1">
-            All reports matching this tier have been remediated or triaged.
+            {t('priorityQueue.noIncidentsDesc')}
           </p>
         </div>
       ) : (
@@ -132,28 +168,32 @@ export default function PriorityQueue() {
           {/* Vertical sequence track line */}
           <div className="absolute left-[23px] top-6 bottom-6 w-0.5 bg-neutral-200 hidden md:block" />
 
-          {filteredQueue.map((c, idx) => {
-            const pTier = getPriorityTier(c)
+          {translatedQueue.map((c, idx) => {
+            const pTier = getPriorityTier(c, t)
             const score = pTier.score ?? 0
             const isCritical = score >= 80
             const isHigh = score >= 60 && score < 80
+            const categoryLabel = getCategoryLabel(c.category || c.issueType, t)
+            const normalizedStatus = (c.status || '').toLowerCase().replace(/-/g, '_')
+            const dispatchStatusLabel = normalizedStatus
+              ? t(`common:statusFilters.${normalizedStatus}`, normalizedStatus.replace(/_/g, ' '))
+              : t('priorityQueue.queued')
 
             return (
               <div
                 key={c._id || c.id}
                 onClick={() => navigate(`/admin/complaints/${c._id || c.id}`)}
-                className="group relative border border-neutral-200 hover:border-black bg-white p-6 transition-colors cursor-pointer flex flex-col md:flex-row gap-6 items-start md:items-center"
+                className="group relative border border-neutral-200 hover:border-black bg-white p-4 sm:p-6 transition-colors cursor-pointer flex flex-col md:flex-row gap-4 sm:gap-6 items-start md:items-center"
               >
                 {/* Sequence Rank Indicator */}
                 <div className="flex items-center gap-4 flex-shrink-0 z-10">
                   <div
-                    className={`w-12 h-12 border flex items-center justify-center font-mono text-sm font-bold ${
-                      isCritical
-                        ? 'bg-neutral-950 text-white border-black'
-                        : isHigh
+                    className={`w-12 h-12 border flex items-center justify-center font-mono text-sm font-bold ${isCritical
+                      ? 'bg-neutral-950 text-white border-black'
+                      : isHigh
                         ? 'bg-neutral-800 text-white border-neutral-900'
                         : 'bg-neutral-100 text-neutral-800 border-neutral-300'
-                    }`}
+                      }`}
                   >
                     #{idx + 1}
                   </div>
@@ -163,28 +203,27 @@ export default function PriorityQueue() {
                 <div className="flex-1 min-w-0 space-y-2">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono text-xs font-semibold text-neutral-400">
-                      RECORD #{(c._id || c.id || '').slice(-6).toUpperCase()}
+                      {t('priorityQueue.recordLabel', { id: String(c._id || c.id || '').slice(-6).toUpperCase() })}
                     </span>
                     <span
-                      className={`font-mono text-[10px] tracking-wider uppercase px-2 py-0.5 border ${
-                        isCritical
-                          ? 'bg-rose-50 text-rose-900 border-rose-300 font-bold'
-                          : isHigh
+                      className={`font-mono text-[10px] tracking-wider uppercase px-2 py-0.5 border ${isCritical
+                        ? 'bg-rose-50 text-rose-900 border-rose-300 font-bold'
+                        : isHigh
                           ? 'bg-amber-50 text-amber-900 border-amber-300 font-bold'
                           : 'bg-neutral-100 text-neutral-800 border-neutral-300'
-                      }`}
+                        }`}
                     >
-                      {isCritical ? 'TIER 1 · CRITICAL' : isHigh ? 'TIER 2 · ELEVATED' : 'TIER 3 · STANDARD'}
+                      {isCritical ? t('priorityQueue.tier1') : isHigh ? t('priorityQueue.tier2') : t('priorityQueue.tier3')}
                     </span>
                     {(c.category || c.issueType) && (
                       <span className="font-mono text-[10px] px-2 py-0.5 border border-neutral-200 bg-neutral-50 text-neutral-600 uppercase">
-                        {(c.category || c.issueType).replace(/_/g, ' ')}
+                        {categoryLabel}
                       </span>
                     )}
                   </div>
 
                   <h3 className="font-serif font-bold text-lg text-neutral-900 group-hover:underline">
-                    {c.title || c.complaintTitle || 'Unclassified Hazard'}
+                    {c.title || c.complaintTitle || t('priorityQueue.unclassifiedHazard')}
                   </h3>
 
                   <p className="text-xs text-neutral-600 font-sans line-clamp-2 leading-relaxed">
@@ -192,30 +231,30 @@ export default function PriorityQueue() {
                   </p>
 
                   {/* Metadata Row */}
-                  <div className="pt-2 flex items-center gap-6 font-mono text-xs text-neutral-500 border-t border-neutral-100">
+                  <div className="pt-2 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-xs text-neutral-500 border-t border-neutral-100">
                     <div>
-                      <span className="text-[10px] text-neutral-400 block uppercase">LEAD AGENCY</span>
+                      <span className="text-[10px] text-neutral-400 block uppercase">{t('priorityQueue.leadAgency')}</span>
                       <span className="font-bold text-neutral-800 uppercase">
-                        {c.assignedDept || 'MUNICIPAL RAPID CORPS'}
+                        {c.assignedDept || c.assigned_department || t('priorityQueue.municipalRapidCorps')}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-neutral-400 block uppercase">SUBMITTED BY</span>
+                      <span className="text-[10px] text-neutral-400 block uppercase">{t('priorityQueue.submittedBy')}</span>
                       <span className="font-bold text-neutral-800 uppercase">
-                        {c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || 'Verified Citizen'}
+                        {c.citizenName || c.users?.full_name || c.user?.full_name || c.user_name || c.full_name || t('priorityQueue.verifiedCitizen')}
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-neutral-400 block uppercase">DISPATCH STATUS</span>
+                      <span className="text-[10px] text-neutral-400 block uppercase">{t('priorityQueue.dispatchStatus')}</span>
                       <span className="font-bold text-neutral-800 uppercase">
-                        {c.status || 'QUEUED'}
+                        {dispatchStatusLabel}
                       </span>
                     </div>
-                    {c.estimated_width_cm && (
+                    {c.estimated_width_cm != null && c.estimated_length_cm != null && (
                       <div>
-                        <span className="text-[10px] text-neutral-400 block uppercase">DIMENSIONS</span>
+                        <span className="text-[10px] text-neutral-400 block uppercase">{t('priorityQueue.dimensions')}</span>
                         <span className="font-bold text-neutral-800">
-                          {c.estimated_width_cm}×{c.estimated_length_cm} cm
+                          {c.estimated_width_cm}×{c.estimated_length_cm} {t('priorityQueue.cmUnit')}
                         </span>
                       </div>
                     )}
@@ -224,18 +263,18 @@ export default function PriorityQueue() {
 
                 {/* Score & Action Pillar */}
                 <div className="flex md:flex-col items-center md:items-end justify-between w-full md:w-auto border-t md:border-t-0 pt-3 md:pt-0 border-neutral-100 font-mono flex-shrink-0">
-                  <div className="text-right">
+                  <div className="text-left md:text-right">
                     <span className="text-[10px] text-neutral-400 uppercase tracking-wider block">
-                      SEVERITY INDEX
+                      {t('priorityQueue.severityIndex')}
                     </span>
                     <div className="text-2xl font-bold text-neutral-900">
                       {score}<span className="text-xs text-neutral-400 font-normal">/100</span>
                     </div>
                   </div>
 
-                  <div className="mt-2 text-right">
+                  <div className="mt-0 md:mt-2 text-right">
                     <span className="text-xs text-neutral-400 font-bold group-hover:text-black flex items-center gap-1">
-                      DISPATCH DOSSIER <HiChevronRight className="w-3.5 h-3.5" />
+                      {t('priorityQueue.dispatchDossier')} <HiChevronRight className="w-3.5 h-3.5" />
                     </span>
                   </div>
                 </div>

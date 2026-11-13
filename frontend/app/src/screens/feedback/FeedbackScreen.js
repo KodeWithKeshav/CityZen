@@ -12,9 +12,14 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
+import { apiClient, makeApiCall } from '../../../config/supabase';
+import { useTranslatedText } from '../../context/TranslationContext';
 
 const FeedbackScreen = ({ route, navigation }) => {
+  const { t } = useTranslation(['citizen', 'common']);
   const { complaintId, complaintTitle } = route.params || {};
+  const translatedComplaintTitle = useTranslatedText(complaintTitle || '');
   
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState('');
@@ -27,22 +32,36 @@ const FeedbackScreen = ({ route, navigation }) => {
 
   const handleSubmitFeedback = async () => {
     if (rating === 0) {
-      Alert.alert('Rating Required', 'Please provide a rating before submitting.');
+      Alert.alert(t('citizen:mobileFeedback.ratingRequiredTitle'), t('citizen:feedback.ratingRequired'));
       return;
     }
 
     setSubmitting(true);
-    
-    // Simulate processing time
-    setTimeout(() => {
-      setSubmitting(false);
-      
+
+    try {
+      if (complaintId) {
+        const result = await makeApiCall(`${apiClient.baseUrl}/api/feedback/submit`, {
+          method: 'POST',
+          body: JSON.stringify({
+            complaintId,
+            rating,
+            feedback: feedback.trim(),
+            improvements: improvements.trim(),
+            submittedAt: new Date().toISOString(),
+          }),
+        });
+
+        if (!result?.success) {
+          throw new Error(result?.message || t('citizen:feedback.submissionFailed'));
+        }
+      }
+
       Alert.alert(
-        'Thank You!',
-        'Your feedback has been submitted successfully. It helps us improve our service.',
+        t('citizen:mobileFeedback.thankYouTitle'),
+        t('citizen:mobileFeedback.thankYouDesc'),
         [
           {
-            text: 'Continue',
+            text: t('citizen:mobileFeedback.continue'),
             onPress: () => {
               // Navigate to Instagram-style feed dashboard
               navigation.reset({
@@ -53,17 +72,25 @@ const FeedbackScreen = ({ route, navigation }) => {
           }
         ]
       );
-    }, 1000); // 1 second delay to simulate processing
+    } catch (error) {
+      console.error('Feedback submission error:', error);
+      Alert.alert(
+        t('citizen:mobileFeedback.errorTitle'),
+        error.message || t('citizen:mobileFeedback.errorDesc')
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleSkip = () => {
     Alert.alert(
-      'Skip Feedback?',
-      'Your feedback helps us improve our service. Are you sure you want to skip?',
+      t('citizen:mobileFeedback.skipTitle'),
+      t('citizen:mobileFeedback.skipDesc'),
       [
-        { text: 'Provide Feedback', style: 'cancel' },
+        { text: t('citizen:mobileFeedback.provideFeedback'), style: 'cancel' },
         {
-          text: 'Skip',
+          text: t('citizen:mobileFeedback.skip'),
           style: 'destructive',
           onPress: () => {
             navigation.reset({
@@ -98,14 +125,11 @@ const FeedbackScreen = ({ route, navigation }) => {
   };
 
   const getRatingText = () => {
-    switch (rating) {
-      case 1: return 'Poor - Needs significant improvement';
-      case 2: return 'Fair - Some improvements needed';
-      case 3: return 'Good - Satisfactory experience';
-      case 4: return 'Very Good - Minor improvements possible';
-      case 5: return 'Excellent - Great experience!';
-      default: return 'Please rate your experience';
+    const labels = t('citizen:feedback.ratingLabels', { returnObjects: true });
+    if (Array.isArray(labels) && rating >= 1 && rating <= 5 && labels[rating]) {
+      return labels[rating];
     }
+    return t('citizen:mobileFeedback.ratePrompt');
   };
 
   return (
@@ -119,9 +143,9 @@ const FeedbackScreen = ({ route, navigation }) => {
             onPress={handleSkip}
             style={styles.skipButton}
           >
-            <Text style={styles.skipText}>Skip</Text>
+            <Text style={styles.skipText}>{t('citizen:mobileFeedback.skip')}</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Feedback</Text>
+          <Text style={styles.headerTitle}>{t('common:mobileNav.feedback')}</Text>
           <View style={styles.skipButton} />
         </View>
       </LinearGradient>
@@ -129,16 +153,16 @@ const FeedbackScreen = ({ route, navigation }) => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.successMessage}>
           <Ionicons name="checkmark-circle" size={60} color="#1A1A1A" />
-          <Text style={styles.successTitle}>Complaint Submitted!</Text>
+          <Text style={styles.successTitle}>{t('citizen:mobileFeedback.submittedTitle')}</Text>
           <Text style={styles.successSubtitle}>
-            Thank you for reporting: {complaintTitle}
+            {t('citizen:mobileFeedback.thankForReporting', { title: translatedComplaintTitle || '' })}
           </Text>
         </View>
 
         <View style={styles.feedbackCard}>
-          <Text style={styles.sectionTitle}>How was your experience?</Text>
+          <Text style={styles.sectionTitle}>{t('citizen:mobileFeedback.howWasExp')}</Text>
           <Text style={styles.sectionSubtitle}>
-            Your feedback helps us improve our complaint submission process
+            {t('citizen:mobileFeedback.expSubtitle')}
           </Text>
 
           <View style={styles.ratingContainer}>
@@ -150,13 +174,14 @@ const FeedbackScreen = ({ route, navigation }) => {
 
           <View style={styles.inputSection}>
             <Text style={styles.inputLabel}>
-              General Feedback <Text style={styles.optional}>(Optional)</Text>
+              {t('citizen:mobileFeedback.generalLabel')}{' '}
+              <Text style={styles.optional}>{t('citizen:mobileFeedback.optional')}</Text>
             </Text>
             <TextInput
               style={styles.textInput}
               multiline
               numberOfLines={3}
-              placeholder="Share your overall experience with the complaint submission process..."
+              placeholder={t('citizen:mobileFeedback.generalPlaceholder')}
               value={feedback}
               onChangeText={setFeedback}
               maxLength={500}
@@ -166,13 +191,14 @@ const FeedbackScreen = ({ route, navigation }) => {
 
           <View style={styles.inputSection}>
             <Text style={styles.inputLabel}>
-              Suggestions for Improvement <Text style={styles.optional}>(Optional)</Text>
+              {t('citizen:mobileFeedback.suggestionsLabel')}{' '}
+              <Text style={styles.optional}>{t('citizen:mobileFeedback.optional')}</Text>
             </Text>
             <TextInput
               style={styles.textInput}
               multiline
               numberOfLines={3}
-              placeholder="How can we make the complaint submission process better? Any features you'd like to see?"
+              placeholder={t('citizen:mobileFeedback.suggestionsPlaceholder')}
               value={improvements}
               onChangeText={setImprovements}
               maxLength={500}
@@ -193,7 +219,7 @@ const FeedbackScreen = ({ route, navigation }) => {
           ) : (
             <>
               <Ionicons name="send" size={20} color="#fff" />
-              <Text style={styles.submitButtonText}>Submit Feedback</Text>
+              <Text style={styles.submitButtonText}>{t('citizen:mobileFeedback.submitBtn')}</Text>
             </>
           )}
         </TouchableOpacity>

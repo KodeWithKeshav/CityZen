@@ -36,7 +36,7 @@ describe('Welcome Component', () => {
 
   it('navigates to login when Sign In buttons are clicked', () => {
     renderComponent();
-    const loginButtons = screen.getAllByRole('button', { name: /Sign In|Admin Portal/i });
+    const loginButtons = screen.getAllByRole('button', { name: /Sign In|Admin Access/i });
     
     expect(loginButtons.length).toBeGreaterThan(0);
     fireEvent.click(loginButtons[0]);
@@ -46,7 +46,7 @@ describe('Welcome Component', () => {
 
   it('navigates to citizen signup when Get Started buttons are clicked', () => {
     renderComponent();
-    const signupButtons = screen.getAllByRole('button', { name: /Get Started|Report an Issue/i });
+    const signupButtons = screen.getAllByRole('button', { name: /Get Started|Citizen Portal/i });
     
     expect(signupButtons.length).toBeGreaterThan(0);
     fireEvent.click(signupButtons[0]);

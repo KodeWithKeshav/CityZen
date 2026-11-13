@@ -9,10 +9,12 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 const { width, height } = Dimensions.get('window');
 
 const WelcomeScreen = ({ navigation }) => {
+  const { t } = useTranslation('auth');
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAFAFA" />
@@ -27,9 +29,9 @@ const WelcomeScreen = ({ navigation }) => {
           />
         </View>
 
-        <Text style={styles.brandName}>CITYZEN</Text>
+        <Text style={styles.brandName}>{t('welcome.brand', 'CITYZEN')}</Text>
         <View style={styles.divider} />
-        <Text style={styles.tagline}>Institutional Portal</Text>
+        <Text style={styles.tagline}>{t('welcome.portalLabel', 'Institutional Portal')}</Text>
       </View>
 
       {/* Portal selection */}
@@ -40,7 +42,7 @@ const WelcomeScreen = ({ navigation }) => {
           activeOpacity={0.7}
         >
           <Ionicons name="people-outline" size={24} color="#1A1A1A" />
-          <Text style={styles.portalLabel}>CITIZEN PORTAL</Text>
+          <Text style={styles.portalLabel}>{t('welcome.citizenPortal.title', 'CITIZEN PORTAL')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -49,13 +51,13 @@ const WelcomeScreen = ({ navigation }) => {
           activeOpacity={0.7}
         >
           <Ionicons name="shield-checkmark-outline" size={24} color="#1A1A1A" />
-          <Text style={styles.portalLabel}>ADMIN ACCESS</Text>
+          <Text style={styles.portalLabel}>{t('welcome.adminPortal.title', 'ADMIN ACCESS')}</Text>
         </TouchableOpacity>
       </View>
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>SYSTEM ARCHITECTURE VALIDATED</Text>
+        <Text style={styles.footerText}>{t('welcome.systemValidated', 'SYSTEM ARCHITECTURE VALIDATED')}</Text>
       </View>
     </View>
   );

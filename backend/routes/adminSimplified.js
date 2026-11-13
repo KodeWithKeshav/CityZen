@@ -1,5 +1,33 @@
 const express = require('express');
 const router = express.Router();
+const { authenticateUser, authorizeUserType } = require('../middleware/auth');
+
+function sanitizeSearchTerm(term) {
+  if (typeof term !== 'string') return '';
+  return term.trim().replace(/[,()\\]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function parsePagination(page, limit) {
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const parsedLimit = parseInt(limit, 10);
+  const limitNum = Math.min(100, Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : 20));
+  return { pageNum, limitNum, offset: (pageNum - 1) * limitNum };
+}
+
+function normalizePriorityTo100(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return null;
+  if (num > 0 && num <= 1) return Math.round(num * 100);
+  if (num > 1 && num <= 10) return Math.round(num * 10);
+  return Math.min(100, Math.max(0, Math.round(num)));
+}
+
+// Require authenticated admin for all routes in this router
+router.use(
+  (req, res, next) => (req.user === undefined ? authenticateUser(req, res, next) : next()),
+  authorizeUserType(['admin'])
+);
 
 // Simplified admin routes that work with current database structure
 router.get('/dashboard/overview', async (req, res) => {
@@ -11,13 +39,17 @@ router.get('/dashboard/overview', async (req, res) => {
       .from('complaints')
       .select('id, status, priority_score, category, created_at');
 
-    const { data: users, error: usersError } = await supabase
+    const { count: totalUsersCount, error: usersError } = await supabase
       .from('users')
-      .select('id, created_at')
-      .limit(100);
+      .select('id', { count: 'exact', head: true })
+      .eq('user_type', 'citizen');
 
     if (complaintsError || usersError) {
       console.error('Dashboard data error:', { complaintsError, usersError });
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to load dashboard overview'
+      });
     }
 
     // Calculate overview stats
@@ -26,8 +58,11 @@ router.get('/dashboard/overview', async (req, res) => {
     const pendingComplaints = complaints?.filter(c => c.status === 'pending').length || 0;
     const inProgressComplaints = complaints?.filter(c => c.status === 'in_progress').length || 0;
     
-    // High priority complaints (score >= 7)
-    const highPriorityComplaints = complaints?.filter(c => (c.priority_score || 0) >= 7).length || 0;
+    // High priority complaints (normalized >= 60 on 0-100 scale, i.e. >= 0.6 on 0-1)
+    const highPriorityComplaints = complaints?.filter(c => {
+      const score = normalizePriorityTo100(c.priority_score);
+      return score !== null && score >= 60;
+    }).length || 0;
 
     // Recent complaints (last 7 days)
     const weekAgo = new Date();
@@ -51,17 +86,17 @@ router.get('/dashboard/overview', async (req, res) => {
         inProgressComplaints,
         highPriorityComplaints,
         recentComplaints,
-        totalUsers: users?.length || 0,
+        totalUsers: totalUsersCount || 0,
         resolutionRate: totalComplaints > 0 ? Math.round((resolvedComplaints / totalComplaints) * 100) : 0
       },
       topPriorityComplaints: complaints
-        ?.filter(c => c.priority_score)
+        ?.filter(c => c.priority_score !== null && c.priority_score !== undefined)
         ?.sort((a, b) => (b.priority_score || 0) - (a.priority_score || 0))
         ?.slice(0, 5) || [],
       locationHotspots: [],
-      recentActivity: complaints
-        ?.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        ?.slice(0, 10) || [],
+      recentActivity: [...(complaints || [])]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 10),
       stageProgress: {
         pending: pendingComplaints,
         in_progress: inProgressComplaints,
@@ -93,7 +128,7 @@ router.get('/dashboard/overview', async (req, res) => {
 router.get('/complaints/priority-queue', async (req, res) => {
   try {
     const { page = 1, limit = 20, search, category, status } = req.query;
-    const offset = (page - 1) * limit;
+    const { pageNum, limitNum, offset } = parsePagination(page, limit);
     const supabase = req.app.get('supabase');
 
     let query = supabase
@@ -109,26 +144,27 @@ router.get('/complaints/priority-queue', async (req, res) => {
         created_at,
         updated_at,
         user_id
-      `);
+      `, { count: 'exact' });
 
     // Apply filters
-    if (search) {
-      query = query.or(`title.ilike.%${search}%,location_address.ilike.%${search}%`);
+    const cleanSearch = sanitizeSearchTerm(search);
+    if (cleanSearch) {
+      query = query.or(`title.ilike.%${cleanSearch}%,location_address.ilike.%${cleanSearch}%`);
     }
     
-    if (category) {
-      query = query.eq('category', category);
+    if (typeof category === 'string' && category.trim()) {
+      query = query.eq('category', category.trim());
     }
     
-    if (status) {
-      query = query.eq('status', status);
+    if (typeof status === 'string' && status.trim()) {
+      query = query.eq('status', status.trim());
     }
 
     query = query.order('priority_score', { ascending: false })
                  .order('created_at', { ascending: false })
-                 .range(offset, offset + limit - 1);
+                 .range(offset, offset + limitNum - 1);
 
-    const { data: complaints, error } = await query;
+    const { data: complaints, error, count } = await query;
 
     if (error) {
       console.error('Priority queue query error:', error);
@@ -138,49 +174,43 @@ router.get('/complaints/priority-queue', async (req, res) => {
       });
     }
 
-    // Get user details for each complaint
-    const complaintsWithUsers = [];
-    if (complaints) {
-      for (const complaint of complaints) {
-        const { data: user } = await supabase
-          .from('users')
-          .select('full_name, email')
-          .eq('id', complaint.user_id)
-          .single();
-        
-        complaintsWithUsers.push({
-          ...complaint,
-          users: user || { full_name: 'Unknown User', email: 'unknown@example.com' }
+    // Batch fetch user details for all complaints
+    const userIds = [...new Set((complaints || []).map(c => c.user_id).filter(Boolean))];
+    const usersMap = {};
+    if (userIds.length > 0) {
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      if (usersError) {
+        console.warn('Priority queue users lookup warning:', usersError.message);
+      } else {
+        (users || []).forEach(u => {
+          usersMap[u.id] = u;
         });
       }
     }
 
-    // Get total count for pagination
-    let countQuery = supabase
-      .from('complaints')
-      .select('id', { count: 'exact', head: true });
+    const complaintsWithUsers = (complaints || []).map(complaint => ({
+      ...complaint,
+      users: usersMap[complaint.user_id] || { full_name: 'Unknown User', email: 'unknown@example.com' }
+    }));
 
-    if (search) {
-      countQuery = countQuery.or(`title.ilike.%${search}%,location_address.ilike.%${search}%`);
-    }
-    if (category) countQuery = countQuery.eq('category', category);
-    if (status) countQuery = countQuery.eq('status', status);
-
-    const { count } = await countQuery;
     const totalCount = count || 0;
-    const totalPages = Math.ceil(totalCount / limit);
+    const totalPages = Math.max(1, Math.ceil(totalCount / limitNum));
 
     res.json({
       success: true,
       data: {
         complaints: complaintsWithUsers,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: pageNum,
+          limit: limitNum,
           totalPages,
           totalCount,
-          hasNext: page < totalPages,
-          hasPrev: page > 1
+          hasNext: pageNum < totalPages,
+          hasPrev: pageNum > 1
         }
       }
     });
@@ -198,15 +228,17 @@ router.get('/complaints/priority-queue', async (req, res) => {
 router.get('/citizens', async (req, res) => {
   try {
     const { page = 1, limit = 20, search, sort = 'recent' } = req.query;
-    const offset = (page - 1) * limit;
+    const { pageNum, limitNum, offset } = parsePagination(page, limit);
     const supabase = req.app.get('supabase');
 
     let query = supabase
       .from('users')
-      .select('id, full_name, email, phone_number, created_at');
+      .select('id, full_name, email, phone_number, is_active, created_at', { count: 'exact' })
+      .eq('user_type', 'citizen');
 
-    if (search) {
-      query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+    const cleanSearch = sanitizeSearchTerm(search);
+    if (cleanSearch) {
+      query = query.or(`full_name.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`);
     }
 
     // Apply sorting
@@ -216,9 +248,9 @@ router.get('/citizens', async (req, res) => {
       query = query.order('created_at', { ascending: false });
     }
 
-    query = query.range(offset, offset + limit - 1);
+    query = query.range(offset, offset + limitNum - 1);
 
-    const { data: citizens, error } = await query;
+    const { data: citizens, error, count } = await query;
 
     if (error) {
       console.error('Citizens query error:', error);
@@ -228,56 +260,59 @@ router.get('/citizens', async (req, res) => {
       });
     }
 
-    // Get complaint counts for each citizen
-    const citizensWithStats = [];
-    if (citizens) {
-      for (const citizen of citizens) {
-        const { data: complaints } = await supabase
-          .from('complaints')
-          .select('id, status, created_at')
-          .eq('user_id', citizen.id);
-        
-        const complaintsCount = complaints?.length || 0;
-        const resolvedComplaints = complaints?.filter(c => c.status === 'resolved').length || 0;
-        const lastComplaintDate = complaints?.length > 0 
-          ? Math.max(...complaints.map(c => new Date(c.created_at).getTime()))
-          : null;
+    // Batch fetch complaint counts for all citizens on this page
+    const citizenIds = (citizens || []).map(c => c.id);
+    const statsByUser = {};
+    if (citizenIds.length > 0) {
+      const { data: complaints, error: complaintsError } = await supabase
+        .from('complaints')
+        .select('user_id, status, created_at')
+        .in('user_id', citizenIds);
 
-        citizensWithStats.push({
-          ...citizen,
-          complaints_count: complaintsCount,
-          resolved_complaints: resolvedComplaints,
-          last_complaint_date: lastComplaintDate ? new Date(lastComplaintDate).toISOString() : null,
-          status: 'active', // Default status
-          reputation_score: Math.min(complaintsCount * 10 + resolvedComplaints * 5, 100) // Simple calculation
+      if (complaintsError) {
+        console.warn('Citizens complaints lookup warning:', complaintsError.message);
+      } else {
+        (complaints || []).forEach(c => {
+          if (!statsByUser[c.user_id]) {
+            statsByUser[c.user_id] = { total: 0, resolved: 0, lastTs: null };
+          }
+          const entry = statsByUser[c.user_id];
+          entry.total++;
+          if (c.status === 'resolved') entry.resolved++;
+          const ts = new Date(c.created_at).getTime();
+          if (Number.isFinite(ts) && (entry.lastTs === null || ts > entry.lastTs)) {
+            entry.lastTs = ts;
+          }
         });
       }
     }
 
-    // Get total count for pagination
-    let countQuery = supabase
-      .from('users')
-      .select('id', { count: 'exact', head: true });
+    const citizensWithStats = (citizens || []).map(citizen => {
+      const stats = statsByUser[citizen.id] || { total: 0, resolved: 0, lastTs: null };
+      return {
+        ...citizen,
+        complaints_count: stats.total,
+        resolved_complaints: stats.resolved,
+        last_complaint_date: stats.lastTs !== null ? new Date(stats.lastTs).toISOString() : null,
+        status: citizen.is_active === false ? 'inactive' : 'active',
+        reputation_score: Math.min(stats.total * 10 + stats.resolved * 5, 100)
+      };
+    });
 
-    if (search) {
-      countQuery = countQuery.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
-    }
-
-    const { count } = await countQuery;
     const totalCount = count || 0;
-    const totalPages = Math.ceil(totalCount / limit);
+    const totalPages = Math.max(1, Math.ceil(totalCount / limitNum));
 
     res.json({
       success: true,
       data: {
         citizens: citizensWithStats,
         pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
+          page: pageNum,
+          limit: limitNum,
           totalPages,
           totalCount,
-          hasNext: page < totalPages,
-          hasPrev: page > 1
+          hasNext: pageNum < totalPages,
+          hasPrev: pageNum > 1
         }
       }
     });
@@ -297,14 +332,20 @@ router.get('/citizens/:id/details', async (req, res) => {
     const { id } = req.params;
     const supabase = req.app.get('supabase');
 
-    // Get citizen data
+    // Get citizen data (explicit safe columns - never expose password hash)
     const { data: citizen, error: citizenError } = await supabase
       .from('users')
-      .select('*')
+      .select('id, full_name, email, phone_number, user_type, address, is_active, created_at, updated_at, last_login')
       .eq('id', id)
       .single();
 
     if (citizenError || !citizen) {
+      if (citizenError?.code === '22P02') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid citizen ID format'
+        });
+      }
       return res.status(404).json({
         success: false,
         message: 'Citizen not found'
@@ -326,7 +367,7 @@ router.get('/citizens/:id/details', async (req, res) => {
 
     const citizenDetails = {
       ...citizen,
-      status: 'active',
+      status: citizen.is_active === false ? 'inactive' : 'active',
       complaints: complaints || [],
       resolved_complaints: resolvedComplaints,
       votes_count: 0, // Placeholder
@@ -352,11 +393,55 @@ router.put('/citizens/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    
-    // For now, just return success since we don't have a status field in users table
+    const validStatuses = ['active', 'inactive', 'suspended', 'banned'];
+
+    if (typeof status !== 'string' || !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
+    const supabase = req.app.get('supabase');
+    const isActive = status === 'active';
+
+    const { data, error } = await supabase
+      .from('users')
+      .update({
+        is_active: isActive,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .eq('user_type', 'citizen')
+      .select('id, full_name, email, phone_number, user_type, is_active, updated_at')
+      .single();
+
+    if (error || !data) {
+      if (error?.code === '22P02') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid citizen ID format'
+        });
+      }
+      if (!data || error?.code === 'PGRST116') {
+        return res.status(404).json({
+          success: false,
+          message: 'Citizen not found'
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
     res.json({
       success: true,
-      data: { message: `Citizen status would be updated to ${status}` }
+      data: {
+        ...data,
+        status: data.is_active ? 'active' : 'inactive',
+        message: `Citizen status updated to ${status}`
+      }
     });
 
   } catch (error) {
@@ -382,18 +467,30 @@ router.get('/complaints/:id/details', async (req, res) => {
       .single();
 
     if (complaintError || !complaint) {
+      if (complaintError?.code === '22P02') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid complaint ID format'
+        });
+      }
       return res.status(404).json({
         success: false,
         message: 'Complaint not found'
       });
     }
 
-    // Get user data
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('full_name, email, phone_number')
-      .eq('id', complaint.user_id)
-      .single();
+    // Get user data if complaint has a user_id
+    let user = null;
+    if (complaint.user_id) {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('full_name, email, phone_number')
+        .eq('id', complaint.user_id)
+        .single();
+      if (!userError && userData) {
+        user = userData;
+      }
+    }
 
     const complaintDetails = {
       ...complaint,
@@ -420,17 +517,43 @@ router.put('/complaints/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
+    const validStatuses = ['pending', 'in_progress', 'resolved', 'rejected', 'cancelled'];
+
+    if (typeof status !== 'string' || !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
+      });
+    }
+
     const supabase = req.app.get('supabase');
+    const nowIso = new Date().toISOString();
 
     const { data, error } = await supabase
       .from('complaints')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({
+        status,
+        resolved_at: status === 'resolved' ? nowIso : null,
+        updated_at: nowIso
+      })
       .eq('id', id)
       .select()
       .single();
 
-    if (error) {
+    if (error || !data) {
       console.error('Update complaint status error:', error);
+      if (error?.code === '22P02') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid complaint ID format'
+        });
+      }
+      if (!data || error?.code === 'PGRST116') {
+        return res.status(404).json({
+          success: false,
+          message: 'Complaint not found'
+        });
+      }
       return res.status(400).json({
         success: false,
         message: error.message
@@ -451,13 +574,13 @@ router.put('/complaints/:id/status', async (req, res) => {
   }
 });
 
-// Placeholder routes for officers and contractors
+// Placeholder routes for officers and contractors (with valid UUIDs)
 router.get('/officers', (req, res) => {
   res.json({
     success: true,
     data: [
-      { id: 1, name: 'John Smith', department: 'Public Works', status: 'active' },
-      { id: 2, name: 'Sarah Johnson', department: 'Infrastructure', status: 'active' }
+      { id: 'f8a5bae5-a458-407f-9209-c29209f9d024', name: 'John Smith', department: 'Public Works', status: 'active' },
+      { id: 'e7b4c9d6-b347-406e-8108-b18108e8c023', name: 'Sarah Johnson', department: 'Infrastructure', status: 'active' }
     ]
   });
 });
@@ -466,8 +589,8 @@ router.get('/contractors', (req, res) => {
   res.json({
     success: true,
     data: [
-      { id: 1, name: 'ABC Construction Ltd', specialization: 'Road Repair', status: 'active' },
-      { id: 2, name: 'Quick Fix Services', specialization: 'Streetlight Maintenance', status: 'active' }
+      { id: 'd6c3b8a5-c246-405d-7017-a07017d7b022', name: 'ABC Construction Ltd', specialization: 'Road Repair', status: 'active' },
+      { id: 'c5b2a794-b135-404c-6016-906016c6a021', name: 'Quick Fix Services', specialization: 'Streetlight Maintenance', status: 'active' }
     ]
   });
 });

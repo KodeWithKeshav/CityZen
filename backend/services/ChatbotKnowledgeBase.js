@@ -215,6 +215,9 @@ class ChatbotKnowledgeMatcher {
 
   // Find best matching response for user query
   findBestMatch(userMessage, conversationHistory = []) {
+    if (typeof userMessage !== 'string' || !userMessage.trim()) {
+      return this.getGenericHelp('');
+    }
     const message = userMessage.toLowerCase();
     let bestMatch = null;
     let highestScore = 0;
@@ -243,6 +246,9 @@ class ChatbotKnowledgeMatcher {
 
   // Calculate similarity score between user message and keywords
   calculateMatchScore(message, keywords) {
+    if (!message || !message.length || !Array.isArray(keywords)) {
+      return 0;
+    }
     let totalScore = 0;
     let matchCount = 0;
 
@@ -260,8 +266,8 @@ class ChatbotKnowledgeMatcher {
 
   // Generate generic help response
   getGenericHelp(message) {
-    const isQuestion = message.includes('?');
-    const isGreeting = ['hi', 'hello', 'hey', 'namaste'].some(g => message.includes(g));
+    const safeMessage = typeof message === 'string' ? message : '';
+    const isGreeting = /\b(hi|hello|hey|namaste)\b/i.test(safeMessage);
 
     if (isGreeting) {
       return {

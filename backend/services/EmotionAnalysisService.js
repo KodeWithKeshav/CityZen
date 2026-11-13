@@ -79,9 +79,23 @@ class EmotionAnalysisService {
   }
 
   /**
-   * Detect language from text
+   * Resolve Hugging Face API token from supported environment variables dynamically
    */
-  async detectLanguage(text) {
+  getHuggingFaceToken() {
+    return (
+      this.config.huggingFaceToken ||
+      process.env.HUGGINGFACE_API_TOKEN ||
+      process.env.HUGGING_FACE_API_KEY ||
+      process.env.HF_TOKEN ||
+      null
+    );
+  }
+
+  /**
+   * Detect language from text synchronously
+   */
+  detectLanguageSync(text) {
+    if (typeof text !== 'string') return 'en';
     // Simple language detection based on script
     if (/[ऀ-ॿ]/.test(text)) return 'hi'; // Hindi
     if (/[஀-௿]/.test(text)) return 'ta'; // Tamil
@@ -89,6 +103,13 @@ class EmotionAnalysisService {
     if (/[ಀ-೿]/.test(text)) return 'kn'; // Kannada
     if (/[ഀ-ൿ]/.test(text)) return 'ml'; // Malayalam
     return 'en'; // Default to English
+  }
+
+  /**
+   * Detect language from text
+   */
+  async detectLanguage(text) {
+    return this.detectLanguageSync(text);
   }
 
   /**
@@ -122,7 +143,8 @@ class EmotionAnalysisService {
       console.log('⚠️ Local DistilBERT service not available, will use fallbacks');
     }
     // Re-check every 60s in case the service comes up later
-    setTimeout(() => { this.localModelAvailable = null; }, 60000);
+    const timer = setTimeout(() => { this.localModelAvailable = null; }, 60000);
+    if (typeof timer.unref === 'function') timer.unref();
     return this.localModelAvailable;
   }
 
@@ -130,7 +152,8 @@ class EmotionAnalysisService {
    * AI-powered emotion analysis using Hugging Face with multiple model fallbacks
    */
   async analyzeWithAI(text) {
-    if (!this.config.huggingFaceToken) {
+    const token = this.getHuggingFaceToken();
+    if (!token) {
       throw new Error('No Hugging Face API token');
     }
 
@@ -147,7 +170,7 @@ class EmotionAnalysisService {
           { inputs: text },
           {
             headers: {
-              'Authorization': `Bearer ${this.config.huggingFaceToken}`,
+              'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
             },
             timeout: 15000
@@ -181,24 +204,30 @@ class EmotionAnalysisService {
 
     // Handle different API response formats
     let sentiment = null;
+    const pickTopSentiment = (items) =>
+      items.reduce((best, item) => {
+        if (!item || typeof item.label !== 'string') return best;
+        const itemScore = typeof item.score === 'number' ? item.score : 0;
+        const bestScore = best && typeof best.score === 'number' ? best.score : -Infinity;
+        return itemScore > bestScore ? item : best;
+      }, null);
 
     // Handle nested array format: [[{label, score}, ...]]
     if (Array.isArray(sentimentData) && Array.isArray(sentimentData[0]) && sentimentData[0].length > 0) {
-      // Find the highest scoring sentiment from nested array
-      sentiment = sentimentData[0][0]; // First item has highest score
+      sentiment = pickTopSentiment(sentimentData[0]);
     }
     // Handle simple array format: [{label, score}, ...]
-    else if (Array.isArray(sentimentData) && sentimentData.length > 0 && sentimentData[0].label) {
-      sentiment = sentimentData[0];
+    else if (Array.isArray(sentimentData) && sentimentData.length > 0 && sentimentData[0]?.label) {
+      sentiment = pickTopSentiment(sentimentData);
     }
     // Handle direct object format: {label, score}
     else if (sentimentData && sentimentData.label) {
       sentiment = sentimentData;
     }
 
-    if (sentiment && sentiment.label) {
+    if (sentiment && typeof sentiment.label === 'string' && typeof sentiment.score === 'number' && Number.isFinite(sentiment.score)) {
       const label = sentiment.label.toLowerCase();
-      const score = sentiment.score;
+      const score = Math.max(0, Math.min(1, sentiment.score));
 
       console.log(`📊 AI Sentiment: ${label} (${score.toFixed(3)})`);
 
@@ -228,12 +257,7 @@ class EmotionAnalysisService {
         // unconditional numeric floor: if neither the sentiment model nor
         // the keyword detector finds any urgency/concern signal in the
         // actual text, the score stays at 0 rather than being manufactured.
-        // (A prior version forced a minimum 0.3 concern / 0.2 urgency on
-        // every non-English "positive" complaint regardless of content,
-        // which systematically inflated priority for ordinary non-urgent
-        // complaints in these languages -- a fairness/accuracy bug, not a
-        // justified correction.)
-        const language = this.detectLanguage(text);
+        const language = this.detectLanguageSync(text);
         if (language === 'ta' || language === 'hi') {
           const keywordEmotions = this.analyzeWithKeywords(text, language);
           Object.keys(emotions).forEach(emotion => {
@@ -285,7 +309,8 @@ class EmotionAnalysisService {
     ];
 
     let urgencyScore = 0;
-    const textLower = text.toLowerCase();
+    const textLower = typeof text === 'string' ? text.toLowerCase() : '';
+    if (!textLower) return 0;
 
     urgencyWords.forEach(word => {
       if (textLower.includes(word.toLowerCase())) {
@@ -329,6 +354,7 @@ class EmotionAnalysisService {
    * Detect safety concerns and return boost score
    */
   detectSafetyConcerns(text) {
+    if (typeof text !== 'string' || !text) return 0;
     const textLower = text.toLowerCase();
     let safetyBoost = 0;
 
@@ -379,17 +405,16 @@ class EmotionAnalysisService {
     console.log(`🔍 Keyword analysis for language: ${language}`);
     const keywords = this.emotionKeywords[language] || this.emotionKeywords.en;
     const emotions = { anger: 0, urgency: 0, frustration: 0, concern: 0 };
+    if (typeof text !== 'string' || !text) return emotions;
     const textLower = text.toLowerCase();
 
     Object.keys(emotions).forEach(emotion => {
       const emotionKeywords = keywords[emotion] || [];
       let score = 0;
-      let matchCount = 0;
 
       emotionKeywords.forEach(keyword => {
         if (textLower.includes(keyword.toLowerCase())) {
           score += 0.25;
-          matchCount++;
           console.log(`✅ Found ${emotion} keyword: "${keyword}"`);
         }
       });
@@ -417,10 +442,11 @@ class EmotionAnalysisService {
    * Calculate final emotion score with enhanced safety detection
    */
   calculateEmotionScore(emotions) {
+    if (!emotions || typeof emotions !== 'object') return 0;
     const weights = priorityConfig.EMOTION_WEIGHTS; // AHP-derived, see priorityConfig.js
 
     let baseScore = Object.keys(emotions).reduce((score, emotion) => {
-      return score + (emotions[emotion] * (weights[emotion] || 0));
+      return score + ((emotions[emotion] || 0) * (weights[emotion] || 0));
     }, 0);
 
     // Safety multiplier - if concern is high, boost the score moderately
@@ -428,7 +454,7 @@ class EmotionAnalysisService {
       baseScore = Math.min(baseScore * 1.2, 1.0); // Reduced from 1.5x to 1.2x
     }
 
-    return baseScore;
+    return Math.max(0, Math.min(baseScore, 1.0));
   }
 
   /**
@@ -454,6 +480,7 @@ class EmotionAnalysisService {
    * Auto-detect civic issue category from text content
    */
   detectIssueCategory(text) {
+    if (typeof text !== 'string' || !text) return 'general';
     const textLower = text.toLowerCase();
 
     const categoryPatterns = {
@@ -526,15 +553,28 @@ class EmotionAnalysisService {
    */
   async analyzeEmotion(text, category = null, translation = null) {
     try {
-      console.log('🧠 Starting emotion analysis:', text.substring(0, 50));
-      if (translation) console.log('🌐 English translation available:', translation.substring(0, 50));
+      const safeText = typeof text === 'string' ? text : '';
+      if (!safeText.trim()) {
+        return {
+          success: true,
+          emotionScore: 0,
+          emotions: { anger: 0, urgency: 0, frustration: 0, concern: 0 },
+          language: 'en',
+          analysisMethod: 'empty-input',
+          category: category || 'general'
+        };
+      }
+      console.log('🧠 Starting emotion analysis:', safeText.substring(0, 50));
+      if (typeof translation === 'string' && translation.trim()) {
+        console.log('🌐 English translation available:', translation.substring(0, 50));
+      }
 
-      const language = await this.detectLanguage(text);
+      const language = await this.detectLanguage(safeText);
       console.log(`📊 Detected language: ${language}`);
 
       // Auto-detect category if not provided
       if (!category) {
-        category = this.detectIssueCategory(text);
+        category = this.detectIssueCategory(safeText);
       }
 
       // null (not {}) so the `!emotions` fallback checks below correctly trigger
@@ -545,28 +585,14 @@ class EmotionAnalysisService {
       // For Tamil/Hindi text, use enhanced keyword analysis + English translation if available
       if (language === 'ta' || language === 'hi') {
         console.log(`🌟 ${language === 'ta' ? 'Tamil' : 'Hindi'} text detected - using enhanced keyword analysis`);
-        emotions = this.analyzeWithEnhancedKeywords(text, language);
+        emotions = this.analyzeWithEnhancedKeywords(safeText, language);
         analysisMethod = `enhanced-keywords-${language === 'ta' ? 'tamil' : 'hindi'}`;
-
-        // If English translation is available, also analyze it and merge (take max per emotion)
-        if (translation && translation.trim().length > 0) {
-          console.log('🌐 Also analyzing English translation for better accuracy');
-          const translationEmotions = this.analyzeWithEnhancedKeywords(translation, 'en');
-          console.log('🌐 Translation emotion scores:', translationEmotions);
-          Object.keys(emotions).forEach(emotion => {
-            if (translationEmotions[emotion] > emotions[emotion]) {
-              console.log(`🌐 Boosting ${emotion}: ${emotions[emotion].toFixed(2)} → ${translationEmotions[emotion].toFixed(2)} (from translation)`);
-              emotions[emotion] = translationEmotions[emotion];
-            }
-          });
-          analysisMethod += '+translation';
-        }
       }
       // 1) Try LOCAL DistilBERT model first (no API key needed)
       else if (await this.checkLocalModel()) {
         try {
           console.log('🧠 Using local DistilBERT model...');
-          emotions = await this.analyzeWithLocalModel(text);
+          emotions = await this.analyzeWithLocalModel(safeText);
           analysisMethod = 'local-distilbert';
           console.log('✅ Local model analysis successful');
         } catch (error) {
@@ -578,10 +604,11 @@ class EmotionAnalysisService {
         }
       }
       // 2) Try remote Hugging Face API (needs token)
-      if (!emotions && this.config.huggingFaceToken && this.config.huggingFaceToken.startsWith('hf_') && this.config.huggingFaceToken.length > 20) {
+      const hfToken = this.getHuggingFaceToken();
+      if (!emotions && hfToken && hfToken.startsWith('hf_') && hfToken.length > 20) {
         try {
           console.log('🤖 Attempting HF API analysis...');
-          emotions = await this.analyzeWithAI(text);
+          emotions = await this.analyzeWithAI(safeText);
           analysisMethod = 'ai-powered';
           console.log('✅ HF API analysis successful');
         } catch (error) {
@@ -592,15 +619,29 @@ class EmotionAnalysisService {
       // 3) Fallback to enhanced keywords
       if (!emotions) {
         console.log('📝 Using enhanced keyword analysis');
-        emotions = this.analyzeWithEnhancedKeywords(text, language);
+        emotions = this.analyzeWithEnhancedKeywords(safeText, language);
         analysisMethod = analysisMethod || 'enhanced-keywords';
+      }
+
+      // If English translation is available for non-English text, merge English keyword signals (max per emotion)
+      if (language !== 'en' && typeof translation === 'string' && translation.trim().length > 0) {
+        console.log('🌐 Also analyzing English translation for better accuracy');
+        const translationEmotions = this.analyzeWithEnhancedKeywords(translation, 'en');
+        console.log('🌐 Translation emotion scores:', translationEmotions);
+        Object.keys(emotions).forEach(emotion => {
+          if (translationEmotions[emotion] > emotions[emotion]) {
+            console.log(`🌐 Boosting ${emotion}: ${emotions[emotion].toFixed(2)} → ${translationEmotions[emotion].toFixed(2)} (from translation)`);
+            emotions[emotion] = translationEmotions[emotion];
+          }
+        });
+        analysisMethod += '+translation';
       }
 
       const emotionScore = this.calculateEmotionScore(emotions);
       let adjustedScore = this.applyCategoryAdjustments(emotionScore, category);
 
       // Additional safety concern boost
-      const safetyBoost = this.detectSafetyConcerns(text);
+      const safetyBoost = this.detectSafetyConcerns(safeText);
       if (safetyBoost > 0) {
         adjustedScore = Math.min(adjustedScore + safetyBoost, 1.0);
         console.log(`🚨 Safety concern detected, boosting score by ${(safetyBoost * 100).toFixed(1)}%`);
@@ -737,6 +778,7 @@ class EmotionAnalysisService {
    * Helper function to calculate emotion score from text indicators
    */
   calculateTextScore(text, indicators, baseScore) {
+    if (typeof text !== 'string' || !text) return 0;
     let score = 0;
     const textLower = text.toLowerCase();
 

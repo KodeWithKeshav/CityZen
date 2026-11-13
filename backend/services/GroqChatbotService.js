@@ -19,7 +19,7 @@
 const axios = require('axios');
 const { CIVIC_KNOWLEDGE_BASE } = require('./ChatbotKnowledgeBase');
 
-const GROQ_API_BASE = process.env.GROQ_API_BASE || 'https://api.groq.com/openai/v1';
+const GROQ_API_BASE = (process.env.GROQ_API_BASE || 'https://api.groq.com/openai/v1').replace(/\/+$/, '');
 const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 const REQUEST_TIMEOUT_MS = 8000;
 
@@ -79,16 +79,20 @@ function buildSystemPrompt({ matchResult, language }) {
  * @param {string} [params.language] - one of the 6 supported language codes
  * @returns {Promise<{ available: boolean, reply?: string }>}
  */
-async function generateGroundedReply({ userMessage, matchResult, conversationHistory = [], language = 'en' }) {
-  if (!process.env.GROQ_API_KEY) {
+async function generateGroundedReply({ userMessage, matchResult, conversationHistory = [], language = 'en' } = {}) {
+  if (!process.env.GROQ_API_KEY || typeof userMessage !== 'string' || !userMessage.trim()) {
     return { available: false };
   }
 
   try {
-    const historyMessages = conversationHistory.slice(-5).map((m) => ({
-      role: m.type === 'bot' ? 'assistant' : 'user',
-      content: m.text,
-    }));
+    const safeHistory = Array.isArray(conversationHistory) ? conversationHistory : [];
+    const historyMessages = safeHistory
+      .slice(-5)
+      .filter((m) => m && typeof m.text === 'string' && m.text.trim())
+      .map((m) => ({
+        role: m.type === 'bot' ? 'assistant' : 'user',
+        content: m.text,
+      }));
 
     const response = await axios.post(
       `${GROQ_API_BASE}/chat/completions`,

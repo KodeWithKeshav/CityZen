@@ -2,7 +2,7 @@
  * Sarvam STT provider.
  *
  * Converts the uploaded audio to 16kHz mono WAV (Sarvam's required format),
- * calls Sarvam's speech-to-text endpoint (saarika:v2.5), and returns the
+ * calls Sarvam's speech-to-text endpoint (saaras:v4), and returns the
  * transcript in the language it was spoken in.
  *
  * On any failure (API error, empty transcript) this throws instead of
@@ -54,17 +54,38 @@ function detectFormat(fileBuffer) {
   return { isWAV, isM4A, isMP3 };
 }
 
+function readFileHeader(audioPath, length = 12) {
+  const header = Buffer.alloc(length);
+  const fd = fs.openSync(audioPath, 'r');
+  try {
+    const bytesRead = fs.readSync(fd, header, 0, length, 0);
+    return header.subarray(0, bytesRead);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 /**
  * @param {object} params
  * @param {string} params.audioPath - path to the uploaded audio file on disk
  * @param {string} params.language - one of SARVAM_LANGUAGE_MAP's keys
  * @returns {Promise<{ transcript: string, languageUsed: string, provider: string }>}
  */
-async function transcribe({ audioPath, language }) {
-  const sarvamLanguage = SARVAM_LANGUAGE_MAP[language] || SARVAM_LANGUAGE_MAP.en;
+async function transcribe({ audioPath, language } = {}) {
+  const apiKey = (process.env.SARVAM_API_KEY || '').trim();
+  if (!apiKey) {
+    throw new Error('SARVAM_API_KEY is not configured in backend environment.');
+  }
 
-  const fileBuffer = fs.readFileSync(audioPath);
-  const { isWAV, isM4A, isMP3 } = detectFormat(fileBuffer);
+  if (!audioPath || typeof audioPath !== 'string' || !fs.existsSync(audioPath)) {
+    throw new Error(`Audio file not found at path: ${audioPath}`);
+  }
+
+  const resolvedLanguage = SARVAM_LANGUAGE_MAP[language] ? language : 'en';
+  const sarvamLanguage = SARVAM_LANGUAGE_MAP[resolvedLanguage];
+
+  const fileHeader = readFileHeader(audioPath, 12);
+  const { isWAV, isM4A, isMP3 } = detectFormat(fileHeader);
 
   let finalAudioPath = audioPath;
   let convertedPath = null;
@@ -92,19 +113,28 @@ async function transcribe({ audioPath, language }) {
     }
     formData.append('mode', 'transcribe');
 
-    const response = await axios.post(
-      'https://api.sarvam.ai/speech-to-text',
-      formData,
-      {
-        headers: {
-          ...formData.getHeaders(),
-          'api-subscription-key': (process.env.SARVAM_API_KEY || '').trim(),
-        },
-        timeout: 45000,
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
+    let response;
+    try {
+      response = await axios.post(
+        'https://api.sarvam.ai/speech-to-text',
+        formData,
+        {
+          headers: {
+            ...formData.getHeaders(),
+            'api-subscription-key': apiKey,
+          },
+          timeout: 45000,
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+        }
+      );
+    } catch (error) {
+      if (error.response) {
+        const errMsg = error.response.data?.error?.message || error.response.data?.message || error.response.statusText;
+        throw new Error(`Sarvam API error (${error.response.status}): ${errMsg}`);
       }
-    );
+      throw error;
+    }
 
     let transcript = '';
     const data = response.data;
@@ -123,10 +153,14 @@ async function transcribe({ audioPath, language }) {
       throw new Error('Sarvam API returned an empty transcript');
     }
 
-    return { transcript: transcript.trim(), languageUsed: language, provider: 'sarvam' };
+    return { transcript: transcript.trim(), languageUsed: resolvedLanguage, provider: 'sarvam' };
   } finally {
     if (convertedPath && fs.existsSync(convertedPath)) {
-      fs.unlinkSync(convertedPath);
+      try {
+        fs.unlinkSync(convertedPath);
+      } catch (cleanupErr) {
+        console.error('Failed to clean up converted WAV file:', cleanupErr.message);
+      }
     }
   }
 }

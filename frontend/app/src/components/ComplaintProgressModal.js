@@ -13,14 +13,60 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { makeApiCall } from '../../config/supabase';
+import { useTranslation } from 'react-i18next';
+import { makeApiCall, apiClient } from '../../config/supabase';
+import { useTranslatedText, useTranslatedList } from '../context/TranslationContext';
+import { formatLocalizedDate, formatLocalizedDateTime } from '../utils/dateLocale';
+import { getCategoryLabel, getStatusLabel } from '../utils/priorityUtils';
 
 const { width, height } = Dimensions.get('window');
 
 const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle }) => {
+  const { t, i18n } = useTranslation(['citizen', 'common', 'complaint']);
   const [progressData, setProgressData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [modalAnimation] = useState(new Animated.Value(0));
+
+  const translatedComplaintTitle = useTranslatedText(complaintTitle || '');
+
+  const currentStageSource = React.useMemo(() => {
+    const cs = progressData?.progress?.current_stage;
+    if (!cs) return [];
+    return [{
+      ...cs,
+      officerName: cs.officers?.name || '',
+      officerDept: cs.officers?.department || '',
+    }];
+  }, [progressData?.progress?.current_stage]);
+  const [translatedCurrentStage] = useTranslatedList(currentStageSource, [
+    'stage_name',
+    'stage_description',
+    'officerName',
+    'officerDept',
+  ]);
+
+  const stagesSource = React.useMemo(() => {
+    return (progressData?.stages || []).map((s) => ({
+      ...s,
+      officerName: s.officers?.name || '',
+      contractorName: s.contractors?.name || '',
+    }));
+  }, [progressData?.stages]);
+  const translatedStages = useTranslatedList(stagesSource, [
+    'stage_name',
+    'stage_description',
+    'officerName',
+    'contractorName',
+  ]);
+
+  const translatedTimeline = useTranslatedList(progressData?.timeline || [], ['action_description']);
+  const reporterRaw =
+    progressData?.complaint?.users?.full_name ||
+    progressData?.complaint?.user?.full_name ||
+    progressData?.complaint?.user_name ||
+    progressData?.complaint?.citizenName ||
+    '';
+  const translatedReporter = useTranslatedText(reporterRaw);
 
   useEffect(() => {
     if (visible) {
@@ -42,16 +88,21 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
   }, [visible, complaintId]);
 
   const fetchComplaintProgress = async () => {
+    if (!complaintId) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await makeApiCall(`/complaint-details/${complaintId}/progress`, 'GET');
+      const response = await makeApiCall(`${apiClient.baseUrl}/api/complaint-details/${complaintId}/progress`);
       if (response.success) {
         setProgressData(response.data);
       } else {
-        Alert.alert('Error', 'Failed to load complaint progress');
+        Alert.alert(t('common:mobileNav.error'), t('citizen:mobileProgress.loadFailed'));
       }
     } catch (error) {
       console.error('Error fetching progress:', error);
-      Alert.alert('Error', 'Unable to load complaint progress');
+      Alert.alert(t('common:mobileNav.error'), t('citizen:mobileProgress.loadUnavailable'));
     } finally {
       setLoading(false);
     }
@@ -93,18 +144,25 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
   };
 
   const formatTimelineAction = (action) => {
-    const actionTypes = {
-      'complaint_submitted': 'Complaint Submitted',
-      'status_updated':      'Status Updated',
-      'stage_completed':     'Stage Completed',
-      'officer_assigned':    'Officer Assigned',
-      'contractor_assigned': 'Contractor Assigned',
-      'note_added':          'Note Added',
-    };
-    return actionTypes[action] || action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const mapKey = {
+      complaint_submitted: 'complaintSubmitted',
+      status_updated: 'statusUpdated',
+      stage_completed: 'stageCompleted',
+      officer_assigned: 'officerAssigned',
+      contractor_assigned: 'contractorAssigned',
+      note_added: 'noteAdded',
+    }[action];
+    if (mapKey) {
+      return t(`citizen:mobileProgress.actions.${mapKey}`);
+    }
+    return (action || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   if (!visible) return null;
+
+  const activeStage = translatedCurrentStage || progressData?.progress?.current_stage;
+  const displayStages = translatedStages.length > 0 ? translatedStages : (progressData?.stages || []);
+  const displayTimeline = translatedTimeline.length > 0 ? translatedTimeline : (progressData?.timeline || []);
 
   return (
     <Modal
@@ -132,7 +190,7 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
               <View style={styles.headerIconWrap}>
                 <Ionicons name="analytics" size={20} color="#1A1A1A" />
               </View>
-              <Text style={styles.modalTitle}>Progress Tracker</Text>
+              <Text style={styles.modalTitle}>{t('citizen:mobileProgress.title')}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close" size={20} color="#6B7280" />
@@ -142,13 +200,13 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
           {/* Complaint title strip */}
           <View style={styles.titleStrip}>
             <Ionicons name="document-text-outline" size={14} color="#6B7280" />
-            <Text style={styles.complaintTitleText} numberOfLines={2}>{complaintTitle}</Text>
+            <Text style={styles.complaintTitleText} numberOfLines={2}>{translatedComplaintTitle}</Text>
           </View>
 
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#1A1A1A" />
-              <Text style={styles.loadingText}>Loading progress…</Text>
+              <Text style={styles.loadingText}>{t('citizen:mobileProgress.loading')}</Text>
             </View>
           ) : progressData ? (
             <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
@@ -163,17 +221,20 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
                 >
                   <View style={styles.overviewLeft}>
                     <Text style={styles.overviewPercent}>{progressData.progress.percentage}%</Text>
-                    <Text style={styles.overviewPercentLabel}>Complete</Text>
+                    <Text style={styles.overviewPercentLabel}>{t('citizen:mobileProgress.complete')}</Text>
                   </View>
                   <View style={styles.overviewDivider} />
                   <View style={styles.overviewRight}>
                     <Text style={styles.overviewStages}>
-                      {progressData.progress.completed_stages}/{progressData.progress.total_stages} stages done
+                      {t('citizen:mobileProgress.stagesDone', {
+                        completed: progressData.progress.completed_stages,
+                        total: progressData.progress.total_stages,
+                      })}
                     </Text>
                     <View style={styles.overviewStatusRow}>
                       <View style={styles.overviewStatusDot} />
                       <Text style={styles.overviewStatusLabel}>
-                        {progressData.complaint.status?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        {getStatusLabel(progressData.complaint.status, t)}
                       </Text>
                     </View>
                     {/* Mini progress bar */}
@@ -185,34 +246,36 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
               </View>
 
               {/* ── Current Stage ── */}
-              {progressData.progress.current_stage && (
+              {activeStage && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Active Stage</Text>
+                  <Text style={styles.sectionTitle}>{t('citizen:mobileProgress.activeStage')}</Text>
                   <View style={styles.currentStageCard}>
                     <View style={styles.currentStageHeader}>
                       <View style={styles.currentStagePulse}>
                         <Ionicons name="pulse" size={16} color="#1A1A1A" />
                       </View>
                       <Text style={styles.currentStageName}>
-                        {progressData.progress.current_stage.stage_name}
+                        {activeStage.stage_name}
                       </Text>
                     </View>
                     <Text style={styles.currentStageDesc}>
-                      {progressData.progress.current_stage.stage_description}
+                      {activeStage.stage_description}
                     </Text>
-                    {progressData.progress.current_stage.estimated_completion_date && (
+                    {activeStage.estimated_completion_date && (
                       <View style={styles.metaRow}>
                         <Ionicons name="calendar-outline" size={13} color="#6B7280" />
                         <Text style={styles.metaText}>
-                          Expected by {progressData.progress.current_stage.formatted_estimated_date}
+                          {t('citizen:mobileProgress.expectedBy', {
+                            date: formatLocalizedDate(activeStage.estimated_completion_date, {}, i18n.language) || activeStage.formatted_estimated_date,
+                          })}
                         </Text>
                       </View>
                     )}
-                    {progressData.progress.current_stage.officers && (
+                    {activeStage.officers && (
                       <View style={styles.metaRow}>
                         <Ionicons name="person-circle-outline" size={13} color="#6B7280" />
                         <Text style={styles.metaText}>
-                          {progressData.progress.current_stage.officers.name} · {progressData.progress.current_stage.officers.department}
+                          {activeStage.officerName || activeStage.officers.name} · {activeStage.officerDept || activeStage.officers.department}
                         </Text>
                       </View>
                     )}
@@ -222,10 +285,10 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
 
               {/* ── Stages Timeline ── */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>All Stages</Text>
-                {progressData.stages && progressData.stages.map((stage, index) => {
+                <Text style={styles.sectionTitle}>{t('citizen:mobileProgress.allStages')}</Text>
+                {displayStages.map((stage, index) => {
                   const visuals = getStageVisuals(stage.stage_status);
-                  const isLast = index === progressData.stages.length - 1;
+                  const isLast = index === displayStages.length - 1;
                   return (
                     <View key={stage.id || index} style={styles.timelineRow}>
                       {/* Left column: icon + connector */}
@@ -261,45 +324,59 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
                           </Text>
                           {stage.stage_status === 'in_progress' && (
                             <View style={styles.activeChip}>
-                              <Text style={styles.activeChipText}>Active</Text>
+                              <Text style={styles.activeChipText}>{t('citizen:mobileReports.activeBadge')}</Text>
                             </View>
                           )}
                           {stage.stage_status === 'completed' && (
                             <View style={styles.doneChip}>
-                              <Text style={styles.doneChipText}>Done</Text>
+                              <Text style={styles.doneChipText}>{t('citizen:mobileProgress.doneBadge')}</Text>
                             </View>
                           )}
                         </View>
 
-                        {stage.stage_description && (
+                        {Boolean(stage.stage_description) && (
                           <Text style={styles.stageCardDesc}>{stage.stage_description}</Text>
                         )}
 
                         <View style={styles.stageMetaGroup}>
-                          {stage.stage_status === 'completed' && stage.formatted_completion_date && (
+                          {stage.stage_status === 'completed' && (stage.completion_date || stage.formatted_completion_date) && (
                             <View style={styles.metaRow}>
                               <Ionicons name="checkmark-circle-outline" size={12} color="#16a34a" />
                               <Text style={[styles.metaText, { color: '#16a34a' }]}>
-                                Completed {stage.formatted_completion_date}
+                                {t('citizen:mobileProgress.completedDate', {
+                                  date: stage.completion_date
+                                    ? formatLocalizedDate(stage.completion_date, {}, i18n.language)
+                                    : stage.formatted_completion_date,
+                                })}
                               </Text>
                             </View>
                           )}
-                          {stage.stage_status === 'in_progress' && stage.formatted_estimated_date && (
+                          {stage.stage_status === 'in_progress' && (stage.estimated_completion_date || stage.formatted_estimated_date) && (
                             <View style={styles.metaRow}>
                               <Ionicons name="calendar-outline" size={12} color="#6B7280" />
-                              <Text style={styles.metaText}>Expected {stage.formatted_estimated_date}</Text>
+                              <Text style={styles.metaText}>
+                                {t('citizen:mobileProgress.expectedDate', {
+                                  date: stage.estimated_completion_date
+                                    ? formatLocalizedDate(stage.estimated_completion_date, {}, i18n.language)
+                                    : stage.formatted_estimated_date,
+                                })}
+                              </Text>
                             </View>
                           )}
                           {stage.officers && (
                             <View style={styles.metaRow}>
                               <Ionicons name="person-circle-outline" size={12} color="#6B7280" />
-                              <Text style={styles.metaText}>Officer: {stage.officers.name}</Text>
+                              <Text style={styles.metaText}>
+                                {t('citizen:mobileReports.officer', { name: stage.officerName || stage.officers.name })}
+                              </Text>
                             </View>
                           )}
                           {stage.contractors && (
                             <View style={styles.metaRow}>
                               <Ionicons name="construct-outline" size={12} color="#6B7280" />
-                              <Text style={styles.metaText}>Contractor: {stage.contractors.name}</Text>
+                              <Text style={styles.metaText}>
+                                {t('citizen:mobileReports.contractor', { name: stage.contractorName || stage.contractors.name })}
+                              </Text>
                             </View>
                           )}
                         </View>
@@ -310,14 +387,14 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
               </View>
 
               {/* ── Recent Activity ── */}
-              {progressData.timeline && progressData.timeline.length > 0 && (
+              {displayTimeline && displayTimeline.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Recent Activity</Text>
+                  <Text style={styles.sectionTitle}>{t('citizen:mobileProgress.recentActivity')}</Text>
                   <View style={styles.activityCard}>
-                    {progressData.timeline.slice(0, 5).map((entry, index) => (
+                    {displayTimeline.slice(0, 5).map((entry, index) => (
                       <View key={entry.id || index} style={[
                         styles.activityRow,
-                        index < Math.min(progressData.timeline.length, 5) - 1 && styles.activityRowBorder,
+                        index < Math.min(displayTimeline.length, 5) - 1 && styles.activityRowBorder,
                       ]}>
                         <View style={styles.activityIconWrap}>
                           <Ionicons name={getTimelineIcon(entry.action_type)} size={14} color="#1A1A1A" />
@@ -325,7 +402,9 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
                         <View style={styles.activityContent}>
                           <Text style={styles.activityAction}>{formatTimelineAction(entry.action_type)}</Text>
                           <Text style={styles.activityDesc}>{entry.action_description}</Text>
-                          <Text style={styles.activityDate}>{entry.formatted_date}</Text>
+                          <Text style={styles.activityDate}>
+                            {entry.created_at ? formatLocalizedDateTime(entry.created_at, i18n.language) : entry.formatted_date}
+                          </Text>
                         </View>
                       </View>
                     ))}
@@ -335,13 +414,36 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
 
               {/* ── Report Info ── */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Report Info</Text>
+                <Text style={styles.sectionTitle}>{t('citizen:mobileProgress.reportInfo')}</Text>
                 <View style={styles.infoCard}>
                   {[
-                    { label: 'Submitted', value: progressData.complaint.formatted_created_date, icon: 'calendar-outline' },
-                    { label: 'Category',  value: progressData.complaint.category?.replace(/_/g, ' '), icon: 'pricetag-outline' },
-                    { label: 'Priority',  value: progressData.complaint.priority_score ? `${progressData.complaint.priority_score.toFixed(1)} / 10` : 'N/A', icon: 'speedometer-outline', highlight: true },
-                    { label: 'Reporter',  value: progressData.complaint.users?.full_name || progressData.complaint.user?.full_name || progressData.complaint.user_name || progressData.complaint.citizenName || 'Verified Citizen', icon: 'person-outline' },
+                    {
+                      label: t('citizen:mobileProgress.submitted'),
+                      value: progressData.complaint.created_at
+                        ? formatLocalizedDate(progressData.complaint.created_at, {}, i18n.language)
+                        : progressData.complaint.formatted_created_date,
+                      icon: 'calendar-outline',
+                    },
+                    {
+                      label: t('citizen:complaintDetail.category'),
+                      value: progressData.complaint.category
+                        ? getCategoryLabel(progressData.complaint.category, t)
+                        : t('common:mobileNav.general'),
+                      icon: 'pricetag-outline',
+                    },
+                    {
+                      label: t('citizen:mobileProgress.priority'),
+                      value: Number.isFinite(Number(progressData.complaint.priority_score))
+                        ? `${Number(progressData.complaint.priority_score).toFixed(1)} / 10`
+                        : t('common:mobileNav.na'),
+                      icon: 'speedometer-outline',
+                      highlight: true,
+                    },
+                    {
+                      label: t('citizen:mobileProgress.reporter'),
+                      value: translatedReporter || t('citizen:feed.verifiedCitizen'),
+                      icon: 'person-outline',
+                    },
                   ].map((row, i, arr) => (
                     <View key={row.label} style={[styles.infoRow, i < arr.length - 1 && styles.infoRowBorder]}>
                       <View style={styles.infoLabelGroup}>
@@ -361,7 +463,7 @@ const ComplaintProgressModal = ({ visible, onClose, complaintId, complaintTitle 
           ) : (
             <View style={styles.errorContainer}>
               <Ionicons name="alert-circle-outline" size={48} color="#DC2626" />
-              <Text style={styles.errorText}>Unable to load progress data</Text>
+              <Text style={styles.errorText}>{t('citizen:mobileProgress.loadUnavailable')}</Text>
             </View>
           )}
         </Animated.View>

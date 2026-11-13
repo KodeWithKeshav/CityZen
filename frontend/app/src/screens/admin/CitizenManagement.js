@@ -14,19 +14,32 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
+import { useTranslatedList, useTranslatedObject } from '../../context/TranslationContext';
+import { formatLocalizedDate } from '../../utils/dateLocale';
+import { getStatusLabel } from '../../utils/priorityUtils';
 
 const { width } = Dimensions.get('window');
 
 const CitizenManagement = ({ navigation }) => {
+  const { t, i18n } = useTranslation(['admin', 'common', 'citizen']);
   const [citizens, setCitizens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const [selectedCitizen, setSelectedCitizen] = useState(null);
+  const [selectedCitizen] = useState(null);
   const [showCitizenModal, setShowCitizenModal] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1 });
   const [sortBy, setSortBy] = useState('recent'); // recent, complaints_count, name
+
+  const translatedCitizens = useTranslatedList(citizens, ['full_name']);
+  const translatedSelectedCitizen = useTranslatedObject(selectedCitizen, ['full_name']);
+  const translatedModalComplaints = useTranslatedList(selectedCitizen?.complaints, ['title']);
+
+  const displayCitizens = translatedCitizens.length > 0 ? translatedCitizens : citizens;
+  const activeSelectedCitizen = translatedSelectedCitizen || selectedCitizen;
+  const modalComplaints = translatedModalComplaints.length > 0 ? translatedModalComplaints : (selectedCitizen?.complaints || []);
 
   useEffect(() => {
     loadCitizens();
@@ -35,21 +48,21 @@ const CitizenManagement = ({ navigation }) => {
   const loadCitizens = async (page = 1) => {
     try {
       if (page === 1) setLoading(true);
-      
+
       const params = new URLSearchParams({
         sort: sortBy
       });
-      
+
       // Remove the limit parameter to get all users
       // if (searchText) params.append('search', searchText);
       if (searchText && searchText.trim()) {
         params.append('search', searchText.trim());
       }
-      
+
       const response = await makeApiCall(
         `${apiClient.baseUrl}/api/admin-enhanced/citizens?${params}`
       );
-      
+
       if (response.success) {
         if (page === 1) {
           setCitizens(response.data.citizens);
@@ -58,11 +71,11 @@ const CitizenManagement = ({ navigation }) => {
         }
         setPagination(response.data.pagination);
       } else {
-        Alert.alert('Error', response.message || 'Failed to load citizens');
+        Alert.alert(t('common:mobileNav.error'), response.message || t('admin:mobileAdmin.loadCitizensFailed'));
       }
     } catch (error) {
       console.error('Load citizens error:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.connectError'));
     } finally {
       setLoading(false);
     }
@@ -89,20 +102,22 @@ const CitizenManagement = ({ navigation }) => {
     try {
       const response = await makeApiCall(
         `${apiClient.baseUrl}/api/admin-enhanced/citizens/${citizenId}/status`,
-        'PUT',
-        { status: newStatus }
+        {
+          method: 'PUT',
+          body: JSON.stringify({ status: newStatus }),
+        }
       );
 
       if (response.success) {
-        Alert.alert('Success', `Citizen status updated to ${newStatus}`);
+        Alert.alert(t('common:buttons.success'), t('admin:mobileAdmin.citizenStatusUpdated', { status: getStatusLabel(newStatus, t) }));
         setShowCitizenModal(false);
         await loadCitizens(1);
       } else {
-        Alert.alert('Error', response.message || 'Failed to update citizen status');
+        Alert.alert(t('common:mobileNav.error'), response.message || t('admin:mobileAdmin.updateCitizenStatusFailed'));
       }
     } catch (error) {
       console.error('Update citizen status error:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      Alert.alert(t('common:mobileNav.error'), t('admin:mobileAdmin.connectError'));
     }
   };
 
@@ -118,10 +133,10 @@ const CitizenManagement = ({ navigation }) => {
     };
 
     const getEngagementLevel = (complaintsCount) => {
-      if (complaintsCount >= 10) return { level: 'High', color: '#1A1A1A' };
-      if (complaintsCount >= 5) return { level: 'Medium', color: '#1A1A1A' };
-      if (complaintsCount >= 1) return { level: 'Low', color: '#1A1A1A' };
-      return { level: 'None', color: '#95a5a6' };
+      if (complaintsCount >= 10) return { level: t('admin:mobileAdmin.engagementHigh'), color: '#1A1A1A' };
+      if (complaintsCount >= 5) return { level: t('admin:mobileAdmin.engagementMedium'), color: '#1A1A1A' };
+      if (complaintsCount >= 1) return { level: t('admin:mobileAdmin.engagementLow'), color: '#1A1A1A' };
+      return { level: t('admin:mobileAdmin.engagementNone'), color: '#95a5a6' };
     };
 
     const engagement = getEngagementLevel(citizen.complaints_count || 0);
@@ -143,7 +158,7 @@ const CitizenManagement = ({ navigation }) => {
               </Text>
             </View>
           )}
-          
+
           {/* Status Indicator */}
           <View style={[styles.statusIndicator, { backgroundColor: getStatusColor(citizen.status) }]} />
         </View>
@@ -151,29 +166,29 @@ const CitizenManagement = ({ navigation }) => {
         {/* Citizen Info */}
         <View style={styles.citizenInfo}>
           <Text style={styles.citizenName} numberOfLines={1}>
-            {citizen.full_name || 'Unknown User'}
+            {citizen.full_name || t('admin:mobileAdmin.unknownUser')}
           </Text>
-          
+
           <Text style={styles.citizenEmail} numberOfLines={1}>
             {citizen.email}
           </Text>
-          
+
           <Text style={styles.citizenPhone} numberOfLines={1}>
-            {citizen.phone_number || 'No phone number'}
+            {citizen.phone_number || t('admin:mobileAdmin.noPhone')}
           </Text>
 
           {/* Stats Row */}
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{citizen.complaints_count || 0}</Text>
-              <Text style={styles.statLabel}>Complaints</Text>
+              <Text style={styles.statLabel}>{t('admin:mobileAdmin.complaintsLabel')}</Text>
             </View>
-            
+
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{citizen.votes_count || 0}</Text>
-              <Text style={styles.statLabel}>Votes</Text>
+              <Text style={styles.statLabel}>{t('admin:mobileAdmin.votesLabel')}</Text>
             </View>
-            
+
             <View style={[styles.engagementBadge, { backgroundColor: engagement.color }]}>
               <Text style={styles.engagementText}>{engagement.level}</Text>
             </View>
@@ -181,13 +196,13 @@ const CitizenManagement = ({ navigation }) => {
 
           {/* Join Date */}
           <Text style={styles.joinDate}>
-            Joined: {new Date(citizen.created_at).toLocaleDateString()}
+            {t('admin:mobileAdmin.joinedDate', { date: formatLocalizedDate(citizen.created_at, i18n.language) })}
           </Text>
 
           {/* Last Activity */}
           {citizen.last_complaint_date && (
             <Text style={styles.lastActivity}>
-              Last complaint: {new Date(citizen.last_complaint_date).toLocaleDateString()}
+              {t('admin:mobileAdmin.lastComplaintDate', { date: formatLocalizedDate(citizen.last_complaint_date, i18n.language) })}
             </Text>
           )}
         </View>
@@ -207,7 +222,7 @@ const CitizenManagement = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Citizen Management</Text>
+        <Text style={styles.headerTitle}>{t('admin:mobileAdmin.citizenManagement')}</Text>
         <TouchableOpacity onPress={onRefresh}>
           <Ionicons name="refresh-outline" size={24} color="#fff" />
         </TouchableOpacity>
@@ -219,7 +234,7 @@ const CitizenManagement = ({ navigation }) => {
           <Ionicons name="search-outline" size={20} color="#7f8c8d" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by name or email..."
+            placeholder={t('admin:mobileAdmin.searchByNameEmail')}
             value={searchText}
             onChangeText={setSearchText}
             placeholderTextColor="#7f8c8d"
@@ -233,32 +248,32 @@ const CitizenManagement = ({ navigation }) => {
 
         {/* Sort Options */}
         <View style={styles.sortSection}>
-          <Text style={styles.sortLabel}>Sort by:</Text>
+          <Text style={styles.sortLabel}>{t('admin:mobileAdmin.sortByLabel')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <TouchableOpacity
               style={[styles.sortButton, sortBy === 'recent' && styles.activeSortButton]}
               onPress={() => setSortBy('recent')}
             >
               <Text style={[styles.sortButtonText, sortBy === 'recent' && styles.activeSortText]}>
-                Recent
+                {t('admin:mobileAdmin.sortRecent')}
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[styles.sortButton, sortBy === 'complaints_count' && styles.activeSortButton]}
               onPress={() => setSortBy('complaints_count')}
             >
               <Text style={[styles.sortButtonText, sortBy === 'complaints_count' && styles.activeSortText]}>
-                Most Active
+                {t('admin:mobileAdmin.sortMostActive')}
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[styles.sortButton, sortBy === 'name' && styles.activeSortButton]}
               onPress={() => setSortBy('name')}
             >
               <Text style={[styles.sortButtonText, sortBy === 'name' && styles.activeSortText]}>
-                Name
+                {t('admin:mobileAdmin.sortName')}
               </Text>
             </TouchableOpacity>
           </ScrollView>
@@ -282,23 +297,23 @@ const CitizenManagement = ({ navigation }) => {
       >
         {loading && citizens.length === 0 ? (
           <View style={styles.loadingContainer}>
-            <Text>Loading citizens...</Text>
+            <Text>{t('admin:mobileAdmin.loadingCitizens')}</Text>
           </View>
         ) : (
           <>
-            {citizens.map(renderCitizenCard)}
-            
+            {displayCitizens.map(renderCitizenCard)}
+
             {pagination.page < pagination.totalPages && (
               <TouchableOpacity style={styles.loadMoreButton} onPress={loadMoreCitizens}>
-                <Text style={styles.loadMoreText}>Load More</Text>
+                <Text style={styles.loadMoreText}>{t('admin:mobileAdmin.loadMore')}</Text>
               </TouchableOpacity>
             )}
-            
+
             {citizens.length === 0 && (
               <View style={styles.emptyContainer}>
                 <Ionicons name="people-outline" size={50} color="#bdc3c7" />
-                <Text style={styles.emptyText}>No citizens found</Text>
-                <Text style={styles.emptySubtext}>Try adjusting your search criteria</Text>
+                <Text style={styles.emptyText}>{t('admin:mobileAdmin.noCitizensFound')}</Text>
+                <Text style={styles.emptySubtext}>{t('admin:mobileAdmin.adjustSearchCriteria')}</Text>
               </View>
             )}
           </>
@@ -314,11 +329,11 @@ const CitizenManagement = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.citizenModal}>
-            {selectedCitizen && (
+            {activeSelectedCitizen && (
               <>
                 {/* Modal Header */}
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Citizen Details</Text>
+                  <Text style={styles.modalTitle}>{t('admin:mobileAdmin.citizenDetailsTitle')}</Text>
                   <TouchableOpacity onPress={() => setShowCitizenModal(false)}>
                     <Ionicons name="close" size={24} color="#2c3e50" />
                   </TouchableOpacity>
@@ -327,94 +342,94 @@ const CitizenManagement = ({ navigation }) => {
                 <ScrollView style={styles.modalContent}>
                   {/* Profile Section */}
                   <View style={styles.modalProfileSection}>
-                    {selectedCitizen.profile_image ? (
-                      <Image 
-                        source={{ uri: selectedCitizen.profile_image }} 
-                        style={styles.modalProfileImage} 
+                    {activeSelectedCitizen.profile_image ? (
+                      <Image
+                        source={{ uri: activeSelectedCitizen.profile_image }}
+                        style={styles.modalProfileImage}
                       />
                     ) : (
                       <View style={styles.modalDefaultProfile}>
                         <Text style={styles.modalProfileInitial}>
-                          {selectedCitizen.full_name ? selectedCitizen.full_name.charAt(0).toUpperCase() : 'U'}
+                          {activeSelectedCitizen.full_name ? activeSelectedCitizen.full_name.charAt(0).toUpperCase() : 'U'}
                         </Text>
                       </View>
                     )}
-                    
+
                     <Text style={styles.modalCitizenName}>
-                      {selectedCitizen.full_name || 'Unknown User'}
+                      {activeSelectedCitizen.full_name || t('admin:mobileAdmin.unknownUser')}
                     </Text>
-                    
+
                     <View style={[
-                      styles.modalStatusBadge, 
-                      { backgroundColor: getStatusColor(selectedCitizen.status) }
+                      styles.modalStatusBadge,
+                      { backgroundColor: getStatusColor(activeSelectedCitizen.status) }
                     ]}>
                       <Text style={styles.modalStatusText}>
-                        {selectedCitizen.status.toUpperCase()}
+                        {getStatusLabel(activeSelectedCitizen.status || 'active', t)}
                       </Text>
                     </View>
                   </View>
 
                   {/* Contact Information */}
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Contact Information</Text>
+                    <Text style={styles.modalSectionTitle}>{t('admin:mobileAdmin.contactInformation')}</Text>
                     <View style={styles.modalInfoItem}>
-                      <Text style={styles.modalInfoLabel}>Email:</Text>
-                      <Text style={styles.modalInfoValue}>{selectedCitizen.email}</Text>
+                      <Text style={styles.modalInfoLabel}>{t('admin:mobileAdmin.emailLabel')}</Text>
+                      <Text style={styles.modalInfoValue}>{activeSelectedCitizen.email}</Text>
                     </View>
                     <View style={styles.modalInfoItem}>
-                      <Text style={styles.modalInfoLabel}>Phone:</Text>
+                      <Text style={styles.modalInfoLabel}>{t('admin:mobileAdmin.phoneLabel')}</Text>
                       <Text style={styles.modalInfoValue}>
-                        {selectedCitizen.phone_number || 'Not provided'}
+                        {activeSelectedCitizen.phone_number || t('admin:mobileAdmin.notProvided')}
                       </Text>
                     </View>
                   </View>
 
                   {/* Activity Statistics */}
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Activity Statistics</Text>
+                    <Text style={styles.modalSectionTitle}>{t('admin:mobileAdmin.activityStats')}</Text>
                     <View style={styles.modalStatsGrid}>
                       <View style={styles.modalStatCard}>
                         <Text style={styles.modalStatNumber}>
-                          {selectedCitizen.complaints?.length || 0}
+                          {activeSelectedCitizen.complaints?.length || 0}
                         </Text>
-                        <Text style={styles.modalStatLabel}>Total Complaints</Text>
+                        <Text style={styles.modalStatLabel}>{t('admin:mobileAdmin.totalComplaints')}</Text>
                       </View>
-                      
+
                       <View style={styles.modalStatCard}>
                         <Text style={styles.modalStatNumber}>
-                          {selectedCitizen.resolved_complaints || 0}
+                          {activeSelectedCitizen.resolved_complaints || 0}
                         </Text>
-                        <Text style={styles.modalStatLabel}>Resolved</Text>
+                        <Text style={styles.modalStatLabel}>{t('common:status.resolved')}</Text>
                       </View>
-                      
+
                       <View style={styles.modalStatCard}>
                         <Text style={styles.modalStatNumber}>
-                          {selectedCitizen.votes_count || 0}
+                          {activeSelectedCitizen.votes_count || 0}
                         </Text>
-                        <Text style={styles.modalStatLabel}>Votes Cast</Text>
+                        <Text style={styles.modalStatLabel}>{t('admin:mobileAdmin.votesCast')}</Text>
                       </View>
-                      
+
                       <View style={styles.modalStatCard}>
                         <Text style={styles.modalStatNumber}>
-                          {selectedCitizen.reputation_score || 0}
+                          {activeSelectedCitizen.reputation_score || 0}
                         </Text>
-                        <Text style={styles.modalStatLabel}>Reputation</Text>
+                        <Text style={styles.modalStatLabel}>{t('admin:mobileAdmin.reputationLabel')}</Text>
                       </View>
                     </View>
                   </View>
 
                   {/* Recent Complaints */}
-                  {selectedCitizen.complaints && selectedCitizen.complaints.length > 0 && (
+                  {modalComplaints && modalComplaints.length > 0 && (
                     <View style={styles.modalSection}>
-                      <Text style={styles.modalSectionTitle}>Recent Complaints</Text>
-                      {selectedCitizen.complaints.slice(0, 3).map((complaint) => (
+                      <Text style={styles.modalSectionTitle}>{t('admin:mobileAdmin.recentComplaints')}</Text>
+                      {modalComplaints.slice(0, 3).map((complaint) => (
                         <TouchableOpacity
                           key={complaint.id}
                           style={styles.modalComplaintItem}
                           onPress={() => {
                             setShowCitizenModal(false);
-                            navigation.navigate('ComplaintDetails', { 
-                              complaintId: complaint.id 
+                            navigation.navigate('ComplaintDetails', {
+                              complaintId: complaint.id
                             });
                           }}
                         >
@@ -422,26 +437,26 @@ const CitizenManagement = ({ navigation }) => {
                             {complaint.title}
                           </Text>
                           <Text style={styles.modalComplaintStatus}>
-                            {complaint.status.toUpperCase()}
+                            {getStatusLabel(complaint.status || 'pending', t)}
                           </Text>
                           <Text style={styles.modalComplaintDate}>
-                            {new Date(complaint.created_at).toLocaleDateString()}
+                            {formatLocalizedDate(complaint.created_at, i18n.language)}
                           </Text>
                         </TouchableOpacity>
                       ))}
-                      
-                      {selectedCitizen.complaints.length > 3 && (
-                        <TouchableOpacity 
+
+                      {modalComplaints.length > 3 && (
+                        <TouchableOpacity
                           style={styles.viewAllButton}
                           onPress={() => {
                             setShowCitizenModal(false);
-                            navigation.navigate('PriorityQueue', { 
-                              filterUserId: selectedCitizen.id 
+                            navigation.navigate('PriorityQueue', {
+                              filterUserId: activeSelectedCitizen.id
                             });
                           }}
                         >
                           <Text style={styles.viewAllText}>
-                            View all {selectedCitizen.complaints.length} complaints
+                            {t('admin:mobileAdmin.viewAllCitizenComplaints', { count: modalComplaints.length })}
                           </Text>
                         </TouchableOpacity>
                       )}
@@ -450,19 +465,19 @@ const CitizenManagement = ({ navigation }) => {
 
                   {/* Account Information */}
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Account Information</Text>
+                    <Text style={styles.modalSectionTitle}>{t('admin:mobileAdmin.accountInformation')}</Text>
                     <View style={styles.modalInfoItem}>
-                      <Text style={styles.modalInfoLabel}>Member Since:</Text>
+                      <Text style={styles.modalInfoLabel}>{t('admin:mobileAdmin.memberSinceLabel')}</Text>
                       <Text style={styles.modalInfoValue}>
-                        {new Date(selectedCitizen.created_at).toLocaleDateString()}
+                        {formatLocalizedDate(activeSelectedCitizen.created_at, i18n.language)}
                       </Text>
                     </View>
                     <View style={styles.modalInfoItem}>
-                      <Text style={styles.modalInfoLabel}>Last Activity:</Text>
+                      <Text style={styles.modalInfoLabel}>{t('admin:mobileAdmin.lastActivityLabel')}</Text>
                       <Text style={styles.modalInfoValue}>
-                        {selectedCitizen.last_sign_in_at 
-                          ? new Date(selectedCitizen.last_sign_in_at).toLocaleDateString()
-                          : 'Never'
+                        {activeSelectedCitizen.last_sign_in_at
+                          ? formatLocalizedDate(activeSelectedCitizen.last_sign_in_at, i18n.language)
+                          : t('admin:mobileAdmin.never')
                         }
                       </Text>
                     </View>
@@ -471,68 +486,66 @@ const CitizenManagement = ({ navigation }) => {
 
                 {/* Action Buttons */}
                 <View style={styles.modalActions}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.modalActionButton, { backgroundColor: '#1A1A1A' }]}
                     onPress={() => {
                       setShowCitizenModal(false);
-                      navigation.navigate('AdminCitizenChat', { 
-                        citizenId: selectedCitizen.id 
-                      });
+                      Alert.alert(t('admin:mobileAdmin.comingSoonTitle'), t('admin:mobileAdmin.messagingNotAvailable'));
                     }}
                   >
                     <Ionicons name="chatbubble-outline" size={18} color="#fff" />
-                    <Text style={styles.modalActionText}>Message</Text>
+                    <Text style={styles.modalActionText}>{t('admin:mobileAdmin.messageBtn')}</Text>
                   </TouchableOpacity>
 
-                  {selectedCitizen.status === 'active' ? (
-                    <TouchableOpacity 
+                  {activeSelectedCitizen.status === 'active' ? (
+                    <TouchableOpacity
                       style={[styles.modalActionButton, { backgroundColor: '#1A1A1A' }]}
                       onPress={() => {
                         Alert.alert(
-                          'Suspend Citizen',
-                          'Are you sure you want to suspend this citizen?',
+                          t('admin:mobileAdmin.suspendCitizenTitle'),
+                          t('admin:mobileAdmin.suspendCitizenConfirm'),
                           [
-                            { text: 'Cancel', style: 'cancel' },
-                            { 
-                              text: 'Suspend', 
-                              onPress: () => updateCitizenStatus(selectedCitizen.id, 'suspended') 
+                            { text: t('common:buttons.cancel'), style: 'cancel' },
+                            {
+                              text: t('admin:mobileAdmin.suspendBtn'),
+                              onPress: () => updateCitizenStatus(activeSelectedCitizen.id, 'suspended')
                             }
                           ]
                         );
                       }}
                     >
                       <Ionicons name="pause-circle-outline" size={18} color="#fff" />
-                      <Text style={styles.modalActionText}>Suspend</Text>
+                      <Text style={styles.modalActionText}>{t('admin:mobileAdmin.suspendBtn')}</Text>
                     </TouchableOpacity>
                   ) : (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[styles.modalActionButton, { backgroundColor: '#1A1A1A' }]}
-                      onPress={() => updateCitizenStatus(selectedCitizen.id, 'active')}
+                      onPress={() => updateCitizenStatus(activeSelectedCitizen.id, 'active')}
                     >
                       <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-                      <Text style={styles.modalActionText}>Activate</Text>
+                      <Text style={styles.modalActionText}>{t('admin:mobileAdmin.activateBtn')}</Text>
                     </TouchableOpacity>
                   )}
 
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.modalActionButton, { backgroundColor: '#1A1A1A' }]}
                     onPress={() => {
                       Alert.alert(
-                        'Ban Citizen',
-                        'Are you sure you want to ban this citizen? This action cannot be undone.',
+                        t('admin:mobileAdmin.banCitizenTitle'),
+                        t('admin:mobileAdmin.banCitizenConfirm'),
                         [
-                          { text: 'Cancel', style: 'cancel' },
-                          { 
-                            text: 'Ban', 
+                          { text: t('common:buttons.cancel'), style: 'cancel' },
+                          {
+                            text: t('admin:mobileAdmin.banBtn'),
                             style: 'destructive',
-                            onPress: () => updateCitizenStatus(selectedCitizen.id, 'banned') 
+                            onPress: () => updateCitizenStatus(activeSelectedCitizen.id, 'banned')
                           }
                         ]
                       );
                     }}
                   >
                     <Ionicons name="ban-outline" size={18} color="#fff" />
-                    <Text style={styles.modalActionText}>Ban</Text>
+                    <Text style={styles.modalActionText}>{t('admin:mobileAdmin.banBtn')}</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -762,7 +775,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  
+
   // Modal styles
   modalOverlay: {
     flex: 1,

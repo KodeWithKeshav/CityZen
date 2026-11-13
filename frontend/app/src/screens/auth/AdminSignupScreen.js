@@ -11,9 +11,11 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { apiClient, makeApiCall } from '../../../config/supabase';
 
 const AdminSignupScreen = ({ navigation }) => {
+  const { t } = useTranslation(['auth', 'common']);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -35,36 +37,36 @@ const AdminSignupScreen = ({ navigation }) => {
   };
 
   const validateForm = () => {
-    if (!formData.email || !formData.password || !formData.fullName || 
-        !formData.phoneNumber || !formData.department || !formData.employeeId) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    const email = formData.email.trim();
+    const fullName = formData.fullName.trim();
+    const phoneNumber = formData.phoneNumber.trim();
+    const department = formData.department.trim();
+    const employeeId = formData.employeeId.trim();
+
+    if (!email || !formData.password || !fullName ||
+        !phoneNumber || !department || !employeeId) {
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('adminSignup.fillRequired', 'Please fill in all required fields'));
       return false;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('adminSignup.passwordMismatch', 'Passwords do not match'));
       return false;
     }
 
     if (formData.password.length < 8) {
-      Alert.alert('Error', 'Admin password must be at least 8 characters long');
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('adminSignup.passwordTooShort', 'Admin password must be at least 8 characters long'));
       return false;
     }
 
-    if (!formData.email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
+    if (!email.includes('@')) {
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('adminSignup.fillRequired', 'Please enter a valid email address'));
       return false;
     }
 
-    if (!formData.email.includes('gov') && !formData.email.includes('civic')) {
-      Alert.alert(
-        'Warning', 
-        'Admin accounts typically use government or organizational email addresses. Continue anyway?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Continue', onPress: () => null }
-        ]
-      );
+    if (phoneNumber.replace(/\D/g, '').length < 10) {
+      Alert.alert(t('common:mobileNav.error', 'Error'), t('adminSignup.fillRequired', 'Please enter a valid phone number'));
+      return false;
     }
 
     return true;
@@ -73,20 +75,29 @@ const AdminSignupScreen = ({ navigation }) => {
   const handleSignup = async () => {
     if (!validateForm()) return;
 
+    const trimmedEmail = formData.email.trim().toLowerCase();
+    const isGovEmail = trimmedEmail.includes('gov') || trimmedEmail.includes('civic');
+    const approvalMessage = isGovEmail
+      ? t('adminSignup.desc', 'Admin accounts require approval.')
+      : t('adminSignup.leftDesc', 'Admin accounts require approval. Continue anyway?');
+
     Alert.alert(
-      'Admin Registration',
-      'Admin accounts require approval. Your registration will be reviewed by system administrators.',
+      t('adminSignup.tagline', 'Admin Registration'),
+      approvalMessage,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common:mobileNav.cancel', 'Cancel'), style: 'cancel' },
         { 
-          text: 'Proceed', 
+          text: t('adminSignup.requestAccess', 'Proceed'), 
           onPress: async () => {
             setLoading(true);
             try {
               const signupData = {
                 ...formData,
+                email: trimmedEmail,
+                fullName: formData.fullName.trim(),
+                phoneNumber: formData.phoneNumber.trim(),
                 userType: 'admin',
-                address: `Department: ${formData.department}, Employee ID: ${formData.employeeId}`,
+                address: `Department: ${formData.department.trim()}, Employee ID: ${formData.employeeId.trim()}`,
               };
               delete signupData.confirmPassword;
               delete signupData.department;
@@ -99,18 +110,18 @@ const AdminSignupScreen = ({ navigation }) => {
 
               if (response.success) {
                 Alert.alert(
-                  'Registration Submitted',
-                  'Your admin registration has been submitted for approval.',
+                  t('common:mobileNav.ok', 'Registration Submitted'),
+                  t('adminSignup.accountCreated', 'Your admin registration has been submitted for approval.'),
                   [
                     {
-                      text: 'OK',
+                      text: t('common:mobileNav.ok', 'OK'),
                       onPress: () => navigation.navigate('AdminLogin'),
                     },
                   ]
                 );
               }
             } catch (error) {
-              Alert.alert('Error', error.message || 'Registration failed');
+              Alert.alert(t('common:mobileNav.error', 'Error'), error.message || t('adminSignup.signupFailed', 'Registration failed'));
             } finally {
               setLoading(false);
             }
@@ -121,11 +132,11 @@ const AdminSignupScreen = ({ navigation }) => {
   };
 
   const fields = [
-    { key: 'fullName', label: 'FULL NAME', placeholder: 'Enter full name', icon: 'person-outline', required: true },
-    { key: 'email', label: 'OFFICIAL EMAIL', placeholder: 'Enter email', icon: 'mail-outline', keyboard: 'email-address', required: true },
-    { key: 'department', label: 'DEPARTMENT', placeholder: 'Enter department', icon: 'business-outline', required: true },
-    { key: 'employeeId', label: 'EMPLOYEE ID', placeholder: 'Enter employee ID', icon: 'card-outline', required: true },
-    { key: 'phoneNumber', label: 'PHONE NUMBER', placeholder: 'Enter phone', icon: 'call-outline', keyboard: 'phone-pad', required: true },
+    { key: 'fullName', label: t('adminSignup.fullName', 'FULL NAME'), placeholder: t('adminSignup.fullNamePlaceholder', 'Enter full name'), icon: 'person-outline', required: true },
+    { key: 'email', label: t('adminSignup.email', 'OFFICIAL EMAIL'), placeholder: t('adminSignup.email', 'Enter email'), icon: 'mail-outline', keyboard: 'email-address', required: true },
+    { key: 'department', label: 'DEPARTMENT', placeholder: 'Department', icon: 'business-outline', required: true },
+    { key: 'employeeId', label: 'EMPLOYEE ID', placeholder: 'Employee ID', icon: 'card-outline', required: true },
+    { key: 'phoneNumber', label: t('adminSignup.phone', 'PHONE NUMBER'), placeholder: t('adminSignup.phonePlaceholder', 'Enter phone'), icon: 'call-outline', keyboard: 'phone-pad', required: true },
   ];
 
   return (
@@ -144,15 +155,15 @@ const AdminSignupScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <View style={styles.header}>
-          <Text style={styles.title}>Admin Registration</Text>
-          <Text style={styles.subtitle}>Request administrator access to the platform</Text>
+          <Text style={styles.title}>{t('adminSignup.tagline', 'Admin Registration')}</Text>
+          <Text style={styles.subtitle}>{t('adminSignup.desc', 'Request administrator access to the platform')}</Text>
         </View>
 
         {/* Warning */}
         <View style={styles.noticeCard}>
           <Ionicons name="information-circle-outline" size={18} color="#1A1A1A" />
           <Text style={styles.noticeText}>
-            Admin registrations require approval. Please provide accurate information for verification.
+            {t('adminSignup.leftDesc', 'Admin registrations require approval. Please provide accurate information for verification.')}
           </Text>
         </View>
 
@@ -179,12 +190,12 @@ const AdminSignupScreen = ({ navigation }) => {
 
         {/* Password */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>PASSWORD <Text style={styles.required}>*</Text></Text>
+          <Text style={styles.fieldLabel}>{t('adminSignup.password', 'PASSWORD')} <Text style={styles.required}>*</Text></Text>
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" />
             <TextInput
               style={styles.input}
-              placeholder="Min 8 characters"
+              placeholder={t('adminSignup.passwordPlaceholder', 'Min 8 characters')}
               value={formData.password}
               onChangeText={(value) => handleInputChange('password', value)}
               secureTextEntry={!showPassword}
@@ -197,12 +208,12 @@ const AdminSignupScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>CONFIRM PASSWORD <Text style={styles.required}>*</Text></Text>
+          <Text style={styles.fieldLabel}>{t('adminSignup.confirmPassword', 'CONFIRM PASSWORD')} <Text style={styles.required}>*</Text></Text>
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" />
             <TextInput
               style={styles.input}
-              placeholder="Re-enter password"
+              placeholder={t('adminSignup.confirmPasswordPlaceholder', 'Re-enter password')}
               value={formData.confirmPassword}
               onChangeText={(value) => handleInputChange('confirmPassword', value)}
               secureTextEntry={!showConfirmPassword}
@@ -216,11 +227,8 @@ const AdminSignupScreen = ({ navigation }) => {
 
         {/* Requirements */}
         <View style={styles.requirementsCard}>
-          <Text style={styles.requirementsTitle}>REQUIRED FOR ADMIN ACCESS</Text>
-          <Text style={styles.requirementItem}>Valid government/organizational email</Text>
-          <Text style={styles.requirementItem}>Official department information</Text>
-          <Text style={styles.requirementItem}>Employee identification</Text>
-          <Text style={styles.requirementItem}>Verification by system admin</Text>
+          <Text style={styles.requirementsTitle}>{t('adminSignup.title', 'REQUIRED FOR ADMIN ACCESS')}</Text>
+          <Text style={styles.requirementItem}>{t('adminSignup.desc', 'Valid government/organizational email')}</Text>
         </View>
 
         {/* Submit */}
@@ -234,16 +242,16 @@ const AdminSignupScreen = ({ navigation }) => {
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <View style={styles.submitContent}>
-              <Text style={styles.submitText}>SUBMIT REGISTRATION</Text>
+              <Text style={styles.submitText}>{t('adminSignup.requestAccess', 'SUBMIT REGISTRATION')}</Text>
               <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
             </View>
           )}
         </TouchableOpacity>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have admin access? </Text>
+          <Text style={styles.footerText}>{t('adminSignup.alreadyHaveAccount', 'Already have admin access?')} </Text>
           <TouchableOpacity onPress={() => navigation.navigate('AdminLogin')}>
-            <Text style={styles.footerLink}>Login here</Text>
+            <Text style={styles.footerLink}>{t('adminSignup.login', 'Login here')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

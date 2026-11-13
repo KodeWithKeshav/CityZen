@@ -1,8 +1,15 @@
 const express = require('express');
 const router = express.Router();
+const { authenticateUser, authorizeUserType } = require('../middleware/auth');
 
 // Import admin complaint routes
 const adminComplaintsRouter = require('./adminComplaints');
+
+// Require authenticated admin for all /api/admin routes
+router.use(
+  (req, res, next) => (req.user === undefined ? authenticateUser(req, res, next) : next()),
+  authorizeUserType(['admin'])
+);
 
 // Mount admin complaint routes
 router.use('/complaints', adminComplaintsRouter);
@@ -16,20 +23,29 @@ router.get('/dashboard', async (req, res) => {
     // Get complaint statistics
     const { data: complaints, error: complaintsError } = await supabase
       .from('complaints')
-      .select('id, status, priority_score, created_at, resolved_at, category');
+      .select('id, status, created_at, resolved_at');
     
     // Get user statistics
     const { data: users, error: usersError } = await supabase
       .from('users')
-      .select('id, user_type')
-      .limit(1000);
+      .select('id, user_type');
     
     if (complaintsError) {
-      console.log('❌ Error fetching complaints:', complaintsError);
+      console.error('❌ Error fetching complaints:', complaintsError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to fetch complaint statistics',
+        ...(process.env.NODE_ENV === 'development' && { details: complaintsError.message })
+      });
     }
     
     if (usersError) {
-      console.log('❌ Error fetching users:', usersError);
+      console.error('❌ Error fetching users:', usersError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to fetch user statistics',
+        ...(process.env.NODE_ENV === 'development' && { details: usersError.message })
+      });
     }
     
     // Calculate dashboard statistics
@@ -50,7 +66,7 @@ router.get('/dashboard', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Internal server error',
-      details: error.message
+      ...(process.env.NODE_ENV === 'development' && { details: error.message })
     });
   }
 });
@@ -61,6 +77,7 @@ function calculateComplaintStatistics(complaints) {
   const pending = complaints.filter(c => c.status === 'pending').length;
   const inProgress = complaints.filter(c => c.status === 'in_progress').length;
   const resolved = complaints.filter(c => c.status === 'resolved').length;
+  const rejected = complaints.filter(c => c.status === 'rejected').length;
   
   // Resolution rate
   const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
@@ -70,12 +87,17 @@ function calculateComplaintStatistics(complaints) {
   let avgResolutionDays = 0;
   
   if (resolvedComplaints.length > 0) {
+    let validCount = 0;
     const totalDays = resolvedComplaints.reduce((sum, c) => {
       const created = new Date(c.created_at);
-      const resolved = new Date(c.resolved_at);
-      return sum + Math.round((resolved - created) / (1000 * 60 * 60 * 24));
+      const resolvedAt = new Date(c.resolved_at);
+      if (Number.isNaN(created.getTime()) || Number.isNaN(resolvedAt.getTime())) {
+        return sum;
+      }
+      validCount++;
+      return sum + Math.max(0, (resolvedAt - created) / (1000 * 60 * 60 * 24));
     }, 0);
-    avgResolutionDays = Math.round(totalDays / resolvedComplaints.length);
+    avgResolutionDays = validCount > 0 ? Math.round(totalDays / validCount) : 0;
   }
   
   return {
@@ -83,6 +105,7 @@ function calculateComplaintStatistics(complaints) {
     pending,
     inProgress,
     resolved,
+    rejected,
     resolutionRate,
     avgResolutionDays
   };

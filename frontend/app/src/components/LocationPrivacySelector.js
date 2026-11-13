@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import LocationService from '../services/LocationService';
+import { getCategoryLabel } from '../utils/priorityUtils';
 
 const LocationPrivacySelector = ({ 
   complaintType = 'general', 
@@ -10,6 +12,7 @@ const LocationPrivacySelector = ({
   onPrivacyLevelChange,
   visible = true 
 }) => {
+  const { t } = useTranslation(['citizen', 'complaint', 'common']);
   const [selectedPrivacyLevel, setSelectedPrivacyLevel] = useState(null);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -24,27 +27,27 @@ const LocationPrivacySelector = ({
   const privacyLevels = [
     {
       level: LocationService.privacyLevels.EXACT,
-      title: 'Exact Location',
-      subtitle: 'Precise coordinates (±5-10m)',
+      title: t('citizen:mobilePrivacy.exactTitle'),
+      subtitle: t('citizen:mobilePrivacy.exactSubtitle'),
       icon: 'locate-outline',
       color: '#FF4444',
-      description: 'For urgent infrastructure issues requiring immediate emergency response',
+      description: t('citizen:mobilePrivacy.exactDesc'),
       recommended: ['fallen_electric_pole', 'road_waterlogging']
     },
     {
       level: LocationService.privacyLevels.STREET,
-      title: 'Street-Level',
-      subtitle: 'Street accuracy (±25m)',
+      title: t('citizen:mobilePrivacy.streetTitle'),
+      subtitle: t('citizen:mobilePrivacy.streetSubtitle'),
       icon: 'navigate-outline',
       color: '#4CAF50',
-      description: 'For general civic complaints and routine maintenance issues',
+      description: t('citizen:mobilePrivacy.streetDesc'),
       recommended: ['pothole', 'concrete_structure_damage', 'fallen_tree', 'garbage_dumping', 'stray_cattle', 'others']
     }
   ];
 
   const handleLocationCapture = async () => {
     if (!selectedPrivacyLevel) {
-      Alert.alert('Privacy Level Required', 'Please select a privacy level first.');
+      Alert.alert(t('citizen:mobilePrivacy.requiredTitle'), t('citizen:mobilePrivacy.requiredDesc'));
       return;
     }
 
@@ -62,11 +65,11 @@ const LocationPrivacySelector = ({
       // Validate location accuracy for complaint type
       const validation = LocationService.validateLocationAccuracy(location, complaintType);
       if (!validation.isAccurate) {
-        Alert.alert('Location Accuracy', validation.message);
+        Alert.alert(t('citizen:mobilePrivacy.accuracyAlertTitle'), validation.message);
       }
       
     } catch (error) {
-      Alert.alert('Location Error', error.message);
+      Alert.alert(t('citizen:mobilePrivacy.locationError'), error.message);
     }
     setIsLoading(false);
   };
@@ -80,7 +83,7 @@ const LocationPrivacySelector = ({
     if (levelConfig.recommended.includes(complaintType)) {
       return (
         <View style={styles.recommendedBadge}>
-          <Text style={styles.recommendedText}>RECOMMENDED</Text>
+          <Text style={styles.recommendedText}>{t('citizen:mobilePrivacy.recommended')}</Text>
         </View>
       );
     }
@@ -96,7 +99,7 @@ const LocationPrivacySelector = ({
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Location Privacy Levels</Text>
+          <Text style={styles.modalTitle}>{t('citizen:mobilePrivacy.modalTitle')}</Text>
           
           {privacyLevels.map((levelConfig) => (
             <View key={levelConfig.level} style={styles.modalItem}>
@@ -108,7 +111,7 @@ const LocationPrivacySelector = ({
                 {levelConfig.description}
               </Text>
               <Text style={styles.modalItemSubtitle}>
-                Accuracy: {levelConfig.subtitle}
+                {t('citizen:mobilePrivacy.accuracyLabel', { subtitle: levelConfig.subtitle })}
               </Text>
             </View>
           ))}
@@ -117,7 +120,7 @@ const LocationPrivacySelector = ({
             style={styles.modalCloseButton}
             onPress={() => setShowPrivacyModal(false)}
           >
-            <Text style={styles.modalCloseText}>Got it</Text>
+            <Text style={styles.modalCloseText}>{t('citizen:mobilePrivacy.gotIt')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -129,14 +132,16 @@ const LocationPrivacySelector = ({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Location Privacy Settings</Text>
+        <Text style={styles.title}>{t('citizen:mobilePrivacy.settingsTitle')}</Text>
         <TouchableOpacity onPress={() => setShowPrivacyModal(true)}>
           <Icon name="info-outline" size={24} color="#666" />
         </TouchableOpacity>
       </View>
 
       <Text style={styles.subtitle}>
-        Choose location accuracy for your {complaintType} complaint
+        {t('citizen:mobilePrivacy.chooseAccuracy', {
+          type: getCategoryLabel(complaintType, t) || complaintType,
+        })}
       </Text>
 
       <View style={styles.privacyLevels}>
@@ -180,18 +185,21 @@ const LocationPrivacySelector = ({
           color="#FFF" 
         />
         <Text style={styles.captureButtonText}>
-          {isLoading ? 'Getting Location...' : 'Capture Location'}
+          {isLoading ? t('citizen:mobilePrivacy.gettingLocation') : t('citizen:mobilePrivacy.captureLocation')}
         </Text>
       </TouchableOpacity>
 
       {currentLocation && (
         <View style={styles.locationPreview}>
-          <Text style={styles.previewTitle}>Location Captured</Text>
+          <Text style={styles.previewTitle}>{t('citizen:mobilePrivacy.locationCaptured')}</Text>
           <Text style={styles.previewText}>
-            Accuracy: ±{currentLocation.radiusM}m ({currentLocation.precision})
+            {t('citizen:mobilePrivacy.accuracyPreview', {
+              radius: currentLocation.radiusM,
+              precision: currentLocation.precision,
+            })}
           </Text>
           <Text style={styles.previewText}>
-            Privacy: {currentLocation.description}
+            {t('citizen:mobilePrivacy.privacyPreview', { desc: currentLocation.description })}
           </Text>
           <Text style={styles.coordsText}>
             {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}

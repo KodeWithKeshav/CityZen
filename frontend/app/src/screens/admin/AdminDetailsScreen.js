@@ -9,7 +9,6 @@ import {
     TouchableOpacity,
     RefreshControl,
 } from 'react-native';
-import { Avatar, Button } from 'react-native-paper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -59,9 +58,9 @@ const AdminDetailsScreen = ({ navigation }) => {
             <View style={styles.centered}>
                 <Ionicons name="alert-circle" size={48} color="#d32f2f" />
                 <Text style={styles.errorText}>Unable to load admin details.</Text>
-                <Button mode="contained" style={styles.button} onPress={() => navigation.goBack()}>
-                    <Text style={{color: '#fff'}}>Back to Dashboard</Text>
-                </Button>
+                <TouchableOpacity style={[styles.button, { alignItems: 'center' }]} onPress={() => navigation.goBack()}>
+                    <Text style={{color: '#fff', fontWeight: '600'}}>Back to Dashboard</Text>
+                </TouchableOpacity>
             </View>
         );
     }
@@ -78,7 +77,9 @@ const AdminDetailsScreen = ({ navigation }) => {
             <View>
                 <LinearGradient colors={["#388e3c", "#81c784"]} style={styles.gradientHeader}>
                     <View style={styles.header}>
-                        <Avatar.Icon size={80} icon="account" style={styles.avatar} />
+                        <View style={[styles.avatar, { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' }]}>
+                            <Ionicons name="person" size={42} color="#fff" />
+                        </View>
                         <Text style={styles.title}>{admin.fullName || 'Admin Profile'}</Text>
                         <Text style={styles.subtitle}>{admin.email}</Text>
                         <TouchableOpacity
@@ -100,14 +101,13 @@ const AdminDetailsScreen = ({ navigation }) => {
                     <DetailRow label="Eco Status" value="Eco Administrator" />
                     <DetailRow label="Language" value={admin.language || 'English'} />
                 </View>
-                <Button
-                    mode="contained"
-                    style={styles.button}
+                <TouchableOpacity
+                    style={[styles.button, { alignItems: 'center' }]}
                     onPress={() => navigation.goBack()}
                     accessibilityLabel="Go back to dashboard"
                 >
-                    <Text style={{color: '#fff'}}>Back to Dashboard</Text>
-                </Button>
+                    <Text style={{color: '#fff', fontWeight: '600'}}>Back to Dashboard</Text>
+                </TouchableOpacity>
             </View>
         </ScrollView>
     );

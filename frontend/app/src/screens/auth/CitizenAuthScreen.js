@@ -7,13 +7,15 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 const CitizenAuthScreen = ({ navigation }) => {
+  const { t } = useTranslation('auth');
   const features = [
-    { icon: 'create-outline', text: 'Submit and track complaints' },
-    { icon: 'bar-chart-outline', text: 'View complaint analytics' },
-    { icon: 'map-outline', text: 'Explore complaint heatmaps' },
-    { icon: 'chatbubbles-outline', text: 'Chat with AI assistant' },
+    { icon: 'create-outline', text: t('citizenSignup.leftDesc', 'Submit and track complaints') },
+    { icon: 'bar-chart-outline', text: t('welcome.features.transparency.title', 'View complaint analytics') },
+    { icon: 'map-outline', text: t('welcome.features.heatMap.title', 'Explore complaint heatmaps') },
+    { icon: 'chatbubbles-outline', text: t('welcome.features.multilingual.title', 'Chat with AI assistant') },
   ];
 
   return (
@@ -31,9 +33,9 @@ const CitizenAuthScreen = ({ navigation }) => {
         <View style={styles.iconBox}>
           <Ionicons name="people-outline" size={32} color="#1A1A1A" />
         </View>
-        <Text style={styles.title}>Citizen Portal</Text>
+        <Text style={styles.title}>{t('welcome.citizenPortal.title', 'Citizen Portal')}</Text>
         <Text style={styles.subtitle}>
-          Join thousands of citizens making their city better
+          {t('welcome.cta.desc', 'Join thousands of citizens making their city better')}
         </Text>
       </View>
 
@@ -43,7 +45,7 @@ const CitizenAuthScreen = ({ navigation }) => {
           onPress={() => navigation.navigate('CitizenLogin')}
           activeOpacity={0.8}
         >
-          <Text style={styles.primaryButtonText}>LOGIN TO ACCOUNT</Text>
+          <Text style={styles.primaryButtonText}>{t('login.tabLogin', 'LOGIN TO ACCOUNT')}</Text>
           <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
         </TouchableOpacity>
 
@@ -52,13 +54,13 @@ const CitizenAuthScreen = ({ navigation }) => {
           onPress={() => navigation.navigate('CitizenSignup')}
           activeOpacity={0.8}
         >
-          <Text style={styles.secondaryButtonText}>CREATE NEW ACCOUNT</Text>
+          <Text style={styles.secondaryButtonText}>{t('citizenSignup.createAccount', 'CREATE NEW ACCOUNT')}</Text>
           <Ionicons name="arrow-forward" size={18} color="#1A1A1A" />
         </TouchableOpacity>
       </View>
 
       <View style={styles.featuresCard}>
-        <Text style={styles.featuresTitle}>CAPABILITIES</Text>
+        <Text style={styles.featuresTitle}>{t('welcome.howItWorks.title', 'CAPABILITIES')}</Text>
         {features.map((item, index) => (
           <View key={index} style={styles.featureItem}>
             <Ionicons name={item.icon} size={18} color="#6B7280" />

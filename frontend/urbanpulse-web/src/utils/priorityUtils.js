@@ -15,9 +15,10 @@
  * Returns null if the value cannot be parsed or is null/undefined.
  */
 export function normalizePriorityScore(raw) {
-  if (raw === null || raw === undefined || raw === '') return null;
+  if (raw === null || raw === undefined || typeof raw === 'boolean') return null;
+  if (typeof raw === 'string' && raw.trim() === '') return null;
   const num = Number(raw);
-  if (isNaN(num)) return null;
+  if (!Number.isFinite(num)) return null;
 
   // 0.0 to 1.0 decimal scale (e.g. 0.85 -> 85)
   if (num > 0 && num <= 1.0) {
@@ -38,14 +39,11 @@ export function normalizePriorityScore(raw) {
  */
 export function getRawPriority(complaint) {
   if (!complaint || typeof complaint !== 'object') return null;
-  if (complaint.priorityScore !== undefined && complaint.priorityScore !== null) {
-    return complaint.priorityScore;
-  }
-  if (complaint.priority_score !== undefined && complaint.priority_score !== null) {
-    return complaint.priority_score;
-  }
-  if (typeof complaint.priority === 'number') {
-    return complaint.priority;
+  const candidates = [complaint.priorityScore, complaint.priority_score, complaint.priority];
+  for (const val of candidates) {
+    if (normalizePriorityScore(val) !== null) {
+      return val;
+    }
   }
   return null;
 }
@@ -57,18 +55,20 @@ export function getRawPriority(complaint) {
  * - MODERATE: 40 - 59
  * - ROUTINE: 0 - 39
  */
-export function getPriorityTier(scoreOrComplaint) {
+export function getPriorityTier(scoreOrComplaint, t) {
   const raw = typeof scoreOrComplaint === 'object' && scoreOrComplaint !== null
     ? getRawPriority(scoreOrComplaint)
     : scoreOrComplaint;
 
   const score = normalizePriorityScore(raw);
+  const tr = (key, fallback) => (typeof t === 'function' ? t(key, fallback) : fallback);
 
   if (score === null) {
     return {
       level: 'STANDARD',
       score: null,
-      label: 'N/A',
+      labelKey: 'common:priority.na',
+      label: tr('common:priority.na', 'N/A'),
       displayScore: '—',
       bg: 'bg-neutral-100 text-neutral-700 border-neutral-300',
       badgeClass: 'border border-neutral-300 bg-neutral-50 text-neutral-600',
@@ -79,7 +79,8 @@ export function getPriorityTier(scoreOrComplaint) {
     return {
       level: 'CRITICAL',
       score,
-      label: 'CRITICAL',
+      labelKey: 'common:priority.critical',
+      label: tr('common:priority.critical', 'CRITICAL'),
       displayScore: `${score}`,
       bg: 'bg-neutral-900 text-white border-black',
       badgeClass: 'border border-black bg-neutral-900 text-white font-bold',
@@ -90,7 +91,8 @@ export function getPriorityTier(scoreOrComplaint) {
     return {
       level: 'HIGH',
       score,
-      label: 'ELEVATED',
+      labelKey: 'common:priority.elevated',
+      label: tr('common:priority.elevated', 'ELEVATED'),
       displayScore: `${score}`,
       bg: 'bg-neutral-800 text-neutral-100 border-neutral-900',
       badgeClass: 'border border-neutral-700 bg-neutral-800 text-neutral-100',
@@ -101,7 +103,8 @@ export function getPriorityTier(scoreOrComplaint) {
     return {
       level: 'MEDIUM',
       score,
-      label: 'MODERATE',
+      labelKey: 'common:priority.moderate',
+      label: tr('common:priority.moderate', 'MODERATE'),
       displayScore: `${score}`,
       bg: 'bg-neutral-200 text-neutral-900 border-neutral-400',
       badgeClass: 'border border-neutral-300 bg-neutral-100 text-neutral-800',
@@ -111,9 +114,21 @@ export function getPriorityTier(scoreOrComplaint) {
   return {
     level: 'LOW',
     score,
-    label: 'ROUTINE',
+    labelKey: 'common:priority.routine',
+    label: tr('common:priority.routine', 'ROUTINE'),
     displayScore: `${score}`,
     bg: 'bg-neutral-100 text-neutral-700 border-neutral-300',
     badgeClass: 'border border-neutral-200 bg-neutral-50 text-neutral-600',
   };
+}
+
+/**
+ * Returns a localized label for a complaint category slug using the `complaint` namespace.
+ */
+export function getCategoryLabel(category, t) {
+  if (!category) return '';
+  const slug = String(category).trim().toLowerCase();
+  const fallback = slug.replace(/_/g, ' ');
+  if (typeof t !== 'function') return fallback;
+  return t(`complaint:categories.${slug}.label`, fallback);
 }

@@ -33,8 +33,19 @@ const RANDOM_INDEX = [0, 0, 0, 0.58, 0.90, 1.12, 1.24, 1.32, 1.41, 1.45, 1.49];
  * priorityConfig.js, not here.
  */
 function buildRatioMatrix(scores) {
+  if (!scores || typeof scores !== 'object' || Array.isArray(scores)) {
+    throw new Error('AHP scores must be a non-null object');
+  }
   const keys = Object.keys(scores);
   const n = keys.length;
+  if (n === 0) {
+    throw new Error('AHP scores must contain at least one criterion');
+  }
+  for (const key of keys) {
+    if (typeof scores[key] !== 'number' || !Number.isFinite(scores[key]) || scores[key] <= 0) {
+      throw new Error(`AHP score for "${key}" must be a positive finite number`);
+    }
+  }
   const matrix = [];
   for (let i = 0; i < n; i++) {
     matrix.push(new Array(n));
@@ -53,11 +64,23 @@ function buildRatioMatrix(scores) {
  * Consistency Ratio (CR = CI / RI).
  */
 function computeAHPWeights(keys, matrix) {
-  const n = matrix.length;
+  const n = Array.isArray(matrix) ? matrix.length : 0;
+  if (n === 0 || !Array.isArray(keys) || keys.length !== n) {
+    return {
+      weights: {},
+      lambdaMax: 0,
+      consistencyIndex: 0,
+      consistencyRatio: 0,
+      consistent: true,
+    };
+  }
 
   const colSums = new Array(n).fill(0);
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) colSums[j] += matrix[i][j];
+    if (colSums[j] === 0) {
+      throw new Error(`AHP matrix column ${j} sums to zero`);
+    }
   }
 
   const weights = new Array(n).fill(0);
@@ -71,7 +94,7 @@ function computeAHPWeights(keys, matrix) {
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) Aw[i] += matrix[i][j] * weights[j];
   }
-  const lambdaMax = Aw.reduce((sum, val, i) => sum + val / weights[i], 0) / n;
+  const lambdaMax = Aw.reduce((sum, val, i) => sum + (weights[i] > 0 ? val / weights[i] : 0), 0) / n;
 
   const CI = n > 2 ? (lambdaMax - n) / (n - 1) : 0;
   const RI = RANDOM_INDEX[n] ?? RANDOM_INDEX[RANDOM_INDEX.length - 1];

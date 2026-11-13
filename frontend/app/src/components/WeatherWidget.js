@@ -9,12 +9,20 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { makeApiCall, apiClient } from '../../config/supabase';
+import { useTranslatedText } from '../context/TranslationContext';
+import { getIntlLocale } from '../utils/dateLocale';
 
 const WeatherWidget = () => {
+  const { t, i18n } = useTranslation('common');
   const [weatherData, setWeatherData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const translatedAlert = useTranslatedText(weatherData?.alertMessage || '');
+  const translatedLocation = useTranslatedText(weatherData?.location || '');
+  const translatedCondition = useTranslatedText(weatherData?.current?.condition || '');
 
   useEffect(() => {
     fetchWeather();
@@ -69,7 +77,7 @@ const WeatherWidget = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="small" color="#1A1A1A" />
-        <Text style={styles.loadingText}>Loading live weather...</Text>
+        <Text style={styles.loadingText}>{t('mobileNav.loading', 'Loading...')}</Text>
       </View>
     );
   }
@@ -78,7 +86,7 @@ const WeatherWidget = () => {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="cloud-offline" size={24} color="#999" />
-        <Text style={styles.errorText}>{error || 'Weather not available'}</Text>
+        <Text style={styles.errorText}>{t('weather.unavailable', 'Weather unavailable')}</Text>
       </View>
     );
   }
@@ -89,10 +97,10 @@ const WeatherWidget = () => {
   return (
     <View style={styles.container}>
       {/* Smart Contextual Warning Banner */}
-      {isHeavyRainExpected && alertMessage && (
+      {Boolean(isHeavyRainExpected && alertMessage) && (
         <View style={styles.alertBanner}>
           <Ionicons name="warning" size={20} color="#fff" />
-          <Text style={styles.alertText}>{alertMessage}</Text>
+          <Text style={styles.alertText}>{translatedAlert || alertMessage}</Text>
         </View>
       )}
 
@@ -102,10 +110,10 @@ const WeatherWidget = () => {
           <View>
             <View style={styles.locationRow}>
               <Ionicons name="location" size={16} color="#fff" />
-              <Text style={styles.locationText}>{location}</Text>
+              <Text style={styles.locationText}>{translatedLocation || location}</Text>
             </View>
             <Text style={styles.tempText}>{Math.round(current.temp)}°C</Text>
-            <Text style={styles.conditionText}>{current.condition}</Text>
+            <Text style={styles.conditionText}>{translatedCondition || current.condition}</Text>
           </View>
           
           <View style={styles.iconContainer}>
@@ -115,26 +123,31 @@ const WeatherWidget = () => {
 
         <View style={styles.currentDetailsRow}>
           <View style={styles.detailItem}>
-            <MaterialCommunityIcons name="thermometer-lines" size={18} color="#rgba(255,255,255,0.8)" />
-            <Text style={styles.detailText}>Feels {Math.round(current.feelsLike)}°</Text>
+            <MaterialCommunityIcons name="thermometer-lines" size={18} color="rgba(255,255,255,0.8)" />
+            <Text style={styles.detailText}>{t('weather.feelsLike', 'Feels like')} {Math.round(current.feelsLike)}°</Text>
           </View>
           <View style={styles.detailItem}>
-            <Ionicons name="water-outline" size={18} color="#rgba(255,255,255,0.8)" />
+            <Ionicons name="water-outline" size={18} color="rgba(255,255,255,0.8)" />
             <Text style={styles.detailText}>{current.humidity}%</Text>
           </View>
           <View style={styles.detailItem}>
-            <Ionicons name="speedometer-outline" size={18} color="#rgba(255,255,255,0.8)" />
+            <Ionicons name="speedometer-outline" size={18} color="rgba(255,255,255,0.8)" />
             <Text style={styles.detailText}>{Math.round(current.windSpeed)} km/h</Text>
           </View>
         </View>
 
         {/* 7-Day Forecast */}
         <View style={styles.forecastContainer}>
-          <Text style={styles.forecastTitle}>7-Day Forecast</Text>
+          <Text style={styles.forecastTitle}>{t('weather.title', 'Local Weather')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.forecastScroll}>
             {forecast && forecast.slice(0, 7).map((day, index) => {
               const dateObj = new Date(day.date);
-              const dayName = index === 0 ? 'Today' : index === 1 ? 'Tom' : dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+              let dayName = '';
+              try {
+                dayName = new Intl.DateTimeFormat(getIntlLocale(i18n.language), { weekday: 'short' }).format(dateObj);
+              } catch {
+                dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+              }
               
               return (
                 <View key={index} style={styles.forecastItem}>

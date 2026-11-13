@@ -7,14 +7,16 @@ import {
   StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 
 const AdminAuthScreen = ({ navigation }) => {
+  const { t } = useTranslation(['auth', 'admin']);
   const features = [
-    { icon: 'clipboard-outline', text: 'Manage all citizen complaints' },
-    { icon: 'flash-outline', text: 'Priority queue management' },
-    { icon: 'people-outline', text: 'User management system' },
-    { icon: 'analytics-outline', text: 'Analytics and reporting' },
-    { icon: 'map-outline', text: 'City-wide complaint heatmaps' },
+    { icon: 'clipboard-outline', text: t('admin:mobileAdmin.recentComplaints', 'Manage all citizen complaints') },
+    { icon: 'flash-outline', text: t('admin:mobileAdmin.viewPriorityQueue', 'Priority queue management') },
+    { icon: 'people-outline', text: t('admin:mobileAdmin.manageCitizens', 'User management system') },
+    { icon: 'analytics-outline', text: t('admin:mobileAdmin.overview', 'Analytics and reporting') },
+    { icon: 'map-outline', text: t('admin:mobileAdmin.openMap', 'City-wide complaint heatmaps') },
   ];
 
   return (
@@ -32,9 +34,9 @@ const AdminAuthScreen = ({ navigation }) => {
         <View style={styles.iconBox}>
           <Ionicons name="shield-checkmark-outline" size={32} color="#1A1A1A" />
         </View>
-        <Text style={styles.title}>Admin Portal</Text>
+        <Text style={styles.title}>{t('welcome.adminPortal.title', 'Admin Portal')}</Text>
         <Text style={styles.subtitle}>
-          Manage and oversee civic operations efficiently
+          {t('welcome.adminPortal.desc', 'Manage and oversee civic operations efficiently')}
         </Text>
       </View>
 
@@ -44,7 +46,7 @@ const AdminAuthScreen = ({ navigation }) => {
           onPress={() => navigation.navigate('AdminLogin')}
           activeOpacity={0.8}
         >
-          <Text style={styles.primaryButtonText}>ADMIN LOGIN</Text>
+          <Text style={styles.primaryButtonText}>{t('login.tabLogin', 'ADMIN LOGIN')}</Text>
           <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
         </TouchableOpacity>
 
@@ -53,7 +55,7 @@ const AdminAuthScreen = ({ navigation }) => {
           onPress={() => navigation.navigate('AdminSignup')}
           activeOpacity={0.8}
         >
-          <Text style={styles.secondaryButtonText}>REGISTER AS ADMIN</Text>
+          <Text style={styles.secondaryButtonText}>{t('adminSignup.tagline', 'REGISTER AS ADMIN')}</Text>
           <Ionicons name="arrow-forward" size={18} color="#1A1A1A" />
         </TouchableOpacity>
       </View>
@@ -62,12 +64,12 @@ const AdminAuthScreen = ({ navigation }) => {
       <View style={styles.noticeCard}>
         <Ionicons name="information-circle-outline" size={18} color="#1A1A1A" />
         <Text style={styles.noticeText}>
-          Admin accounts require approval from system administrators
+          {t('adminSignup.leftDesc', 'Admin accounts require approval from system administrators')}
         </Text>
       </View>
 
       <View style={styles.featuresCard}>
-        <Text style={styles.featuresTitle}>ADMIN CAPABILITIES</Text>
+        <Text style={styles.featuresTitle}>{t('admin:mobileAdmin.adminConsole', 'ADMIN CAPABILITIES')}</Text>
         {features.map((item, index) => (
           <View key={index} style={styles.featureItem}>
             <Ionicons name={item.icon} size={18} color="#6B7280" />

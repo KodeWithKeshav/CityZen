@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { makeApiCall, apiClient } from '../../services/api'
 import toast from 'react-hot-toast'
@@ -10,13 +10,11 @@ import {
   HiRefresh,
   HiExclamationCircle,
   HiSearch,
-  HiFilter,
   HiNewspaper,
-  HiChevronDown,
-  HiEye
 } from 'react-icons/hi'
-import { formatDistanceToNow } from 'date-fns'
-import { getPriorityTier } from '../../utils/priorityUtils'
+import { getPriorityTier, getCategoryLabel } from '../../utils/priorityUtils'
+import { useTranslatedList } from '../../context/TranslationContext'
+import { formatLocalizedRelativeTime } from '../../utils/dateLocale'
 
 const CATEGORY_IDS = [
   'pothole', 'road_waterlogging', 'garbage_dumping', 'fallen_tree',
@@ -36,7 +34,7 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
 }
 
 function ComplaintCard({ c, onVote, onDetail }) {
-  const { t } = useTranslation(['citizen', 'admin'])
+  const { t, i18n } = useTranslation(['citizen', 'admin', 'complaint', 'common'])
   const [voting, setVoting] = useState(false)
 
   const STATUS_CONFIG = {
@@ -54,14 +52,18 @@ function ComplaintCard({ c, onVote, onDetail }) {
     setVoting(false)
   }
 
-  const time = c.createdAt
-    ? formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })
-    : t('citizen:feed.recently')
+  const rawDate = c.createdAt || c.created_at
+  const time = formatLocalizedRelativeTime(rawDate, t('citizen:feed.recently'), i18n.resolvedLanguage || i18n.language)
 
-  const statusInfo = STATUS_CONFIG[c.status] || {
+  const normalizedStatus = (c.status || '').toLowerCase()
+  const statusInfo = STATUS_CONFIG[normalizedStatus] || {
     label: (c.status || t('admin:status.pending')).toUpperCase(),
     bg: 'bg-neutral-100 text-neutral-800 border-neutral-300'
   }
+
+  const imageUrl = c.imageUrl || (Array.isArray(c.image_urls) ? c.image_urls[0] : null)
+  const address = typeof c.location === 'string' ? c.location : (c.location?.address || c.location_address)
+  const voteCount = c.upvotes ?? c.votes ?? c.vote_count ?? 0
 
   const citizenDisplayName = c.citizenName || c.userName || c.users?.full_name || c.user?.full_name || c.user_name || t('citizen:feed.verifiedCitizen')
   const citizenInitial = citizenDisplayName.charAt(0).toUpperCase()
@@ -76,7 +78,7 @@ function ComplaintCard({ c, onVote, onDetail }) {
         <div className="flex items-center justify-between gap-2 pb-3 border-b border-neutral-100 mb-4">
           <div className="flex items-center gap-2">
             <span className="font-mono text-xs text-neutral-500 font-semibold tracking-wider">
-              #{(c._id || c.id || '').slice(-6).toUpperCase()}
+              #{String(c._id || c.id || '').slice(-6).toUpperCase()}
             </span>
             <span className={`font-mono text-[10px] tracking-wider px-2 py-0.5 border ${statusInfo.bg}`}>
               {statusInfo.label}
@@ -100,15 +102,15 @@ function ComplaintCard({ c, onVote, onDetail }) {
             <p className="text-xs font-semibold uppercase tracking-wider text-neutral-900 truncate">
               {citizenDisplayName}
             </p>
-            <div className="flex items-center gap-2 font-mono text-[11px] text-neutral-500 mt-0.5">
-              <span className="flex items-center gap-1">
-                <HiClock className="w-3 h-3" />
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11px] text-neutral-500 mt-0.5">
+              <span className="flex items-center gap-1 whitespace-nowrap">
+                <HiClock className="w-3 h-3 flex-shrink-0" />
                 {time}
               </span>
-              {c.location?.address && (
+              {address && (
                 <>
                   <span>/</span>
-                  <span className="truncate max-w-[200px]">{c.location.address}</span>
+                  <span className="truncate max-w-[160px] sm:max-w-[200px]">{address}</span>
                 </>
               )}
             </div>
@@ -124,10 +126,10 @@ function ComplaintCard({ c, onVote, onDetail }) {
         </p>
 
         {/* Image if present */}
-        {c.imageUrl && (
+        {imageUrl && (
           <div className="mb-4 border border-neutral-200 bg-neutral-50 overflow-hidden max-h-56">
             <img
-              src={c.imageUrl}
+              src={imageUrl}
               alt="Civic evidence"
               className="w-full h-48 object-cover filter contrast-[1.02]"
               onError={(e) => { e.target.style.display = 'none' }}
@@ -137,15 +139,15 @@ function ComplaintCard({ c, onVote, onDetail }) {
       </div>
 
       {/* Metadata & Actions Footer */}
-      <div className="pt-3 border-t border-neutral-100 flex items-center justify-between gap-3 text-xs font-mono">
+      <div className="pt-3 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-2 sm:gap-3 text-xs font-mono">
         <div className="flex items-center gap-2 flex-wrap">
           {(c.category || c.issueType) && (
             <span className="border border-neutral-300 px-2 py-0.5 bg-neutral-50 text-neutral-700 tracking-wider uppercase text-[10px]">
-              {(c.category || c.issueType).replace(/_/g, ' ')}
+              {getCategoryLabel(c.category || c.issueType, t)}
             </span>
           )}
           {(() => {
-            const pTier = getPriorityTier(c)
+            const pTier = getPriorityTier(c, t)
             if (pTier.score === null) return null
             return (
               <span className="text-neutral-500 text-[11px] flex items-center gap-1.5">
@@ -166,7 +168,7 @@ function ComplaintCard({ c, onVote, onDetail }) {
             className="flex items-center gap-1.5 px-2.5 py-1 border border-neutral-300 hover:border-black hover:bg-neutral-900 hover:text-white transition-colors duration-150 disabled:opacity-50 text-neutral-800"
           >
             <HiThumbUp className="w-3.5 h-3.5" />
-            <span className="font-bold">{c.upvotes || c.votes || 0}</span>
+            <span className="font-bold">{voteCount}</span>
           </button>
           <span className="text-neutral-400 group-hover:text-black flex items-center gap-1 text-xs uppercase tracking-wider">
             {t('citizen:feed.detailsArrow')}
@@ -178,7 +180,7 @@ function ComplaintCard({ c, onVote, onDetail }) {
 }
 
 export default function ComplaintFeed() {
-  const { t } = useTranslation(['citizen', 'complaint', 'admin'])
+  const { t, i18n } = useTranslation(['citizen', 'complaint', 'admin', 'common'])
   const CATEGORIES = [
     { id: 'all', label: t('citizen:feed.categoryAll') },
     ...CATEGORY_IDS.map(id => ({ id, label: t(`complaint:categories.${id}.label`) })),
@@ -186,59 +188,62 @@ export default function ComplaintFeed() {
   const [allComplaints, setAllComplaints] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [searchParams] = useSearchParams()
+  const urlQuery = searchParams.get('q') || ''
   const [userLoc, setUserLoc] = useState(null)
   const [locStatus, setLocStatus] = useState('requesting') // requesting, granted, denied
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(urlQuery)
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
   const [radiusFilter, setRadiusFilter] = useState('3km') // '3km', '10km', 'all'
-  const [civicNews, setCivicNews] = useState([])
   const [showNews, setShowNews] = useState(false)
 
   const navigate = useNavigate()
+
+  useEffect(() => {
+    setSearchQuery(urlQuery)
+  }, [urlQuery])
+
+  const civicNews = useMemo(() => [
+    {
+      id: '1',
+      title: t('common:bulletins.b1Title'),
+      source: t('common:bulletins.b1Source'),
+      time: t('common:bulletins.b1Time'),
+      tag: t('common:bulletins.b1Tag'),
+    },
+    {
+      id: '2',
+      title: t('common:bulletins.b2Title'),
+      source: t('common:bulletins.b2Source'),
+      time: t('common:bulletins.b2Time'),
+      tag: t('common:bulletins.b2Tag'),
+    },
+    {
+      id: '3',
+      title: t('common:bulletins.b3Title'),
+      source: t('common:bulletins.b3Source'),
+      time: t('common:bulletins.b3Time'),
+      tag: t('common:bulletins.b3Tag'),
+    },
+  ], [t, i18n.resolvedLanguage])
 
   const fetchComplaints = async () => {
     try {
       const res = await makeApiCall(apiClient.complaints.all)
       const dataArr = res.data || res.complaints || []
-      if (res.success) {
+      if (res.success && Array.isArray(dataArr)) {
         setAllComplaints(dataArr)
+      } else if (!res.success) {
+        toast.error(res.message || t('citizen:feed.loadFailed'))
       }
-    } catch (err) {
+    } catch {
       toast.error(t('citizen:feed.loadFailed'))
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
   }
-
-  // Load sample or real civic news (parity with React Native NewsService)
-  useEffect(() => {
-    const civicBulletins = [
-      {
-        id: '1',
-        title: 'Municipal Water Main Maintenance Scheduled for Ward 7',
-        source: 'Municipal Works Dept',
-        time: '2 hours ago',
-        tag: 'INFRASTRUCTURE'
-      },
-      {
-        id: '2',
-        title: 'Monsoon Preparedness: Storm Drain Desilting in Progress',
-        source: 'City Corporation',
-        time: '5 hours ago',
-        tag: 'DRAINAGE'
-      },
-      {
-        id: '3',
-        title: 'Road Surface Restoration on South Avenue Commencing Monday',
-        source: 'Urban Roads Bureau',
-        time: 'Yesterday',
-        tag: 'ROADWORK'
-      }
-    ]
-    setCivicNews(civicBulletins)
-  }, [])
 
   useEffect(() => {
     if (navigator.geolocation) {
@@ -271,14 +276,23 @@ export default function ComplaintFeed() {
           prev.map(c => {
             if ((c._id || c.id) !== id) return c
             const voteCount = res?.data?.voteCount
+            const currentVotes = c.upvotes ?? c.votes ?? c.vote_count ?? 0
+            const nextCount = typeof voteCount === 'number' ? voteCount : currentVotes + 1
             return {
               ...c,
-              upvotes: typeof voteCount === 'number' ? voteCount : (c.upvotes || c.votes || 0) + 1,
-              votes: typeof voteCount === 'number' ? voteCount : (c.upvotes || c.votes || 0) + 1,
+              upvotes: nextCount,
+              votes: nextCount,
+              vote_count: nextCount,
             }
           })
         )
-        toast.success(t('citizen:feed.voteRecorded'))
+        if (res?.data?.action === 'unvoted' || res?.data?.action === 'removed') {
+          toast.success(res.message || t('citizen:feed.voteRecorded'))
+        } else {
+          toast.success(t('citizen:feed.voteRecorded'))
+        }
+      } else {
+        toast.error(res.message || t('citizen:feed.voteFailed'))
       }
     } catch (err) {
       toast.error(err.message || t('citizen:feed.voteFailed'))
@@ -294,10 +308,12 @@ export default function ComplaintFeed() {
   const filteredComplaints = useMemo(() => {
     return allComplaints
       .map(c => {
-        const lat = c.location?.latitude || c.location_latitude || c.latitude
-        const lng = c.location?.longitude || c.location_longitude || c.longitude
-        if (!userLoc || !lat || !lng) return { ...c, distanceKm: 999 }
-        const dist = getDistanceFromLatLonInKm(userLoc.lat, userLoc.lng, parseFloat(lat), parseFloat(lng))
+        const rawLat = c.location?.latitude ?? c.location?.lat ?? c.location_latitude ?? c.latitude
+        const rawLng = c.location?.longitude ?? c.location?.lng ?? c.location_longitude ?? c.longitude
+        const lat = parseFloat(rawLat)
+        const lng = parseFloat(rawLng)
+        if (!userLoc || !Number.isFinite(lat) || !Number.isFinite(lng)) return { ...c, distanceKm: 999 }
+        const dist = getDistanceFromLatLonInKm(userLoc.lat, userLoc.lng, lat, lng)
         return { ...c, distanceKm: dist }
       })
       .filter(c => {
@@ -308,7 +324,7 @@ export default function ComplaintFeed() {
         }
         // Status filter
         if (selectedStatus !== 'all') {
-          const st = (c.status || '').toLowerCase()
+          const st = (c.status || '').toLowerCase().replace(/-/g, '_')
           if (st !== selectedStatus.toLowerCase()) return false
         }
         // Distance filter
@@ -322,7 +338,8 @@ export default function ComplaintFeed() {
           const q = searchQuery.toLowerCase()
           const matchTitle = (c.title || c.complaintTitle || '').toLowerCase().includes(q)
           const matchDesc = (c.description || '').toLowerCase().includes(q)
-          const matchAddr = (c.location?.address || '').toLowerCase().includes(q)
+          const addr = typeof c.location === 'string' ? c.location : (c.location?.address || c.location_address || '')
+          const matchAddr = addr.toLowerCase().includes(q)
           if (!matchTitle && !matchDesc && !matchAddr) return false
         }
         return true
@@ -331,23 +348,41 @@ export default function ComplaintFeed() {
         if (userLoc && radiusFilter !== 'all') {
           return a.distanceKm - b.distanceKm
         }
-        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+        return new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0)
       })
   }, [allComplaints, userLoc, locStatus, selectedCategory, selectedStatus, radiusFilter, searchQuery])
 
+  const normalizedFilteredComplaints = useMemo(
+    () =>
+      filteredComplaints.map(c => ({
+        ...c,
+        citizenName: c.citizenName || c.userName || c.users?.full_name || c.user?.full_name || c.user_name || '',
+      })),
+    [filteredComplaints]
+  )
+
+  const translatedComplaints = useTranslatedList(normalizedFilteredComplaints, [
+    'title',
+    'complaintTitle',
+    'description',
+    'location',
+    'location_address',
+    'citizenName',
+  ])
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6 p-4 sm:p-6 lg:p-8">
       {/* Header section */}
       <div className="border-b border-black pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-neutral-500 uppercase tracking-widest mb-1">
             <span>{t('citizen:feed.breadcrumbAudit')}</span>
             <span>/</span>
             <span>{t('citizen:feed.breadcrumbPublic')}</span>
             <span>/</span>
             <span className="text-black font-semibold">{t('citizen:feed.breadcrumbFeed')}</span>
           </div>
-          <h1 className="font-serif text-3xl font-bold tracking-tight text-neutral-900 uppercase">
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold tracking-tight text-neutral-900 uppercase">
             {t('citizen:feed.title')}
           </h1>
           <p className="text-sm text-neutral-600 mt-1 font-sans max-w-xl">
@@ -355,12 +390,11 @@ export default function ComplaintFeed() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={() => setShowNews(!showNews)}
-            className={`px-3 py-2 text-xs font-mono tracking-wider border transition-colors flex items-center gap-1.5 ${
-              showNews ? 'bg-neutral-900 text-white border-black' : 'border-neutral-300 text-neutral-700 hover:border-black'
-            }`}
+            className={`px-3 py-2 text-xs font-mono tracking-wider border transition-colors flex items-center gap-1.5 ${showNews ? 'bg-neutral-900 text-white border-black' : 'border-neutral-300 text-neutral-700 hover:border-black'
+              }`}
           >
             <HiNewspaper className="w-4 h-4" />
             <span>{t('citizen:feed.municipalBulletins')}</span>
@@ -429,11 +463,11 @@ export default function ComplaintFeed() {
           </div>
 
           {/* Status dropdown */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
+              className="flex-1 sm:flex-initial min-w-0 border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
             >
               <option value="all">{t('citizen:feed.statusAll')}</option>
               <option value="pending">{t('admin:status.pending')}</option>
@@ -446,7 +480,7 @@ export default function ComplaintFeed() {
             <select
               value={radiusFilter}
               onChange={(e) => setRadiusFilter(e.target.value)}
-              className="border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
+              className="flex-1 sm:flex-initial min-w-0 border border-neutral-300 py-2 px-3 text-xs font-mono uppercase bg-white focus:outline-none focus:border-black rounded-none"
             >
               <option value="3km">{t('citizen:feed.radius3km')}</option>
               <option value="10km">{t('citizen:feed.radius10km')}</option>
@@ -461,11 +495,10 @@ export default function ComplaintFeed() {
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1 text-[11px] font-mono tracking-wider uppercase whitespace-nowrap transition-colors border ${
-                selectedCategory === cat.id
-                  ? 'bg-neutral-900 text-white border-black font-bold'
-                  : 'border-neutral-200 text-neutral-600 hover:border-neutral-400 bg-neutral-50'
-              }`}
+              className={`px-3 py-1 text-[11px] font-mono tracking-wider uppercase whitespace-nowrap transition-colors border ${selectedCategory === cat.id
+                ? 'bg-neutral-900 text-white border-black font-bold'
+                : 'border-neutral-200 text-neutral-600 hover:border-neutral-400 bg-neutral-50'
+                }`}
             >
               {cat.label}
             </button>
@@ -474,7 +507,7 @@ export default function ComplaintFeed() {
       </div>
 
       {/* Active filters status & count */}
-      <div className="flex items-center justify-between text-xs font-mono text-neutral-500 px-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono text-neutral-500 px-1">
         <span>
           {t('citizen:feed.showingIncidents', { count: filteredComplaints.length, plural: filteredComplaints.length === 1 ? '' : 'S' })}
           {locStatus === 'granted' && radiusFilter !== 'all' ? t('citizen:feed.withinRadius', { radius: radiusFilter.toUpperCase() }) : ''}
@@ -513,7 +546,7 @@ export default function ComplaintFeed() {
           <p className="text-sm text-neutral-500 font-sans mt-1 max-w-sm mx-auto">
             {t('citizen:feed.noIncidentsDesc')}
           </p>
-          <div className="mt-5 flex items-center justify-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
             <button
               onClick={() => {
                 setSelectedCategory('all')
@@ -535,7 +568,7 @@ export default function ComplaintFeed() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredComplaints.map(c => (
+          {translatedComplaints.map(c => (
             <ComplaintCard
               key={c._id || c.id}
               c={c}

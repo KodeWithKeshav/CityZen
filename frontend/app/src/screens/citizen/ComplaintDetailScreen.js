@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Animated,
-  Dimensions,
   Alert,
   Share,
   Platform,
@@ -17,17 +16,20 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import { makeApiCall, apiClient } from '../../../config/supabase';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { refetchComplaintVotes } from '../../utils/voteUtils';
 import { handleVoting } from '../../utils/enhancedVoteUtils';
 import MapView, { Marker, Circle } from 'react-native-maps';
-
-const { width, height } = Dimensions.get('window');
+import { useTranslatedObject, useTranslatedList, useTranslatedText } from '../../context/TranslationContext';
+import { formatLocalizedDateTime, formatLocalizedRelativeTime } from '../../utils/dateLocale';
+import { getCategoryLabel, getStatusLabel } from '../../utils/priorityUtils';
 
 const ComplaintDetailScreen = ({ route, navigation }) => {
-  const { complaintId } = route.params;
+  const { t, i18n } = useTranslation(['citizen', 'common', 'complaint', 'admin']);
+  const { complaintId } = route.params || {};
   const [complaint, setComplaint] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updatingVote, setUpdatingVote] = useState(false);
@@ -37,11 +39,28 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
   const [geometryRetryLoading, setGeometryRetryLoading] = useState(false);
   const insets = useSafeAreaInsets();
 
+  const translatedComplaint = useTranslatedObject(complaint, [
+    'title',
+    'description',
+    'location_address',
+    'geometry_error',
+    'resolution_notes',
+  ]);
+  const translatedUpdates = useTranslatedList(complaint?.updates || [], ['update_notes']);
+  const translatedSimilar = useTranslatedList(complaint?.similarComplaints || [], ['title']);
+  const reporterRaw =
+    complaint?.users?.full_name ||
+    complaint?.user?.full_name ||
+    complaint?.user_name ||
+    complaint?.citizenName ||
+    '';
+  const translatedReporter = useTranslatedText(reporterRaw);
+
   // Retry pothole footprint/depth estimation
   const retryGeometry = async () => {
     const imageUrl = complaint?.image_urls && complaint.image_urls.length > 0 ? complaint.image_urls[0] : complaint?.image_url;
     if (!complaint?.id || !imageUrl) {
-      Alert.alert('Notice', 'An image is required to estimate geometry.');
+      Alert.alert(t('citizen:mobileDetail.noticeTitle'), t('citizen:mobileDetail.geometryImageRequired'));
       return;
     }
     setGeometryRetryLoading(true);
@@ -56,26 +75,21 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
       });
       if (response?.success && response.geometry) {
         setComplaint((prev) => (prev ? { ...prev, ...response.geometry } : prev));
-        Alert.alert('Success', 'Geometric estimation updated successfully.');
+        Alert.alert(t('citizen:mobileDetail.successTitle'), t('citizen:mobileDetail.geometryUpdated'));
       } else {
-        Alert.alert('Error', response?.error || 'Geometry estimation failed');
+        Alert.alert(t('common:mobileNav.error'), response?.error || t('admin:geometry.failed'));
       }
     } catch (error) {
       console.error('Geometry retry error:', error);
-      Alert.alert('Error', 'Failed to connect to geometry estimation service');
+      Alert.alert(t('common:mobileNav.error'), t('admin:geometry.commError'));
     } finally {
       setGeometryRetryLoading(false);
     }
   };
 
   // Animation values
-  const scrollY = useRef(new Animated.Value(0)).current;
-  
-  const imageScale = useRef(new Animated.Value(1)).current;
-  const headerTranslate = useRef(new Animated.Value(0)).current;
-  const animatedHeaderOpacity = useRef(new Animated.Value(0)).current;
   const likeScale = useRef(new Animated.Value(1)).current;
-  
+
   // Fetch complaint details
   useEffect(() => {
     fetchComplaintDetails();
@@ -108,28 +122,28 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
     if (loading) {
       // If still loading, show confirmation
       Alert.alert(
-        "Cancel Loading?",
-        "The complaint details are still loading. Are you sure you want to go back?",
+        t('citizen:mobileDetail.cancelLoadingTitle'),
+        t('citizen:mobileDetail.cancelLoadingDesc'),
         [
-          { text: "Stay", style: "cancel" },
-          { text: "Go Back", onPress: () => navigation.goBack() }
+          { text: t('citizen:mobileDetail.stay'), style: 'cancel' },
+          { text: t('citizen:mobileDetail.goBack'), onPress: () => navigation.goBack() }
         ]
       );
     } else if (updatingVote) {
       // If vote is being updated, show confirmation
       Alert.alert(
-        "Cancel Vote Update?",
-        "Your vote is being processed. Are you sure you want to go back?",
+        t('citizen:mobileDetail.cancelVoteTitle'),
+        t('citizen:mobileDetail.cancelVoteDesc'),
         [
-          { text: "Stay", style: "cancel" },
-          { text: "Go Back", onPress: () => navigation.goBack() }
+          { text: t('citizen:mobileDetail.stay'), style: 'cancel' },
+          { text: t('citizen:mobileDetail.goBack'), onPress: () => navigation.goBack() }
         ]
       );
     } else {
       // Normal navigation back with smooth transition
       try {
         navigation.goBack();
-      } catch (error) {
+      } catch {
         // Fallback navigation if goBack fails
         console.log('Navigation fallback triggered');
         navigation.navigate('CitizenDashboard');
@@ -140,7 +154,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
   // Handle navigation to specific screens
   const handleNavigateToMap = () => {
     if (complaint?.location_latitude && complaint?.location_longitude) {
-      navigation.navigate('ComplaintMap', { 
+      navigation.navigate('ComplaintMap', {
         initialRegion: {
           latitude: complaint.location_latitude,
           longitude: complaint.location_longitude,
@@ -157,17 +171,24 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
   };
 
   const fetchComplaintDetails = async () => {
+    if (!complaintId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const response = await makeApiCall(
         `${apiClient.baseUrl}/api/complaints/${complaintId}`,
         { method: 'GET' }
       );
-      
+
       if (response.success && response.complaint) {
         const submitterUser = response.complaint.users || response.complaint.user || {
           full_name: response.complaint.user_name || response.complaint.citizenName || 'Verified Citizen'
         };
+        const timeAgo = response.complaint.created_at
+          ? getTimeAgo(new Date(response.complaint.created_at))
+          : '';
 
         setComplaint({
           ...response.complaint,
@@ -180,17 +201,17 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
       } else {
         console.error('❌ Error fetching complaint details:', response);
         Alert.alert(
-          "Error",
-          "Could not load complaint details. Please try again later.",
-          [{ text: "OK", onPress: handleBackNavigation }]
+          t('common:mobileNav.error'),
+          t('citizen:mobileDetail.loadErrorDesc'),
+          [{ text: t('common:mobileNav.ok'), onPress: handleBackNavigation }]
         );
       }
     } catch (error) {
       console.error('❌ Error fetching complaint details:', error);
       Alert.alert(
-        "Error",
-        "An error occurred while loading the complaint. Please try again.",
-        [{ text: "OK", onPress: handleBackNavigation }]
+        t('common:mobileNav.error'),
+        t('citizen:mobileDetail.loadExceptionDesc'),
+        [{ text: t('common:mobileNav.ok'), onPress: handleBackNavigation }]
       );
     } finally {
       setLoading(false);
@@ -199,13 +220,13 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
 
   const fetchBreakdownData = async () => {
     if (!complaint || loadingBreakdown) return;
-    
+
     setLoadingBreakdown(true);
     try {
       // Prepare the request data for comprehensive priority calculation
       const requestData = {
-        latitude: complaint.latitude,
-        longitude: complaint.longitude,
+        latitude: complaint.location_latitude ?? complaint.latitude,
+        longitude: complaint.location_longitude ?? complaint.longitude,
         complaintType: complaint.category || 'pothole',
         locationMeta: {
           privacyLevel: 'exact',
@@ -248,7 +269,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
 
   const handleUpvote = async () => {
     if (updatingVote) return;
-    
+
     // Animate like button
     Animated.sequence([
       Animated.timing(likeScale, {
@@ -262,33 +283,33 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
         useNativeDriver: true,
       }),
     ]).start();
-    
+
     // Make API call to update vote and refetch current vote count
     setUpdatingVote(true);
     try {
       // Use enhanced voting that handles both authenticated and guest voting
       const voteResponse = await handleVoting(complaintId, apiClient, makeApiCall);
-      
+
       if (!voteResponse.success) {
         console.error('❌ Vote failed:', voteResponse);
         Alert.alert(
-          "Vote Failed",
-          "There was a problem recording your vote. Please try again.",
-          [{ text: "OK" }]
+          t('citizen:mobileFeed.voteFailedTitle'),
+          t('citizen:mobileFeed.voteFailedDesc'),
+          [{ text: t('common:mobileNav.ok') }]
         );
         return;
       }
 
       // Always refetch the current vote count from server for accuracy
       const refetchResponse = await refetchComplaintVotes(complaintId, apiClient);
-      
+
       if (refetchResponse.success) {
         setComplaint({
           ...complaint,
           voteCount: refetchResponse.voteCount,
           userVoted: refetchResponse.userVoted
         });
-        
+
         console.log(`✅ Vote updated: ${refetchResponse.userVoted ? 'Voted' : 'Unvoted'}, Count: ${refetchResponse.voteCount}`);
       } else {
         console.error('❌ Failed to refetch vote count');
@@ -296,55 +317,56 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
     } catch (error) {
       console.error('❌ Error voting for complaint:', error);
       Alert.alert(
-        "Vote Failed", 
-        "There was a problem recording your vote. Please try again.",
-        [{ text: "OK" }]
+        t('citizen:mobileFeed.voteFailedTitle'),
+        t('citizen:mobileFeed.voteFailedDesc'),
+        [{ text: t('common:mobileNav.ok') }]
       );
     } finally {
       setUpdatingVote(false);
     }
   };
-  
+
   const handleShare = async () => {
     try {
-      const result = await Share.share({
-        message: `Check out this civic issue: ${complaint.title} - Reported via CityZen App`,
+      const shareTarget = translatedComplaint || complaint;
+      await Share.share({
+        message: t('citizen:mobileDetail.shareMessage', { title: shareTarget.title }),
         url: `https://cityzen.org/complaints/${complaintId}`,
-        title: 'Share Civic Issue',
+        title: t('citizen:mobileDetail.shareTitle'),
       });
-    } catch (error) {
-      Alert.alert('Error', 'Could not share this complaint');
+    } catch {
+      Alert.alert(t('common:mobileNav.error'), t('citizen:mobileDetail.shareError'));
     }
   };
 
   const getTimeAgo = (date) => {
     const now = new Date();
     const diffInSeconds = Math.floor((now - date) / 1000);
-    
+
     if (diffInSeconds < 60) {
       return `${diffInSeconds}s ago`;
     }
-    
+
     const diffInMinutes = Math.floor(diffInSeconds / 60);
     if (diffInMinutes < 60) {
       return `${diffInMinutes}m ago`;
     }
-    
+
     const diffInHours = Math.floor(diffInMinutes / 60);
     if (diffInHours < 24) {
       return `${diffInHours}h ago`;
     }
-    
+
     const diffInDays = Math.floor(diffInHours / 24);
     if (diffInDays < 7) {
       return `${diffInDays}d ago`;
     }
-    
+
     const diffInWeeks = Math.floor(diffInDays / 7);
     if (diffInWeeks < 4) {
       return `${diffInWeeks}w ago`;
     }
-    
+
     const diffInMonths = Math.floor(diffInDays / 30);
     return `${diffInMonths}mo ago`;
   };
@@ -412,42 +434,35 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
         return '#9e9e9e';
     }
   };
-  
+
   const getStatusSteps = (status) => {
     const steps = [
-      { name: 'Submitted', completed: true },
-      { name: 'Verified', completed: ['in_progress', 'resolved'].includes(status) },
-      { name: 'In Progress', completed: ['in_progress', 'resolved'].includes(status) },
-      { name: 'Resolved', completed: status === 'resolved' }
+      { name: t('citizen:mobileDetail.stepSubmitted'), completed: true },
+      { name: t('citizen:mobileDetail.stepVerified'), completed: ['in_progress', 'resolved'].includes(status) },
+      { name: t('common:statusFilters.in_progress'), completed: ['in_progress', 'resolved'].includes(status) },
+      { name: t('common:statusFilters.resolved'), completed: status === 'resolved' }
     ];
-    
+
     if (status === 'rejected') {
       return [
-        { name: 'Submitted', completed: true },
-        { name: 'Reviewed', completed: true },
-        { name: 'Rejected', completed: true, isRejected: true }
+        { name: t('citizen:mobileDetail.stepSubmitted'), completed: true },
+        { name: t('citizen:mobileDetail.stepReviewed'), completed: true },
+        { name: t('common:statusFilters.rejected'), completed: true, isRejected: true }
       ];
     }
-    
+
     return steps;
   };
-  
+
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return formatLocalizedDateTime(dateString, i18n.language);
   };
 
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color="#1A1A1A" />
-        <Text style={styles.loadingText}>Loading complaint details...</Text>
+        <Text style={styles.loadingText}>{t('citizen:mobileDetail.loadingDetails')}</Text>
       </View>
     );
   }
@@ -456,17 +471,22 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
     return (
       <View style={[styles.errorContainer, { paddingTop: insets.top }]}>
         <Ionicons name="alert-circle-outline" size={60} color="#f44336" />
-        <Text style={styles.errorTitle}>Complaint Not Found</Text>
-        <Text style={styles.errorText}>The complaint you're looking for doesn't exist or has been removed.</Text>
-        <TouchableOpacity 
-          style={styles.backButton}
+        <Text style={styles.errorTitle}>{t('citizen:complaintDetail.notFoundTitle')}</Text>
+        <Text style={styles.errorText}>{t('citizen:complaintDetail.notFoundDesc')}</Text>
+        <TouchableOpacity
+          style={styles.errorBackButton}
           onPress={handleBackNavigation}
         >
-          <Text style={styles.backButtonText}>Go Back</Text>
+          <Text style={styles.backButtonText}>{t('common:mobileNav.back')}</Text>
         </TouchableOpacity>
       </View>
     );
   }
+
+  const displayComplaint = translatedComplaint || complaint;
+  const displayUpdates = translatedUpdates.length > 0 ? translatedUpdates : (complaint.updates || []);
+  const displaySimilar = translatedSimilar.length > 0 ? translatedSimilar : (complaint.similarComplaints || []);
+  const displayReporter = translatedReporter || t('citizen:feed.verifiedCitizen');
 
   return (
     <View style={styles.container}>
@@ -477,7 +497,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
       >
         <Ionicons name="arrow-back" size={24} color="#fff" />
       </TouchableOpacity>
-      
+
       {/* Fixed share button - always visible */}
       <TouchableOpacity
         style={[styles.fixedShareButton, { top: insets.top + 10 }]}
@@ -487,10 +507,10 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
       </TouchableOpacity>
 
       {/* Animated header */}
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.animatedHeader, 
-          { 
+          styles.animatedHeader,
+          {
             opacity: 0,
             transform: [{ translateY: 0 }],
             paddingTop: insets.top,
@@ -503,12 +523,12 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
         >
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{complaint.title}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>{displayComplaint.title}</Text>
         <TouchableOpacity style={styles.shareIcon} onPress={handleShare}>
           <Ionicons name="share-outline" size={24} color="#fff" />
         </TouchableOpacity>
       </Animated.View>
-      
+
       <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
@@ -518,122 +538,131 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
         contentContainerStyle={{ flexGrow: 1 }}
       >
         {/* Image section */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.imageContainer,
-            { 
+            {
               transform: [{ scale: 1 }],
               paddingTop: insets.top,
             }
           ]}
         >
-          {complaint.image_urls && complaint.image_urls.length > 0 ? (
-            <Image 
-              source={{ uri: complaint.image_urls[0] }} 
+          {displayComplaint.image_urls && displayComplaint.image_urls.length > 0 ? (
+            <Image
+              source={{ uri: displayComplaint.image_urls[0] }}
               style={styles.complaintImage}
               resizeMode="cover"
             />
           ) : (
             <View style={styles.noImageContainer}>
               <Ionicons name="image" size={80} color="#ddd" />
-              <Text style={styles.noImageText}>No image available</Text>
+              <Text style={styles.noImageText}>{t('citizen:mobileFeed.noImage')}</Text>
             </View>
           )}
-          
+
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.8)']}
             style={styles.imageGradient}
           />
-          
+
           <TouchableOpacity
             style={[styles.backButton, { top: insets.top + 10 }]}
             onPress={handleBackNavigation}
           >
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
-          
+
           <View style={styles.imageBottomContent}>
             <View style={styles.categoryBadge}>
-              {getCategoryIcon(complaint.category)}
+              {getCategoryIcon(displayComplaint.category)}
               <Text style={styles.categoryText}>
-                {complaint.category?.replace('_', ' ')}
+                {displayComplaint.category ? getCategoryLabel(displayComplaint.category, t) : t('common:mobileNav.general')}
               </Text>
             </View>
-            
+
             <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
               <Ionicons name="share-social" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
         </Animated.View>
-        
+
         {/* Content section */}
         <View style={styles.contentContainer}>
           {/* Title and status */}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>{complaint.title}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(complaint.status) }]}>
+            <Text style={styles.title}>{displayComplaint.title || t('citizen:complaintDetail.defaultTitle')}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(displayComplaint.status) }]}>
               <Text style={styles.statusText}>
-                {complaint.status?.charAt(0).toUpperCase() + complaint.status?.slice(1).replace('_', ' ')}
+                {getStatusLabel(displayComplaint.status, t)}
               </Text>
             </View>
           </View>
-          
+
           {/* User and time */}
           <View style={styles.userContainer}>
             <View style={styles.userInfo}>
               <View style={styles.userAvatar}>
                 <Text style={styles.userAvatarText}>
-                  {(complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || 'Verified Citizen').charAt(0).toUpperCase()}
+                  {displayReporter.charAt(0).toUpperCase()}
                 </Text>
               </View>
               <View>
                 <Text style={styles.userName}>
-                  {complaint.users?.full_name || complaint.user?.full_name || complaint.user_name || complaint.citizenName || 'Verified Citizen'}
+                  {displayReporter}
                 </Text>
-                <Text style={styles.timeAgo}>{complaint.timeAgo}</Text>
+                <Text style={styles.timeAgo}>
+                  {formatLocalizedRelativeTime(displayComplaint.created_at, displayComplaint.timeAgo, i18n.language)}
+                </Text>
               </View>
             </View>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.voteButton}
               onPress={handleUpvote}
               disabled={updatingVote}
             >
               <Animated.View style={{ transform: [{ scale: likeScale }] }}>
-                <Ionicons 
-                  name={complaint.userVoted ? "arrow-up-circle" : "arrow-up-circle-outline"} 
-                  size={30} 
-                  color={complaint.userVoted ? "#1A1A1A" : "#777"} 
+                <Ionicons
+                  name={displayComplaint.userVoted ? "arrow-up-circle" : "arrow-up-circle-outline"}
+                  size={30}
+                  color={displayComplaint.userVoted ? "#1A1A1A" : "#777"}
                 />
               </Animated.View>
-              <Text style={[styles.voteCount, complaint.userVoted && styles.userVotedText]}>
-                {complaint.voteCount || 0}
+              <Text style={[styles.voteCount, displayComplaint.userVoted && styles.userVotedText]}>
+                {displayComplaint.voteCount || 0}
               </Text>
             </TouchableOpacity>
           </View>
-          
+
           {/* Description */}
           <View style={styles.descriptionContainer}>
-            <Text style={styles.descriptionTitle}>Description</Text>
-            <Text style={styles.descriptionText}>{complaint.description}</Text>
+            <Text style={styles.descriptionTitle}>{t('citizen:mobileDetail.description')}</Text>
+            <Text style={styles.descriptionText}>{displayComplaint.description}</Text>
           </View>
 
           {/* Geometric Estimation (Potholes) */}
-          {((complaint.geometry_status === 'completed' || (complaint.estimated_width_cm != null && complaint.estimated_length_cm != null)) || complaint.category?.toLowerCase()?.includes('pothole')) && (
+          {((displayComplaint.geometry_status === 'completed' || (displayComplaint.estimated_width_cm != null && displayComplaint.estimated_length_cm != null)) || displayComplaint.category?.toLowerCase()?.includes('pothole')) && (
             <View style={styles.geometryPanel}>
               <View style={styles.geometryHeader}>
                 <Ionicons name="cube-outline" size={18} color="#1A1A1A" />
-                <Text style={styles.geometryTitle}>Geometric Estimation (AI)</Text>
+                <Text style={styles.geometryTitle}>{t('citizen:mobileDetail.geometryTitle')}</Text>
               </View>
 
-              {(complaint.geometry_status === 'completed' || (complaint.estimated_width_cm != null && complaint.estimated_length_cm != null)) && (
+              {(displayComplaint.geometry_status === 'completed' || (displayComplaint.estimated_width_cm != null && displayComplaint.estimated_length_cm != null)) && (
                 <>
                   <Text style={styles.geometryRow}>
-                    Dimensions: {complaint.estimated_width_cm} × {complaint.estimated_length_cm} cm
+                    {t('citizen:mobileDetail.dimensions', {
+                      width: displayComplaint.estimated_width_cm,
+                      length: displayComplaint.estimated_length_cm,
+                    })}
                   </Text>
-                  <Text style={styles.geometryRow}>Estimated Area: {complaint.estimated_area_cm2} cm²</Text>
+                  <Text style={styles.geometryRow}>
+                    {t('citizen:mobileDetail.estimatedArea', { area: displayComplaint.estimated_area_cm2 })}
+                  </Text>
                   <Text style={styles.geometryDisclaimer}>
-                    Confidence {Math.round((complaint.geometry_confidence || 0) * 100)}% — estimated from photographic computer vision analysis.
+                    {t('citizen:mobileDetail.geometryDisclaimer', {
+                      pct: Math.round((displayComplaint.geometry_confidence || 0) * 100),
+                    })}
                   </Text>
                   <TouchableOpacity
                     style={styles.geometryRetryButtonSecondary}
@@ -642,23 +671,24 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                   >
                     <Ionicons name="refresh" size={13} color="#1A1A1A" style={{ marginRight: 4 }} />
                     <Text style={styles.geometryRetrySecondaryText}>
-                      {geometryRetryLoading ? 'Recalculating…' : 'Recalculate Size'}
+                      {geometryRetryLoading ? t('citizen:mobileDetail.recalculating') : t('citizen:mobileDetail.recalculateSize')}
                     </Text>
                   </TouchableOpacity>
                 </>
               )}
 
-              {complaint.geometry_status === 'pending' && (
+              {displayComplaint.geometry_status === 'pending' && (
                 <View style={styles.geometryLoadingRow}>
                   <ActivityIndicator size="small" color="#1A1A1A" />
-                  <Text style={[styles.geometryRow, { marginLeft: 8 }]}>Computing geometric dimensions…</Text>
+                  <Text style={[styles.geometryRow, { marginLeft: 8 }]}>{t('admin:geometry.computing')}</Text>
                 </View>
               )}
 
-              {complaint.geometry_status === 'failed' && (
+              {displayComplaint.geometry_status === 'failed' && (
                 <>
                   <Text style={[styles.geometryRow, { color: '#c0392b' }]}>
-                    Geometric estimation failed{complaint.geometry_error ? `: ${complaint.geometry_error}` : '.'}
+                    {t('admin:geometry.failed')}
+                    {displayComplaint.geometry_error ? `: ${displayComplaint.geometry_error}` : '.'}
                   </Text>
                   <TouchableOpacity
                     style={styles.geometryRetryButton}
@@ -667,48 +697,48 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                   >
                     <Ionicons name="refresh" size={14} color="#fff" style={{ marginRight: 4 }} />
                     <Text style={styles.geometryRetryText}>
-                      {geometryRetryLoading ? 'Recalculating…' : 'Retry Size Estimate'}
+                      {geometryRetryLoading ? t('citizen:mobileDetail.recalculating') : t('citizen:mobileDetail.retrySizeEstimate')}
                     </Text>
                   </TouchableOpacity>
                 </>
               )}
 
-              {complaint.geometry_status !== 'completed' &&
-                complaint.geometry_status !== 'pending' &&
-                complaint.geometry_status !== 'failed' &&
-                complaint.estimated_width_cm == null &&
-                complaint.category?.toLowerCase()?.includes('pothole') && (
-                <>
-                  <Text style={styles.geometryRow}>
-                    Estimate pothole dimensions (width, length, area) using AI computer vision.
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.geometryRetryButton}
-                    disabled={geometryRetryLoading}
-                    onPress={retryGeometry}
-                  >
-                    <Ionicons name="calculator-outline" size={14} color="#fff" style={{ marginRight: 4 }} />
-                    <Text style={styles.geometryRetryText}>
-                      {geometryRetryLoading ? 'Calculating…' : 'Estimate Geometric Dimensions'}
+              {displayComplaint.geometry_status !== 'completed' &&
+                displayComplaint.geometry_status !== 'pending' &&
+                displayComplaint.geometry_status !== 'failed' &&
+                displayComplaint.estimated_width_cm == null &&
+                displayComplaint.category?.toLowerCase()?.includes('pothole') && (
+                  <>
+                    <Text style={styles.geometryRow}>
+                      {t('citizen:mobileDetail.estimatePrompt')}
                     </Text>
-                  </TouchableOpacity>
-                </>
-              )}
+                    <TouchableOpacity
+                      style={styles.geometryRetryButton}
+                      disabled={geometryRetryLoading}
+                      onPress={retryGeometry}
+                    >
+                      <Ionicons name="calculator-outline" size={14} color="#fff" style={{ marginRight: 4 }} />
+                      <Text style={styles.geometryRetryText}>
+                        {geometryRetryLoading ? t('admin:geometry.running') : t('admin:geometry.execute')}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
             </View>
           )}
-          
+
           {/* Location */}
           <View style={styles.locationContainer}>
-            <Text style={styles.sectionTitle}>Location</Text>
-            <Text style={styles.locationAddress}>{complaint.location_address}</Text>
-            
-            {complaint.location_latitude && complaint.location_longitude && (
+            <Text style={styles.sectionTitle}>{t('citizen:mobileDetail.location')}</Text>
+            <Text style={styles.locationAddress}>{displayComplaint.location_address || t('citizen:complaintDetail.noAddress')}</Text>
+
+            {Number.isFinite(Number(displayComplaint.location_latitude)) && Number.isFinite(Number(displayComplaint.location_longitude)) && (
               <View style={styles.mapContainer}>
                 <MapView
                   style={styles.map}
                   initialRegion={{
-                    latitude: complaint.location_latitude,
-                    longitude: complaint.location_longitude,
+                    latitude: Number(displayComplaint.location_latitude),
+                    longitude: Number(displayComplaint.location_longitude),
                     latitudeDelta: 0.01,
                     longitudeDelta: 0.01,
                   }}
@@ -719,23 +749,23 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                 >
                   <Marker
                     coordinate={{
-                      latitude: complaint.location_latitude,
-                      longitude: complaint.location_longitude,
+                      latitude: Number(displayComplaint.location_latitude),
+                      longitude: Number(displayComplaint.location_longitude),
                     }}
-                    title={complaint.title}
+                    title={displayComplaint.title}
                   >
                     <View style={styles.customMarker}>
                       <View style={styles.markerBody}>
-                        {getCategoryIcon(complaint.category)}
+                        {getCategoryIcon(displayComplaint.category)}
                       </View>
                       <View style={styles.markerArrow} />
                     </View>
                   </Marker>
-                  
+
                   <Circle
                     center={{
-                      latitude: complaint.location_latitude,
-                      longitude: complaint.location_longitude,
+                      latitude: Number(displayComplaint.location_latitude),
+                      longitude: Number(displayComplaint.location_longitude),
                     }}
                     radius={150}
                     fillColor="rgba(52, 152, 219, 0.2)"
@@ -743,41 +773,41 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     strokeWidth={1}
                   />
                 </MapView>
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={styles.viewOnMapButton}
                   onPress={handleNavigateToMap}
                 >
-                  <Text style={styles.viewOnMapText}>View on Full Map</Text>
+                  <Text style={styles.viewOnMapText}>{t('citizen:mobileDetail.viewFullMap')}</Text>
                   <Ionicons name="map-outline" size={16} color="#1A1A1A" />
                 </TouchableOpacity>
               </View>
             )}
           </View>
-          
+
           {/* Status Timeline */}
           <View style={styles.statusTimelineContainer}>
-            <Text style={styles.sectionTitle}>Status Updates</Text>
+            <Text style={styles.sectionTitle}>{t('citizen:mobileDetail.statusUpdates')}</Text>
             <View style={styles.timeline}>
-              {getStatusSteps(complaint.status).map((step, index) => (
+              {getStatusSteps(displayComplaint.status).map((step, index) => (
                 <View key={index} style={styles.timelineItem}>
-                  <View 
+                  <View
                     style={[
-                      styles.timelineDot, 
+                      styles.timelineDot,
                       step.completed && styles.completedDot,
                       step.isRejected && styles.rejectedDot
                     ]}
                   />
-                  {index < getStatusSteps(complaint.status).length - 1 && (
-                    <View 
+                  {index < getStatusSteps(displayComplaint.status).length - 1 && (
+                    <View
                       style={[
                         styles.timelineLine,
-                        getStatusSteps(complaint.status)[index + 1].completed && styles.completedLine,
+                        getStatusSteps(displayComplaint.status)[index + 1].completed && styles.completedLine,
                         step.isRejected && styles.rejectedLine
-                      ]} 
+                      ]}
                     />
                   )}
-                  <Text 
+                  <Text
                     style={[
                       styles.timelineText,
                       step.completed && styles.completedText,
@@ -789,20 +819,20 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                 </View>
               ))}
             </View>
-            
+
             {/* Complaint updates */}
-            {complaint.updates && complaint.updates.length > 0 ? (
+            {displayUpdates.length > 0 ? (
               <View style={styles.updatesContainer}>
-                {complaint.updates.map((update, index) => (
+                {displayUpdates.map((update, index) => (
                   <View key={index} style={styles.updateItem}>
                     <View style={styles.updateHeader}>
                       <Text style={styles.updateTitle}>
-                        Status changed to{' '}
-                        <Text style={{ 
+                        {t('citizen:mobileDetail.statusChangedTo')}{' '}
+                        <Text style={{
                           color: getStatusColor(update.new_status),
                           fontWeight: 'bold'
                         }}>
-                          {update.new_status?.replace('_', ' ')}
+                          {getStatusLabel(update.new_status, t)}
                         </Text>
                       </Text>
                       <Text style={styles.updateTime}>{formatDate(update.created_at)}</Text>
@@ -813,69 +843,69 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                   </View>
                 ))}
               </View>
-            ) : complaint.resolved_at ? (
+            ) : displayComplaint.resolved_at ? (
               <View style={styles.updateItem}>
                 <View style={styles.updateHeader}>
                   <Text style={styles.updateTitle}>
-                    Status changed to{' '}
-                    <Text style={{ 
+                    {t('citizen:mobileDetail.statusChangedTo')}{' '}
+                    <Text style={{
                       color: getStatusColor('resolved'),
                       fontWeight: 'bold'
                     }}>
-                      Resolved
+                      {getStatusLabel('resolved', t)}
                     </Text>
                   </Text>
-                  <Text style={styles.updateTime}>{formatDate(complaint.resolved_at)}</Text>
+                  <Text style={styles.updateTime}>{formatDate(displayComplaint.resolved_at)}</Text>
                 </View>
-                {complaint.resolution_notes && (
-                  <Text style={styles.updateNotes}>{complaint.resolution_notes}</Text>
+                {displayComplaint.resolution_notes && (
+                  <Text style={styles.updateNotes}>{displayComplaint.resolution_notes}</Text>
                 )}
               </View>
             ) : (
               <Text style={styles.noUpdatesText}>
-                No status updates yet. We'll notify you when there's progress.
+                {t('citizen:mobileDetail.noUpdates')}
               </Text>
             )}
           </View>
-          
+
           {/* Priority Information */}
           <View style={styles.priorityContainer}>
-            <Text style={styles.sectionTitle}>Priority Information</Text>
+            <Text style={styles.sectionTitle}>{t('citizen:mobileDetail.priorityInfo')}</Text>
             <View style={styles.priorityRow}>
               <View style={styles.priorityItem}>
-                <Text style={styles.priorityLabel}>Priority Score</Text>
-                <View style={[styles.priorityBadge, { 
-                  backgroundColor: getPriorityColor(complaint.priority_score)
+                <Text style={styles.priorityLabel}>{t('citizen:complaintDetail.priorityScore')}</Text>
+                <View style={[styles.priorityBadge, {
+                  backgroundColor: getPriorityColor(displayComplaint.priority_score)
                 }]}>
                   <Text style={styles.priorityScore}>
-                    {complaint.priority_score?.toFixed(2) || 'N/A'}
+                    {Number.isFinite(Number(displayComplaint.priority_score)) ? Number(displayComplaint.priority_score).toFixed(2) : t('common:mobileNav.na')}
                   </Text>
                 </View>
               </View>
               <View style={styles.priorityItem}>
-                <Text style={styles.priorityLabel}>Location Impact</Text>
-                <View style={[styles.priorityBadge, { 
-                  backgroundColor: getPriorityColor(complaint.location_sensitivity_score)
+                <Text style={styles.priorityLabel}>{t('citizen:mobileDetail.locationImpact')}</Text>
+                <View style={[styles.priorityBadge, {
+                  backgroundColor: getPriorityColor(displayComplaint.location_sensitivity_score)
                 }]}>
                   <Text style={styles.priorityScore}>
-                    {complaint.location_sensitivity_score?.toFixed(2) || 'N/A'}
+                    {Number.isFinite(Number(displayComplaint.location_sensitivity_score)) ? Number(displayComplaint.location_sensitivity_score).toFixed(2) : t('common:mobileNav.na')}
                   </Text>
                 </View>
               </View>
               <View style={styles.priorityItem}>
-                <Text style={styles.priorityLabel}>AI Confidence</Text>
-                <View style={[styles.priorityBadge, { 
-                  backgroundColor: getPriorityColor(complaint.ai_confidence_score)
+                <Text style={styles.priorityLabel}>{t('citizen:mobileDetail.aiConfidence')}</Text>
+                <View style={[styles.priorityBadge, {
+                  backgroundColor: getPriorityColor(displayComplaint.ai_confidence_score)
                 }]}>
                   <Text style={styles.priorityScore}>
-                    {complaint.ai_confidence_score?.toFixed(2) || 'N/A'}
+                    {Number.isFinite(Number(displayComplaint.ai_confidence_score)) ? Number(displayComplaint.ai_confidence_score).toFixed(2) : t('common:mobileNav.na')}
                   </Text>
                 </View>
               </View>
             </View>
 
             {/* Compact Algorithm Breakdown Section */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.breakdownToggle}
               onPress={() => {
                 if (!showBreakdown && !breakdownData) {
@@ -885,11 +915,11 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
               }}
             >
               <View style={styles.breakdownHeader}>
-                <Text style={styles.breakdownTitle}>Algorithm Breakdown</Text>
-                <Ionicons 
-                  name={showBreakdown ? "chevron-up" : "chevron-down"} 
-                  size={20} 
-                  color="#666" 
+                <Text style={styles.breakdownTitle}>{t('citizen:mobileDetail.algorithmBreakdown')}</Text>
+                <Ionicons
+                  name={showBreakdown ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color="#666"
                 />
               </View>
             </TouchableOpacity>
@@ -899,27 +929,27 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                 {loadingBreakdown ? (
                   <View style={styles.breakdownLoading}>
                     <ActivityIndicator size="small" color="#1A1A1A" />
-                    <Text style={styles.loadingText}>Loading breakdown...</Text>
+                    <Text style={styles.breakdownLoadingText}>{t('citizen:mobileDetail.loadingBreakdown')}</Text>
                   </View>
                 ) : breakdownData ? (
                   <View style={styles.algorithmScores}>
                     {/* Infrastructure Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>Infrastructure</Text>
+                        <Text style={styles.scoreName}>{t('citizen:mobileDetail.infrastructure')}</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.infrastructureScore || 0) * 100)}%
                         </Text>
                       </View>
                       <View style={styles.progressBar}>
-                        <View 
+                        <View
                           style={[
                             styles.progressFill,
-                            { 
+                            {
                               width: `${Math.round((breakdownData.infrastructureScore || 0) * 100)}%`,
                               backgroundColor: '#4CAF50'
                             }
-                          ]} 
+                          ]}
                         />
                       </View>
                     </View>
@@ -927,20 +957,20 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     {/* Image Analysis Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>Image Analysis</Text>
+                        <Text style={styles.scoreName}>{t('citizen:mobileDetail.imageAnalysis')}</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.imageValidationScore || 0) * 100)}%
                         </Text>
                       </View>
                       <View style={styles.progressBar}>
-                        <View 
+                        <View
                           style={[
                             styles.progressFill,
-                            { 
+                            {
                               width: `${Math.round((breakdownData.imageValidationScore || 0) * 100)}%`,
                               backgroundColor: '#2196F3'
                             }
-                          ]} 
+                          ]}
                         />
                       </View>
                     </View>
@@ -948,20 +978,20 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     {/* Emotion Analysis Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>Emotion Analysis</Text>
+                        <Text style={styles.scoreName}>{t('citizen:mobileDetail.emotionAnalysis')}</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.emotionScore || 0) * 100)}%
                         </Text>
                       </View>
                       <View style={styles.progressBar}>
-                        <View 
+                        <View
                           style={[
                             styles.progressFill,
-                            { 
+                            {
                               width: `${Math.round((breakdownData.emotionScore || 0) * 100)}%`,
                               backgroundColor: '#FF9800'
                             }
-                          ]} 
+                          ]}
                         />
                       </View>
                     </View>
@@ -969,62 +999,62 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     {/* Community Voting Score */}
                     <View style={styles.scoreRow}>
                       <View style={styles.scoreInfo}>
-                        <Text style={styles.scoreName}>Community Votes</Text>
+                        <Text style={styles.scoreName}>{t('citizen:complaintDetail.communityVotes')}</Text>
                         <Text style={styles.scorePercent}>
                           {Math.round((breakdownData.voteScore || 0) * 100)}%
                         </Text>
                       </View>
                       <View style={styles.progressBar}>
-                        <View 
+                        <View
                           style={[
                             styles.progressFill,
-                            { 
+                            {
                               width: `${Math.round((breakdownData.voteScore || 0) * 100)}%`,
                               backgroundColor: '#9C27B0'
                             }
-                          ]} 
+                          ]}
                         />
                       </View>
                     </View>
 
                     <Text style={styles.weightingNote}>
-                      Weighting: Infrastructure (40%) • Image (30%) • Emotion (20%) • Votes (10%)
+                      {t('citizen:mobileDetail.weightingNote')}
                     </Text>
                   </View>
                 ) : (
-                  <Text style={styles.breakdownError}>Unable to load breakdown data</Text>
+                  <Text style={styles.breakdownError}>{t('citizen:mobileDetail.breakdownUnavailable')}</Text>
                 )}
               </View>
             )}
           </View>
-          
+
           {/* Metadata */}
           <View style={styles.metadataContainer}>
-            <Text style={styles.metadataText}>Complaint ID: {complaint.id}</Text>
-            <Text style={styles.metadataText}>Submitted: {formatDate(complaint.created_at)}</Text>
-            {complaint.resolved_at && (
-              <Text style={styles.metadataText}>Resolved: {formatDate(complaint.resolved_at)}</Text>
+            <Text style={styles.metadataText}>{t('citizen:mobileDetail.complaintId', { id: displayComplaint.id })}</Text>
+            <Text style={styles.metadataText}>{t('citizen:mobileReports.submittedOn', { date: formatDate(displayComplaint.created_at) })}</Text>
+            {displayComplaint.resolved_at && (
+              <Text style={styles.metadataText}>{t('citizen:mobileDetail.resolvedOn', { date: formatDate(displayComplaint.resolved_at) })}</Text>
             )}
           </View>
-          
+
           {/* Similar Complaints */}
-          {complaint.similarComplaints && complaint.similarComplaints.length > 0 && (
+          {displaySimilar.length > 0 && (
             <View style={styles.similarContainer}>
-              <Text style={styles.sectionTitle}>Similar Complaints Nearby</Text>
-              <ScrollView 
-                horizontal 
+              <Text style={styles.sectionTitle}>{t('citizen:mobileDetail.similarNearby')}</Text>
+              <ScrollView
+                horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.similarList}
               >
-                {complaint.similarComplaints.map((similar, index) => (
-                  <TouchableOpacity 
+                {displaySimilar.map((similar, index) => (
+                  <TouchableOpacity
                     key={index}
                     style={styles.similarItem}
                     onPress={() => handleNavigateToSimilarComplaint(similar.id)}
                   >
                     {similar.image_urls && similar.image_urls.length > 0 ? (
-                      <Image 
-                        source={{ uri: similar.image_urls[0] }} 
+                      <Image
+                        source={{ uri: similar.image_urls[0] }}
                         style={styles.similarImage}
                       />
                     ) : (
@@ -1034,11 +1064,11 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
                     )}
                     <Text style={styles.similarTitle} numberOfLines={1}>{similar.title}</Text>
                     <View style={styles.similarFooter}>
-                      <View style={[styles.similarStatus, { 
+                      <View style={[styles.similarStatus, {
                         backgroundColor: getStatusColor(similar.status)
                       }]}>
                         <Text style={styles.similarStatusText}>
-                          {similar.status?.charAt(0).toUpperCase() + similar.status?.slice(1)}
+                          {getStatusLabel(similar.status, t)}
                         </Text>
                       </View>
                       <Text style={styles.similarDistance}>{similar.distance}m</Text>
@@ -1048,7 +1078,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
               </ScrollView>
             </View>
           )}
-          
+
           {/* Bottom space */}
           <View style={{ height: 80 }} />
         </View>
@@ -1059,7 +1089,7 @@ const ComplaintDetailScreen = ({ route, navigation }) => {
 
 const getPriorityColor = (score) => {
   if (!score) return '#9e9e9e';
-  
+
   if (score >= 0.7) return '#f44336';
   if (score >= 0.5) return '#ff9800';
   if (score >= 0.3) return '#ffc107';
@@ -1613,7 +1643,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
-  backButton: {
+  errorBackButton: {
     backgroundColor: '#1A1A1A',
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -1733,7 +1763,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     paddingVertical: 12,
   },
-  loadingText: {
+  breakdownLoadingText: {
     marginLeft: 8,
     fontSize: 12,
     color: '#666',

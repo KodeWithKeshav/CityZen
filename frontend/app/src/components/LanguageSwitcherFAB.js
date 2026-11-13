@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Modal, StyleSheet, SafeAreaView } from 'r
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { SUPPORTED_LANGUAGES } from '../i18n';
+import { useDynamicTranslation } from '../context/TranslationContext';
 
 /**
  * Global, always-on-top language switcher. Rendered once as a sibling of
@@ -11,7 +12,8 @@ import { SUPPORTED_LANGUAGES } from '../i18n';
  * touching every screen's individual header just to add a switcher.
  */
 export default function LanguageSwitcherFAB() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation('common');
+  const { currentLang, isTranslating } = useDynamicTranslation();
   const [open, setOpen] = useState(false);
 
   return (
@@ -19,7 +21,7 @@ export default function LanguageSwitcherFAB() {
       <TouchableOpacity
         style={styles.fab}
         onPress={() => setOpen(true)}
-        accessibilityLabel="Change language"
+        accessibilityLabel={t('language.label', 'Language')}
       >
         <Ionicons name="language" size={22} color="#fff" />
       </TouchableOpacity>
@@ -28,24 +30,34 @@ export default function LanguageSwitcherFAB() {
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setOpen(false)}>
           <SafeAreaView style={styles.sheetWrapper}>
             <View style={styles.sheet}>
-              <Text style={styles.title}>Language</Text>
-              {SUPPORTED_LANGUAGES.map(({ code, label }) => (
-                <TouchableOpacity
-                  key={code}
-                  style={[styles.option, i18n.language === code && styles.optionSelected]}
-                  onPress={() => {
-                    i18n.changeLanguage(code);
-                    setOpen(false);
-                  }}
-                >
-                  <Text style={[styles.optionText, i18n.language === code && styles.optionTextSelected]}>
-                    {label}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <Text style={[styles.title, { marginBottom: 0 }]}>{t('language.label', 'Language')}</Text>
+                {isTranslating && (
+                  <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '600' }}>
+                    {t('language.translating', 'Translating...')}
                   </Text>
-                  {i18n.language === code && (
-                    <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
-                  )}
-                </TouchableOpacity>
-              ))}
+                )}
+              </View>
+              {SUPPORTED_LANGUAGES.map(({ code, label }) => {
+                const selected = currentLang === code;
+                return (
+                  <TouchableOpacity
+                    key={code}
+                    style={[styles.option, selected && styles.optionSelected]}
+                    onPress={() => {
+                      i18n.changeLanguage(code);
+                      setOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
+                      {label}
+                    </Text>
+                    {selected && (
+                      <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </SafeAreaView>
         </TouchableOpacity>

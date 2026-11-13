@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const router = express.Router();
 const { supabase } = require('../config/supabase');
@@ -36,9 +37,9 @@ async function analyzeComplaintText({ description, category, imagePrimaryClass, 
  */
 router.post('/analyze-text', async (req, res) => {
   try {
-    const { description, category, imagePrimaryClass, translation, language } = req.body;
+    const { description, category, imagePrimaryClass, translation, language } = req.body || {};
 
-    if (!description || !description.trim()) {
+    if (typeof description !== 'string' || !description.trim()) {
       return res.status(400).json({
         success: false,
         error: 'description is required',
@@ -76,19 +77,30 @@ async function checkComplaintsTableSchema() {
       .from('complaints')
       .select('*')
       .limit(1);
-      
+
     if (error) {
       console.error('❌ Schema check error:', error);
       return null;
     }
-    
+
     if (data && data.length > 0) {
       console.log('📋 Available columns in complaints table:', Object.keys(data[0]));
       return Object.keys(data[0]);
-    } else {
-      console.log('ℹ️ No records in complaints table to infer schema');
-      return [];
     }
+
+    // Empty table: try RPC introspection before returning null so callers don't strip all fields
+    console.log('ℹ️ No records in complaints table to infer schema, trying RPC introspection');
+    try {
+      const { data: rpcCols, error: rpcErr } = await supabase.rpc('get_table_columns', { table_name: 'complaints' });
+      if (!rpcErr && Array.isArray(rpcCols) && rpcCols.length > 0) {
+        const colNames = rpcCols.map(c => (typeof c === 'string' ? c : c.column_name)).filter(Boolean);
+        if (colNames.length > 0) return colNames;
+      }
+    } catch (rpcException) {
+      console.log('ℹ️ RPC schema introspection unavailable:', rpcException.message);
+    }
+
+    return null;
   } catch (error) {
     console.error('❌ Schema check failed:', error);
     return null;
@@ -98,22 +110,30 @@ async function checkComplaintsTableSchema() {
 // Filter the complaint data to match available columns
 async function filterComplaintDataForInsertion(complaintData, availableColumns) {
   const filteredData = {};
-  
-  // Only include fields that exist in the database schema
-  Object.keys(complaintData).forEach(key => {
-    if (availableColumns.includes(key)) {
-      filteredData[key] = complaintData[key];
-    }
-  });
-  
+
+  // Only filter columns when schema introspection actually returned column names;
+  // when the table is empty or schema lookup failed, keep all fields instead of stripping to {}
+  if (Array.isArray(availableColumns) && availableColumns.length > 0) {
+    Object.keys(complaintData).forEach(key => {
+      if (availableColumns.includes(key)) {
+        filteredData[key] = complaintData[key];
+      }
+    });
+  } else {
+    Object.assign(filteredData, complaintData);
+  }
+
   // Validate numeric fields to prevent overflow errors
   // For columns with precision 3, scale 2 (max value < 10)
   const numericFields = ['priority_score', 'location_sensitivity_score', 'emotion_score', 'ai_confidence_score', 'text_authenticity_score'];
   numericFields.forEach(field => {
     if (field in filteredData) {
-      // Ensure value is a number between 0 and 9.99
+      // Ensure value is a finite number between 0 and 9.99
       if (typeof filteredData[field] === 'number') {
-        if (filteredData[field] >= 10) {
+        if (!Number.isFinite(filteredData[field])) {
+          console.log(`⚠️ Adjusting non-finite ${field} to 0`);
+          filteredData[field] = 0;
+        } else if (filteredData[field] >= 10) {
           console.log(`⚠️ Adjusting ${field} from ${filteredData[field]} to 9.99 to prevent overflow`);
           filteredData[field] = 9.99;
         } else if (filteredData[field] < 0) {
@@ -126,7 +146,7 @@ async function filterComplaintDataForInsertion(complaintData, availableColumns) 
       }
     }
   });
-  
+
   console.log('📝 Filtered complaint data for insertion:', filteredData);
   return filteredData;
 }
@@ -134,14 +154,14 @@ async function filterComplaintDataForInsertion(complaintData, availableColumns) 
 router.post('/submit', async (req, res) => {
   try {
     console.log('📝 New complaint submission:', req.body);
-    
+
     // Check if user is authenticated
     const authenticatedUser = req.user;
     console.log('👤 Authenticated user:', authenticatedUser ? authenticatedUser.id : 'None');
-    
+
     // Check the table schema first
-    const columns = await checkComplaintsTableSchema() || [];
-    
+    const columns = await checkComplaintsTableSchema();
+
     const {
       title,
       description,
@@ -149,110 +169,105 @@ router.post('/submit', async (req, res) => {
       imageUrl,
       imageValidation,
       locationData,
-      userId = 'anonymous',
-      userType = 'citizen',
-      language = 'en'
-    } = req.body;
-    
+      language = 'en',
+      translation
+    } = req.body || {};
+
     // Input validation
-    if (!title || !description || !category || !locationData) {
+    if (
+      typeof title !== 'string' || !title.trim() ||
+      typeof description !== 'string' || !description.trim() ||
+      typeof category !== 'string' || !category.trim() ||
+      !locationData || typeof locationData !== 'object'
+    ) {
       return res.status(400).json({
         success: false,
         error: 'Title, description, category, and location are required',
         code: 'MISSING_REQUIRED_FIELDS'
       });
     }
-    
-    // Generate a proper UUID for demo users or use the provided userId if it's in UUID format
-    const generateUuid = () => {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
+
+    const parseCoord = (v) => (v === null || v === undefined || v === '' || typeof v === 'boolean') ? NaN : Number(v);
+    const lat = parseCoord(locationData.latitude);
+    const lng = parseCoord(locationData.longitude);
+    const hasValidCoords =
+      Number.isFinite(lat) && Number.isFinite(lng) &&
+      lat >= -90 && lat <= 90 &&
+      lng >= -180 && lng <= 180;
+
+    if (!hasValidCoords && (typeof locationData.address !== 'string' || !locationData.address.trim())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid location coordinates or address are required',
+        code: 'INVALID_LOCATION'
       });
+    }
+
+    const normalizedCategory = category.trim();
+    const normalizedImageUrl = (typeof imageUrl === 'string' && imageUrl.trim()) ? imageUrl.trim() : null;
+    const normalizedLanguage = (typeof language === 'string' && language.trim()) ? language.trim() : 'en';
+    const normalizedLocationData = {
+      ...locationData,
+      latitude: hasValidCoords ? lat : null,
+      longitude: hasValidCoords ? lng : null,
     };
-    
+
     // Validate if string is a UUID
     const isUuid = (str) => {
+      if (typeof str !== 'string') return false;
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
       return uuidRegex.test(str);
     };
-    
+
     // Create or ensure the demo user exists for foreign key constraint
     const ensureDemoUser = async () => {
       console.log('🔍 Checking for demo user...');
-      
+
       // First, check if our default demo user exists
       const { data: existingUser, error: findError } = await supabase
         .from('users')
         .select('id')
         .eq('email', 'demo@civicrezo.org')
         .limit(1);
-      
+
       if (findError) {
         console.error('❌ Error checking for demo user:', findError);
       }
-      
+
       // If user exists, return its ID
       if (existingUser && existingUser.length > 0) {
         console.log('✅ Using existing demo user:', existingUser[0].id);
         return existingUser[0].id;
       }
-      
+
       console.log('⚠️ Demo user not found, creating one...');
-      
+
       // Check if the RPC function exists by trying to call it
       try {
         const { data: demoId, error: rpcError } = await supabase.rpc('create_demo_user');
-        
+
         if (!rpcError && demoId) {
           console.log('✅ Created demo user via RPC:', demoId);
           return demoId;
         }
-        
+
         if (rpcError) {
           console.log('⚠️ RPC function not available:', rpcError.message);
-          // Fall back to direct insert
         }
-      } catch (e) {
         console.log('⚠️ RPC call failed, falling back to direct insert');
+      } catch (rpcErr) {
+        console.log('⚠️ RPC call failed, falling back to direct insert:', rpcErr.message);
       }
       
-      // If RPC failed or isn't available, try direct insert
-      const demoUuid = generateUuid();
-      
-      try {
-        // Use raw SQL to ensure the insert works correctly with the database schema
-        const { data, error: sqlError } = await supabase.rpc('execute_sql', {
-          sql_query: `
-            INSERT INTO users (
-              id, email, password, full_name, phone_number, 
-              user_type, address, is_active, created_at, updated_at
-            ) VALUES (
-              '${demoUuid}', 'demo@civicrezo.org', 'not-a-real-password', 
-              'Demo User', '1234567890', 'citizen', 'Demo Address', 
-              true, NOW(), NOW()
-            )
-            RETURNING id;
-          `
-        });
-        
-        if (sqlError) {
-          console.error('❌ SQL error creating demo user:', sqlError);
-        } else {
-          console.log('✅ Created demo user via SQL:', data);
-          return demoUuid;
-        }
-      } catch (sqlExecError) {
-        console.error('❌ SQL execution error:', sqlExecError);
-      }
-      
-      // Last attempt: standard insert
+      const demoUuid = crypto.randomUUID();
+
+      // Direct insert fallback
       const { data: newUser, error: insertError } = await supabase
         .from('users')
         .insert([{
           id: demoUuid,
           email: 'demo@civicrezo.org',
-          password: 'not-a-real-password-hash',
+          password: '!demo-disabled-password!',
           full_name: 'Demo User',
           phone_number: '1234567890',
           user_type: 'citizen',
@@ -262,33 +277,22 @@ router.post('/submit', async (req, res) => {
           updated_at: new Date().toISOString()
         }])
         .select();
-      
-      if (insertError) {
-        console.error('❌ Error creating demo user:', insertError);
-        // All attempts failed, but we need to return something
-        console.log('⚠️ All demo user creation methods failed, using generated UUID as fallback');
+
+      if (insertError || !newUser || !newUser[0]?.id) {
+        console.error('❌ Error creating demo user:', insertError || 'No user row returned');
         return demoUuid;
       }
-      
+
       console.log('✅ Created new demo user:', newUser[0].id);
       return newUser[0].id;
     };
-    
-    // Get a valid user ID for the database (actual user or demo)
+
+    // Always derive user identity from verified auth token when present; never trust unauthenticated body userId
     let userUuid;
-    
-    // If user is authenticated, use their ID
-    if (authenticatedUser && authenticatedUser.id) {
+    if (authenticatedUser && isUuid(authenticatedUser.id)) {
       console.log(`🔑 Using authenticated user_id: ${authenticatedUser.id}`);
       userUuid = authenticatedUser.id;
-    } 
-    // If userId is provided in the request and it's a valid UUID, use it
-    else if (isUuid(userId)) {
-      console.log(`🔑 Using provided user_id: ${userId}`);
-      userUuid = userId;
-    } 
-    // Otherwise create or find a demo user
-    else {
+    } else {
       userUuid = await ensureDemoUser();
       console.log(`🔑 Using demo user_id: ${userUuid}`);
     }
@@ -300,12 +304,14 @@ router.post('/submit', async (req, res) => {
     // validation and priority-scoring below, since a duplicate skips all
     // of that entirely - no point spending a Roboflow/emotion-analysis
     // call on a submission that isn't going to become a new complaint.
-    const duplicateComplaint = await findNearbyDuplicateComplaint({
-      supabase,
-      category,
-      latitude: locationData.latitude,
-      longitude: locationData.longitude,
-    });
+    const duplicateComplaint = hasValidCoords
+      ? await findNearbyDuplicateComplaint({
+        supabase,
+        category: normalizedCategory,
+        latitude: lat,
+        longitude: lng,
+      })
+      : null;
 
     if (duplicateComplaint) {
       console.log(
@@ -339,7 +345,7 @@ router.post('/submit', async (req, res) => {
     // Reject outright if an image was uploaded but never passed validation
     // against the selected category (client should already prevent this,
     // but the server is the authority — never trust the client alone).
-    if (imageUrl) {
+    if (normalizedImageUrl) {
       if (!imageValidation || imageValidation.allowUpload !== true) {
         return res.status(400).json({
           success: false,
@@ -355,10 +361,11 @@ router.post('/submit', async (req, res) => {
     // (does the text actually describe the declared/detected issue, and does
     // it read like a genuine report rather than spam/gibberish?)
     const textAnalysis = await analyzeComplaintText({
-      description,
-      category,
+      description: description.trim(),
+      category: normalizedCategory,
       imagePrimaryClass: imageValidation?.primaryClass || null,
-      language,
+      translation,
+      language: normalizedLanguage,
     });
     console.log('🔎 Text analysis result:', {
       authenticityScore: textAnalysis.authenticity.authenticityScore,
@@ -390,61 +397,76 @@ router.post('/submit', async (req, res) => {
     // Calculate comprehensive priority score
     const priorityAnalysis = await calculateComprehensivePriority({
       imageValidation,
-      locationData,
-      category,
-      description
+      locationData: normalizedLocationData,
+      category: normalizedCategory,
+      description: description.trim()
     });
 
     // Create a base complaint object with essential fields
     const baseComplaint = {
       title: title.trim(),
       description: description.trim(),
-      category,
+      category: normalizedCategory,
       status: 'pending', // initial status as pending
-      
+
       // User information - ensure it's a UUID for Supabase
       user_id: userUuid,
-      
+
       // Timestamps in PostgreSQL timestamptz format (ISO format works well)
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    
+
+    const safeFixedScore = (val, fallback = 0) =>
+      (typeof val === 'number' && Number.isFinite(val)) ? parseFloat(val.toFixed(2)) : fallback;
+
+    const rawConfidence = imageValidation?.modelConfidence ?? imageValidation?.confidence;
+    const numericConfidence = (typeof rawConfidence === 'number' && Number.isFinite(rawConfidence))
+      ? rawConfidence
+      : (typeof rawConfidence === 'string' && rawConfidence.trim() !== '' && Number.isFinite(Number(rawConfidence))
+        ? Number(rawConfidence)
+        : null);
+
     // Add expected fields according to your schema, with fallbacks
     const complaintData = {
       ...baseComplaint,
-      
+
       // Location information
-      location_latitude: locationData.latitude,
-      location_longitude: locationData.longitude,
-      
+      location_latitude: normalizedLocationData.latitude,
+      location_longitude: normalizedLocationData.longitude,
+
       // Try both versions of fields to increase compatibility
-      location_address: locationData.address || `${locationData.latitude.toFixed(4)}, ${locationData.longitude.toFixed(4)}`,
-      
+      location_address: (typeof locationData.address === 'string' && locationData.address.trim())
+        ? locationData.address.trim()
+        : (hasValidCoords ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : 'Unknown location'),
+
       // Scoring fields - adjust to match the database constraints
       // For numeric fields with precision 3, scale 2, values must be < 10^1 (i.e., < 10)
-      priority_score: parseFloat((priorityAnalysis.totalScore).toFixed(2)),
-      location_sensitivity_score: parseFloat((priorityAnalysis.locationScore).toFixed(2)),
-      emotion_score: parseFloat((textAnalysis.emotion.emotionScore ?? 0.5).toFixed(2)),
+      priority_score: safeFixedScore(priorityAnalysis.totalScore, 0),
+      location_sensitivity_score: safeFixedScore(priorityAnalysis.locationScore, 0),
+      emotion_score: safeFixedScore(textAnalysis.emotion?.emotionScore, 0.5),
 
       // Add AI confidence score if available
-      ai_confidence_score: imageValidation?.modelConfidence ?
-        parseFloat((imageValidation.modelConfidence).toFixed(2)) : 0.5,
+      ai_confidence_score: numericConfidence !== null
+        ? parseFloat(numericConfidence.toFixed(2))
+        : 0.5,
 
       // How well the description matches the declared/detected category and
       // reads like a genuine report (0-1, see TextAuthenticityService)
       text_authenticity_score: textAnalysis.authenticity.authenticityScore,
       content_flagged: textAnalysis.authenticity.flagged,
-      content_flag_reason: textAnalysis.authenticity.reasons.join(' ') || null,
+      content_flag_reason: (Array.isArray(textAnalysis.authenticity?.reasons)
+        ? textAnalysis.authenticity.reasons
+        : []).join(' ') || null,
 
       // Which language the description was captured in (typed or via the
       // multilingual speech-to-text flow). Dropped gracefully by
       // filterComplaintDataForInsertion() if the `language` column migration
       // (database/add_language_column_to_complaints.sql) hasn't run yet.
-      language,
+      language: normalizedLanguage,
 
       // Images and media
-      image_urls: imageUrl ? [imageUrl] : [],
+      image_urls: normalizedImageUrl ? [normalizedImageUrl] : [],
       audio_url: null,
 
       // Status fields
@@ -456,33 +478,33 @@ router.post('/submit', async (req, res) => {
       resolution_notes: null,
       resolved_at: null,
     };
-    
+
     // Filter the complaint data to match available columns
     const filteredData = await filterComplaintDataForInsertion(complaintData, columns);
-    
+
     let complaint;
-    
+
     try {
       // Insert into Supabase
       const { data, error } = await supabase
         .from('complaints')
         .insert([filteredData])
         .select();
-      
+
       if (error) {
         console.error('❌ Supabase insert error:', error);
-        
+
         // Provide more specific error handling for numeric overflow
         if (error.code === '22003' && error.message.includes('numeric field overflow')) {
-          throw new Error(`Database error: Numeric field overflow. Scores must be less than 10 with up to 2 decimal places.`);
+          throw new Error('Numeric field overflow. Scores must be less than 10 with up to 2 decimal places.');
         }
-        
-        throw new Error(`Database error: ${error.message}`);
+
+        throw new Error(error.message);
       }
-      
+
       complaint = data;
       console.log('✅ Complaint saved to Supabase:', complaint);
-      
+
       // After successful complaint submission, create an initial complaint update entry
       if (complaint && complaint[0] && complaint[0].id) {
         const complaintId = complaint[0].id;
@@ -495,15 +517,15 @@ router.post('/submit', async (req, res) => {
         potholeGeometryService
           .estimateAndPersistGeometry({
             complaintId,
-            imageUrl,
-            category,
+            imageUrl: normalizedImageUrl,
+            category: normalizedCategory,
             primaryClass: imageValidation?.primaryClass || null,
-            deviceTilt: req.body.deviceTilt ?? null, // present once the mobile app sends it (Phase 2)
+            deviceTilt: req.body?.deviceTilt ?? null, // present once the mobile app sends it (Phase 2)
           })
           .catch((e) => console.error('❌ Geometry estimation error (non-blocking):', e.message));
 
         // 1. Add entry to complaint_updates table
-        const { data: updateData, error: updateError } = await supabase
+        const { error: updateError } = await supabase
           .from('complaint_updates')
           .insert([{
             complaint_id: complaintId,
@@ -513,14 +535,14 @@ router.post('/submit', async (req, res) => {
             update_notes: 'Complaint submitted',
             created_at: new Date().toISOString()
           }]);
-        
+
         if (updateError) {
           console.error('❌ Error creating complaint update entry:', updateError);
         } else {
           console.log('✅ Added initial complaint update entry');
         }
-        
-        
+
+
         // 2. Register the creator's initial upvote (see services/voteService.js
         // - also recomputes and persists complaints.vote_count, which the
         // old delete-then-insert here never did, so a brand new complaint
@@ -534,7 +556,7 @@ router.post('/submit', async (req, res) => {
       }
     } catch (dbError) {
       console.error('❌ Database operation failed:', dbError);
-      
+
       // Attempt to get table schema directly (alternative approach)
       try {
         const { data: schema } = await supabase.rpc('get_table_columns', { table_name: 'complaints' });
@@ -544,10 +566,10 @@ router.post('/submit', async (req, res) => {
       } catch (e) {
         console.error('Could not fetch schema via RPC:', e);
       }
-      
+
       throw new Error(`Database error: ${dbError.message}`);
     }
-    
+
     // Prepare response - safe access in case structure changed
     const complaintRecord = complaint && complaint[0] ? complaint[0] : {};
 
@@ -558,8 +580,8 @@ router.post('/submit', async (req, res) => {
       success: true,
       complaint: {
         id: complaintRecord.id || `temp-${Date.now()}`,
-        title: complaintRecord.title || title,
-        category: complaintRecord.category || category,
+        title: complaintRecord.title || title.trim(),
+        category: complaintRecord.category || normalizedCategory,
         priorityScore: Math.round(finalScore * 100),
         status: complaintRecord.status || 'pending',
         submittedAt: complaintRecord.created_at || new Date().toISOString()
@@ -588,9 +610,9 @@ router.post('/submit', async (req, res) => {
         reasons: textAnalysis.authenticity.reasons,
         emotionScore: textAnalysis.emotion.emotionScore,
       },
-      nextSteps: generateNextSteps(finalPriorityLevel, category),
+      nextSteps: generateNextSteps(finalPriorityLevel, normalizedCategory),
     };
-    
+
     res.json(response);
   } catch (error) {
     console.error('❌ Complaint submission error:', error);
@@ -626,17 +648,18 @@ async function calculateComprehensivePriority({ imageValidation, locationData, c
 
   const categoryOnlyFallback = (reason) => {
     const fallbackScore = priorityConfig.getFallbackPriorityScore(category);
+    const fallbackImageScore = imageValidation?.data?.priorityScore ?? imageValidation?.modelConfidence ?? imageValidation?.confidence ?? 0;
     return {
       totalScore: fallbackScore,
       priorityLevel: priorityConfig.getPriorityLevel(fallbackScore),
       locationScore: 0,
-      imageScore: imageValidation?.data?.priorityScore || imageValidation?.confidence || 0,
+      imageScore: fallbackImageScore,
       reasoning: `${reason} Priority assigned from complaint category "${category}" (${priorityConfig.getCategoryImportanceLabel(category)}) only.`,
       facilitiesCount: 0,
       processingTime: Date.now() - startTime,
       breakdown: {
         infrastructureScore: 0,
-        imageValidationScore: imageValidation?.data?.priorityScore || imageValidation?.confidence || 0,
+        imageValidationScore: fallbackImageScore,
         emotionScore: 0,
         voteScore: 0,
         statusMultiplier: 1.0,
@@ -645,7 +668,7 @@ async function calculateComprehensivePriority({ imageValidation, locationData, c
     };
   };
 
-  if (!locationData || !locationData.latitude || !locationData.longitude) {
+  if (!locationData || !Number.isFinite(locationData.latitude) || !Number.isFinite(locationData.longitude)) {
     return categoryOnlyFallback('No location data provided.');
   }
 
@@ -729,7 +752,7 @@ function generateNextSteps(priorityLevel, category) {
       'Check back for status updates.'
     ];
   }
-  
+
   return defaultSteps;
 }
 
@@ -737,10 +760,20 @@ function generateNextSteps(priorityLevel, category) {
  * Get complaints with pagination and filters
  * GET /api/complaints
  */
+const ALLOWED_SORT_COLUMNS = new Set([
+  'created_at',
+  'updated_at',
+  'priority_score',
+  'vote_count',
+  'status',
+  'category',
+  'title'
+]);
+
 router.get('/', async (req, res) => {
   try {
-    const { 
-      page = 1, 
+    const {
+      page = 1,
       limit = 10,
       status,
       category,
@@ -752,63 +785,86 @@ router.get('/', async (req, res) => {
       longitude,
       radius
     } = req.query;
-    
-    const offset = (page - 1) * limit;
-    
+
+    const parsedPage = parseInt(page, 10);
+    const parsedLimit = parseInt(limit, 10);
+    const pageNum = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    const limitNum = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(100, parsedLimit) : 10;
+    const offset = (pageNum - 1) * limitNum;
+
     let query = supabase
       .from('complaints')
       .select(`
         *,
         users:user_id (id, full_name, email)
       `, { count: 'exact' });
-    
+
     // Apply filters if provided
     if (status) query = query.eq('status', status);
     if (category) query = query.eq('category', category);
     if (userId) query = query.eq('user_id', userId);
     if (adminId) query = query.eq('assigned_admin_id', adminId);
-    
+
     // Apply location-based filtering if latitude, longitude, and radius are provided
-    if (latitude && longitude && radius) {
-      console.log(`🌎 Filtering complaints by location: lat=${latitude}, lng=${longitude}, radius=${radius}m`);
-      
+    if (latitude !== undefined && longitude !== undefined && radius !== undefined) {
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+      const rad = parseFloat(radius);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(rad) || rad <= 0 || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid latitude, longitude, or radius filter parameters'
+        });
+      }
+
+      console.log(`🌎 Filtering complaints by location: lat=${lat}, lng=${lng}, radius=${rad}m`);
+
       // Calculate the approximate distance in degrees for the radius
-      const radiusInDegrees = parseFloat(radius) / 111000; // 1 degree is approximately 111km
-      
+      const latDelta = rad / 111000; // 1 degree latitude is ~111km
+      const cosLat = Math.max(0.01, Math.cos((lat * Math.PI) / 180));
+      const lngDelta = rad / (111000 * cosLat);
+
       // Filter by bounding box first (more efficient than calculating exact distances for all records)
       query = query.filter(
-        `location_latitude`, 'gte', parseFloat(latitude) - radiusInDegrees
+        'location_latitude', 'gte', lat - latDelta
       ).filter(
-        `location_latitude`, 'lte', parseFloat(latitude) + radiusInDegrees
+        'location_latitude', 'lte', lat + latDelta
       ).filter(
-        `location_longitude`, 'gte', parseFloat(longitude) - radiusInDegrees
+        'location_longitude', 'gte', lng - lngDelta
       ).filter(
-        `location_longitude`, 'lte', parseFloat(longitude) + radiusInDegrees
+        'location_longitude', 'lte', lng + lngDelta
       );
     }
-    
-    // Apply sorting
-    if (sort && order) {
-      query = query.order(sort, { ascending: order.toLowerCase() === 'asc' });
-    }
-    
+
+    // Apply sorting against an explicit column whitelist
+    const sortColumn = ALLOWED_SORT_COLUMNS.has(sort) ? sort : 'created_at';
+    const isAscending = typeof order === 'string' && order.toLowerCase() === 'asc';
+    query = query.order(sortColumn, { ascending: isAscending });
+
     // Apply pagination
-    query = query.range(offset, offset + limit - 1);
-    
+    query = query.range(offset, offset + limitNum - 1);
+
     const { data, error, count } = await query;
-    
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const complaints = data || [];
+
     // If we have user authentication, add vote information to each complaint
-    if (data && req.user) {
+    if (complaints.length > 0 && req.user?.id) {
       const authenticatedUserId = req.user.id;
-      
+
       // Vote counts are already included in complaints table, no need to fetch separately
       // Just get user votes for all complaints to check if user has voted
       const { data: userVotes, error: userVoteError } = await supabase
         .from('complaint_votes')
         .select('complaint_id, vote_type')
         .eq('user_id', authenticatedUserId)
-        .in('complaint_id', data.map(c => c.id));
-        
+        .in('complaint_id', complaints.map(c => c.id));
+
       // Map of user votes by complaint
       const userVoteMap = {};
       if (!userVoteError && userVotes) {
@@ -817,33 +873,28 @@ router.get('/', async (req, res) => {
           userVoteMap[vote.complaint_id] = (vote.vote_type === 'upvote');
         });
       }
-      
+
       // Add user vote information to each complaint (vote_count already exists in complaints table)
-      data.forEach(complaint => {
+      complaints.forEach(complaint => {
         // vote_count is already available from complaints table
         complaint.userVoted = userVoteMap[complaint.id] || false;
       });
     }
-    
-    if (error) {
-      throw new Error(error.message);
-    }
-    
+
     // Log the vote counts to help with debugging
-    if (data) {
-      console.log(`📊 Returning ${data.length} complaints with vote counts:`, 
-        data.map(c => ({id: c.id, votes: c.vote_count || 0, userVoted: c.userVoted || false}))
-      );
-    }
-    
+    console.log(`📊 Returning ${complaints.length} complaints with vote counts:`,
+      complaints.map(c => ({ id: c.id, votes: c.vote_count || 0, userVoted: c.userVoted || false }))
+    );
+
+    const totalCount = count || 0;
     res.json({
       success: true,
-      complaints: data,
+      complaints,
       pagination: {
-        total: count,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(count / limit)
+        total: totalCount,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(totalCount / limitNum)
       }
     });
   } catch (error) {
@@ -862,21 +913,22 @@ router.get('/', async (req, res) => {
 router.get('/all', async (req, res) => {
   try {
     console.log('📋 Fetching all complaints');
-    
+
     const { data, error } = await supabase
       .from('complaints')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (error) {
       throw new Error(error.message);
     }
-    
-    console.log(`✅ Successfully fetched ${data.length} complaints`);
-    
+
+    const complaints = data || [];
+    console.log(`✅ Successfully fetched ${complaints.length} complaints`);
+
     res.json({
       success: true,
-      complaints: data
+      complaints
     });
   } catch (error) {
     console.error('Fetch all complaints error:', error);
@@ -935,7 +987,7 @@ router.get('/personal-reports', async (req, res) => {
     // Transform complaints with Amazon-style tracking stages
     const complaintsWithTracking = complaints?.map(complaint => {
       const workflow = workflowData.find(w => w.complaint_id === complaint.id);
-      
+
       // Create Amazon-style tracking stages
       const trackingStages = [
         {
@@ -949,8 +1001,8 @@ router.get('/personal-reports', async (req, res) => {
         {
           id: 2,
           name: 'Initial Review',
-          status: workflow?.step_1_status === 'completed' ? 'completed' : 
-                 workflow?.step_1_status === 'in_progress' ? 'in_progress' : 'pending',
+          status: workflow?.step_1_status === 'completed' ? 'completed' :
+            workflow?.step_1_status === 'in_progress' ? 'in_progress' : 'pending',
           date: workflow?.step_1_timestamp,
           description: 'Our team is reviewing your complaint for validity and priority',
           icon: '🔍',
@@ -959,8 +1011,8 @@ router.get('/personal-reports', async (req, res) => {
         {
           id: 3,
           name: 'Assessment & Planning',
-          status: workflow?.step_2_status === 'completed' ? 'completed' : 
-                 workflow?.step_2_status === 'in_progress' ? 'in_progress' : 'pending',
+          status: workflow?.step_2_status === 'completed' ? 'completed' :
+            workflow?.step_2_status === 'in_progress' ? 'in_progress' : 'pending',
           date: workflow?.step_2_timestamp,
           description: 'Field assessment and resource planning in progress',
           icon: '📋',
@@ -970,8 +1022,8 @@ router.get('/personal-reports', async (req, res) => {
         {
           id: 4,
           name: 'Work in Progress',
-          status: workflow?.step_3_status === 'completed' ? 'completed' : 
-                 workflow?.step_3_status === 'in_progress' ? 'in_progress' : 'pending',
+          status: workflow?.step_3_status === 'completed' ? 'completed' :
+            workflow?.step_3_status === 'in_progress' ? 'in_progress' : 'pending',
           date: workflow?.step_3_timestamp,
           description: 'Resolution work is being carried out',
           icon: '🔧',
@@ -989,11 +1041,16 @@ router.get('/personal-reports', async (req, res) => {
         }
       ];
 
+      const inProgressIdx = trackingStages.findIndex(stage => stage.status === 'in_progress');
+      const completedCount = trackingStages.filter(stage => stage.status === 'completed').length;
+      const currentStage = inProgressIdx !== -1
+        ? inProgressIdx + 1
+        : (complaint.status === 'resolved' ? 5 : Math.min(5, completedCount + 1));
+
       return {
         ...complaint,
         trackingStages,
-        currentStage: trackingStages.findIndex(stage => stage.status === 'in_progress') + 1 || 
-                     (complaint.status === 'resolved' ? 5 : trackingStages.filter(stage => stage.status === 'completed').length + 1)
+        currentStage
       };
     }) || [];
 
@@ -1026,17 +1083,96 @@ router.get('/personal-reports', async (req, res) => {
 });
 
 /**
+ * Get user vote status for complaints
+ * GET /api/complaints/vote/status
+ * Requires authentication
+ * Query: { complaintIds: string } - comma-separated list of complaint IDs
+ */
+router.get('/vote/status', async (req, res) => {
+  try {
+    // Check for authenticated user
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to check vote status'
+      });
+    }
+
+    const { complaintIds } = req.query;
+    const userId = req.user.id;
+
+    if (!complaintIds) {
+      return res.status(400).json({
+        success: false,
+        message: 'complaintIds query parameter is required'
+      });
+    }
+
+    // Parse comma-separated or array complaint IDs safely
+    const rawIds = Array.isArray(complaintIds)
+      ? complaintIds.flatMap(item => String(item).split(','))
+      : String(complaintIds).split(',');
+    const idsArray = [...new Set(rawIds.map(id => id.trim()).filter(Boolean))];
+
+    if (idsArray.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one valid complaintId is required'
+      });
+    }
+
+    // Get user's votes for these complaints
+    const { data: votes, error } = await supabase
+      .from('complaint_votes')
+      .select('complaint_id, vote_type')
+      .eq('user_id', userId)
+      .in('complaint_id', idsArray)
+      .eq('vote_type', 'upvote'); // Only consider upvotes
+
+    if (error) {
+      console.error('❌ Error fetching vote status:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error fetching vote status'
+      });
+    }
+
+    // Build a map of complaint IDs to vote status
+    const voteStatusMap = {};
+    idsArray.forEach(id => {
+      voteStatusMap[id] = false;
+    });
+
+    (votes || []).forEach(vote => {
+      voteStatusMap[vote.complaint_id] = true;
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: voteStatusMap
+    });
+
+  } catch (error) {
+    console.error('❌ Vote status error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error while getting vote status'
+    });
+  }
+});
+
+/**
  * Get individual complaint details
  * GET /api/complaints/:id
  */
 router.get('/:id', async (req, res) => {
   try {
     const complaintId = req.params.id;
-    
+
     if (!complaintId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Complaint ID is required' 
+      return res.status(400).json({
+        success: false,
+        message: 'Complaint ID is required'
       });
     }
 
@@ -1047,27 +1183,27 @@ router.get('/:id', async (req, res) => {
       .from('complaints')
       .select(`
         *,
-        users!complaints_user_id_fkey (
+        users:user_id (
           id,
           full_name,
           email
         )
       `)
       .eq('id', complaintId)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('❌ Error fetching complaint:', error);
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Complaint not found' 
+      return res.status(500).json({
+        success: false,
+        message: 'Error fetching complaint'
       });
     }
 
     if (!complaint) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Complaint not found' 
+      return res.status(404).json({
+        success: false,
+        message: 'Complaint not found'
       });
     }
 
@@ -1076,12 +1212,12 @@ router.get('/:id', async (req, res) => {
         .from('users')
         .select('id, full_name, email')
         .eq('id', complaint.user_id)
-        .single();
+        .maybeSingle();
       if (u) complaint.users = u;
     }
 
     const citizenFullName = complaint.users?.full_name || complaint.user_name || 'Verified Citizen';
-    complaint.users = complaint.users || { full_name: citizenFullName, email: complaint.users?.email };
+    complaint.users = complaint.users || { full_name: citizenFullName };
     complaint.user = complaint.users;
     complaint.user_name = citizenFullName;
     complaint.citizenName = citizenFullName;
@@ -1098,9 +1234,9 @@ router.get('/:id', async (req, res) => {
         .eq('complaint_id', complaintId)
         .eq('user_id', req.user.id)
         .eq('vote_type', 'upvote')
-        .single();
+        .maybeSingle();
 
-      userVoted = !userVoteError && userVote;
+      userVoted = Boolean(!userVoteError && userVote);
     }
 
     // Add vote information to complaint
@@ -1132,14 +1268,14 @@ router.get('/:id', async (req, res) => {
 router.post('/vote', async (req, res) => {
   try {
     // Check for authenticated user
-    if (!req.user) {
+    if (!req.user || !req.user.id) {
       return res.status(401).json({
         success: false,
         message: 'Authentication required to vote on complaints'
       });
     }
 
-    const { complaintId } = req.body;
+    const { complaintId } = req.body || {};
     const userId = req.user.id;
 
     console.log('🗳️ Processing toggle vote request:', req.body);
@@ -1156,10 +1292,17 @@ router.post('/vote', async (req, res) => {
       .from('complaints')
       .select('id')
       .eq('id', complaintId)
-      .single();
+      .maybeSingle();
 
-    if (complaintError || !complaint) {
-      console.error('❌ Complaint not found:', complaintError || 'No data returned');
+    if (complaintError) {
+      console.error('❌ Error looking up complaint for vote:', complaintError);
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error while looking up complaint'
+      });
+    }
+
+    if (!complaint) {
       return res.status(404).json({
         success: false,
         message: 'Complaint not found'
@@ -1192,75 +1335,6 @@ router.post('/vote', async (req, res) => {
   }
 });
 
-/**
- * Get user vote status for complaints
- * GET /api/complaints/vote/status
- * Requires authentication
- * Query: { complaintIds: string } - comma-separated list of complaint IDs
- */
-router.get('/vote/status', async (req, res) => {
-  try {
-    // Check for authenticated user
-    if (!req.user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Authentication required to check vote status' 
-      });
-    }
-
-    const { complaintIds } = req.query;
-    const userId = req.user.id;
-
-    if (!complaintIds) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'complaintIds query parameter is required' 
-      });
-    }
-
-    // Parse comma-separated complaint IDs
-    const idsArray = complaintIds.split(',');
-    
-    // Get user's votes for these complaints
-    const { data: votes, error } = await supabase
-      .from('complaint_votes')
-      .select('complaint_id, vote_type')
-      .eq('user_id', userId)
-      .in('complaint_id', idsArray)
-      .eq('vote_type', 'upvote'); // Only consider upvotes
-
-    if (error) {
-      console.error('❌ Error fetching vote status:', error);
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Error fetching vote status' 
-      });
-    }
-
-    // Build a map of complaint IDs to vote status
-    const voteStatusMap = {};
-    idsArray.forEach(id => {
-      voteStatusMap[id] = false;
-    });
-
-    votes.forEach(vote => {
-      voteStatusMap[vote.complaint_id] = true;
-    });
-
-    return res.status(200).json({
-      success: true,
-      data: voteStatusMap
-    });
-    
-  } catch (error) {
-    console.error('❌ Vote status error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error while getting vote status'
-    });
-  }
-});
-
 router.post('/create', async (req, res) => {
   res.json({
     success: true,
@@ -1276,41 +1350,49 @@ router.post('/create', async (req, res) => {
 router.post('/calculate-priority', async (req, res) => {
   try {
     console.log('🧮 Pre-submission priority calculation request:', req.body);
-    
+
     const {
       category,
       description,
       imageValidation,
       locationData
-    } = req.body;
-    
+    } = req.body || {};
+
+    const parseCoord = (v) => (v === null || v === undefined || v === '' || typeof v === 'boolean') ? NaN : Number(v);
+    const lat = locationData ? parseCoord(locationData.latitude) : NaN;
+    const lng = locationData ? parseCoord(locationData.longitude) : NaN;
+    const hasValidCoords = Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+
     // Basic validation
-    if (!category || !locationData || !locationData.latitude || !locationData.longitude) {
+    if (typeof category !== 'string' || !category.trim() || !locationData || !hasValidCoords) {
       return res.status(400).json({
         success: false,
-        error: 'Category and location data are required',
+        error: 'Category and valid location coordinates are required',
         code: 'MISSING_REQUIRED_FIELDS'
       });
     }
-    
+
     // Calculate comprehensive priority
     const priorityAnalysis = await calculateComprehensivePriority({
       imageValidation,
-      locationData,
-      category,
+      locationData: { ...locationData, latitude: lat, longitude: lng },
+      category: category.trim(),
       description
     });
-    
+
+    const reasoningText = typeof priorityAnalysis.reasoning === 'string' ? priorityAnalysis.reasoning.trim() : '';
+    const firstSentence = reasoningText ? reasoningText.split('. ')[0].replace(/\.+$/, '') + '.' : '';
+
     // Format response for frontend
     const response = {
       success: true,
-      priorityScore: Math.round(priorityAnalysis.totalScore * 100), // 0-100 scale for frontend
+      priorityScore: Math.round((priorityAnalysis.totalScore || 0) * 100), // 0-100 scale for frontend
       priorityLevel: priorityAnalysis.priorityLevel,
-      reasoningSummary: priorityAnalysis.reasoning.split('. ')[0] + '.',  // First sentence of reasoning
-      reasoning: priorityAnalysis.reasoning,
+      reasoningSummary: firstSentence,
+      reasoning: reasoningText,
       breakdown: {
-        infrastructureScore: Math.round(priorityAnalysis.breakdown.infrastructureScore * 100),
-        imageValidationScore: Math.round(priorityAnalysis.breakdown.imageValidationScore * 100),
+        infrastructureScore: Math.round((priorityAnalysis.breakdown?.infrastructureScore || 0) * 100),
+        imageValidationScore: Math.round((priorityAnalysis.breakdown?.imageValidationScore || 0) * 100),
         facilitiesCount: priorityAnalysis.facilitiesCount || 0
       },
       detailedBreakdown: priorityAnalysis.breakdown,
@@ -1320,9 +1402,9 @@ router.post('/calculate-priority', async (req, res) => {
         apiVersion: 'v2'
       }
     };
-    
+
     res.json(response);
-    
+
   } catch (error) {
     console.error('Error calculating priority:', error);
     res.status(500).json({
