@@ -9,6 +9,7 @@ import './src/i18n';
 import i18n from './src/i18n';
 import LanguageSwitcherFAB from './src/components/LanguageSwitcherFAB';
 import { TranslationProvider } from './src/context/TranslationContext';
+import { AccessibilityProvider } from './src/context/AccessibilityContext';
 
 // Ignore benign non-fatal developer notices in Expo Go
 LogBox.ignoreLogs([
@@ -48,6 +49,7 @@ import CitizenTransparencyScreen from './src/screens/citizen/CitizenTransparency
 import PersonalReports from './src/screens/citizen/PersonalReports';
 import CivicChatbotScreen from './src/screens/citizen/CivicChatbotScreen';
 import FeedbackScreen from './src/screens/feedback/FeedbackScreen';
+import SettingsScreen from './src/screens/citizen/SettingsScreen';
 
 const Stack = createStackNavigator();
 
@@ -85,6 +87,7 @@ export default function App() {
   }
 
   return (
+    <AccessibilityProvider>
     <TranslationProvider>
       <NavigationContainer>
         <StatusBar style="auto" />
@@ -123,6 +126,7 @@ export default function App() {
         <Stack.Screen name="PersonalReports" component={PersonalReports} />
         <Stack.Screen name="CivicChatbot" component={CivicChatbotScreen} />
         <Stack.Screen name="FeedbackScreen" component={FeedbackScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
         
         {/* Admin Screens */}
         <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
@@ -137,6 +141,7 @@ export default function App() {
       <LanguageSwitcherFAB />
     </NavigationContainer>
     </TranslationProvider>
+    </AccessibilityProvider>
   );
 }
 

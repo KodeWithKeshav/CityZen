@@ -6,6 +6,7 @@ import App from './App'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ChatProvider } from './context/ChatContext'
 import { TranslationProvider } from './context/TranslationContext'
+import { AccessibilityProvider } from './context/AccessibilityContext'
 import FloatingChat from './components/FloatingChat'
 import './i18n'
 import './index.css'
@@ -29,29 +30,31 @@ function FloatingChatGate() {
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <TranslationProvider>
-          <ChatProvider>
-            <App />
-            <FloatingChatGate />
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                duration: 3000,
-                style: {
-                  borderRadius: '0px',
-                  border: '1px solid #111827',
-                  background: '#FFFFFF',
-                  color: '#111827',
-                  fontFamily: 'Inter, sans-serif',
-                  fontSize: '13px',
-                  boxShadow: 'none',
-                },
-              }}
-            />
-          </ChatProvider>
-        </TranslationProvider>
-      </AuthProvider>
+      <AccessibilityProvider>
+        <AuthProvider>
+          <TranslationProvider>
+            <ChatProvider>
+              <App />
+              <FloatingChatGate />
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  duration: 3000,
+                  style: {
+                    borderRadius: '0px',
+                    border: '1px solid #111827',
+                    background: '#FFFFFF',
+                    color: '#111827',
+                    fontFamily: 'Inter, sans-serif',
+                    fontSize: '13px',
+                    boxShadow: 'none',
+                  },
+                }}
+              />
+            </ChatProvider>
+          </TranslationProvider>
+        </AuthProvider>
+      </AccessibilityProvider>
     </BrowserRouter>
   </React.StrictMode>
 )

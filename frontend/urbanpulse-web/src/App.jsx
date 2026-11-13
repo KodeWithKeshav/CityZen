@@ -16,6 +16,7 @@ import ComplaintDetail from './pages/citizen/ComplaintDetail'
 import Chatbot from './pages/citizen/Chatbot'
 import FeedbackScreen from './pages/citizen/FeedbackScreen'
 import Transparency from './pages/citizen/Transparency'
+import CitizenSettings from './pages/citizen/Settings'
 
 import AdminLayout from './layouts/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
@@ -25,6 +26,8 @@ import PriorityQueue from './pages/admin/PriorityQueue'
 import AdminComplaintMap from './pages/admin/AdminComplaintMap'
 import CitizenManagement from './pages/admin/CitizenManagement'
 import CitizenDetails from './pages/admin/CitizenDetails'
+import DepartmentsAndStaff from './pages/admin/DepartmentsAndStaff'
+import AdminSettings from './pages/admin/Settings'
 
 const getUserType = (user) => user?.userType || user?.role
 
@@ -87,6 +90,7 @@ export default function App() {
           <Route path="chatbot" element={<Chatbot />} />
           <Route path="feedback" element={<FeedbackScreen />} />
           <Route path="transparency" element={<Transparency />} />
+          <Route path="settings" element={<CitizenSettings />} />
         </Route>
       </Route>
 
@@ -100,6 +104,8 @@ export default function App() {
           <Route path="map" element={<AdminComplaintMap />} />
           <Route path="citizens" element={<CitizenManagement />} />
           <Route path="citizens/:id" element={<CitizenDetails />} />
+          <Route path="workforce" element={<DepartmentsAndStaff />} />
+          <Route path="settings" element={<AdminSettings />} />
         </Route>
       </Route>
 

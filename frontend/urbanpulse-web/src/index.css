@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Epilogue:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -244,4 +245,79 @@ body {
 }
 .leaflet-popup-tip {
 	box-shadow: none !important;
+}
+
+/* ─── Accessibility Settings ───
+   Driven by data-* attributes AccessibilityContext.jsx sets on <html>.
+   Scoped to the actual palette/typography this app uses (see
+   tailwind.config.js) rather than a generic theming system, since this is
+   a static-palette Tailwind app with no CSS custom properties to swap. */
+
+/* Larger text: scales the root font-size, which cascades through every
+   rem-based Tailwind text-* utility in the app for free. */
+html[data-font-scale="large"] {
+	font-size: 112.5%; /* 18px base */
+}
+html[data-font-scale="xlarge"] {
+	font-size: 125%; /* 20px base */
+}
+
+/* High contrast: pushes the mid/light grey text and border shades this app
+   actually uses toward pure black, and the light grey backgrounds toward
+   pure white. Deliberately leaves the already-dark surfaces (bg-neutral-
+   800/900/950, used for dark panel chrome with white text) untouched --
+   they're already high-contrast as-is. */
+html[data-contrast="high"] .text-neutral-300,
+html[data-contrast="high"] .text-neutral-400,
+html[data-contrast="high"] .text-neutral-500,
+html[data-contrast="high"] .text-neutral-600,
+html[data-contrast="high"] .text-neutral-700,
+html[data-contrast="high"] .text-neutral-800 {
+	color: #000000 !important;
+}
+html[data-contrast="high"] .border-neutral-100,
+html[data-contrast="high"] .border-neutral-200,
+html[data-contrast="high"] .border-neutral-300,
+html[data-contrast="high"] .border-neutral-400,
+html[data-contrast="high"] .border-neutral-700 {
+	border-color: #000000 !important;
+}
+html[data-contrast="high"] .bg-neutral-50,
+html[data-contrast="high"] .bg-neutral-100,
+html[data-contrast="high"] .bg-neutral-200 {
+	background-color: #ffffff !important;
+}
+html[data-contrast="high"] a {
+	text-decoration: underline !important;
+}
+
+/* Reduce motion: collapses every animation/transition to effectively
+   instant, same approach as the standard prefers-reduced-motion media
+   query, but opt-in via the in-app toggle regardless of OS setting. */
+html[data-reduce-motion="true"] *,
+html[data-reduce-motion="true"] *::before,
+html[data-reduce-motion="true"] *::after {
+	animation-duration: 0.001ms !important;
+	animation-iteration-count: 1 !important;
+	transition-duration: 0.001ms !important;
+	scroll-behavior: auto !important;
+}
+
+/* Loading spinners (border-ring + animate-spin) are functional feedback,
+   not decorative motion -- freezing one mid-rotation via the blanket rule
+   above doesn't make it calmer, it makes it look like a broken static "C"/
+   "U" shape frozen on screen, which reads as a stuck/broken UI rather than
+   "loading". More specific than the universal selector above, so this
+   wins despite both using !important. */
+html[data-reduce-motion="true"] .animate-spin {
+	animation-duration: 1s !important;
+	animation-iteration-count: infinite !important;
+}
+
+/* Dyslexia-friendly font: Atkinson Hyperlegible, designed by the Braille
+   Institute specifically for readability, applied app-wide in place of
+   Inter/Epilogue. */
+html[data-dyslexia-font="true"] body,
+html[data-dyslexia-font="true"] * {
+	font-family: 'Atkinson Hyperlegible', sans-serif !important;
 }
