@@ -58,7 +58,32 @@ validation.
 |---|:---:|---|
 | `HUGGING_FACE_API_KEY` / `HUGGINGFACE_API_TOKEN` | For zero-shot authenticity checks | Hugging Face Inference API token used by the multilingual zero-shot authenticity model. |
 | `HF_AUTHENTICITY_MODEL` | No | Overrides the default zero-shot NLI model used for category-match/spam detection. |
-| `DISTILBERT_SERVICE_URL` | For local emotion service | Base URL of the optional Python DistilBERT microservice (see `python_services/`). |
+| `DISTILBERT_SERVICE_URL` | For local emotion service | Base URL of the optional Python DistilBERT microservice (see `python_services/`). Default `http://127.0.0.1:5001`. |
+
+### Local DistilBERT + SHAP (Python microservice)
+
+The emotion model runs **locally** (`transformers` + `torch`) — no Hugging Face Inference API call and no API credits. Only the one-off model download (~270 MB, free) touches the network.
+
+One-time setup, from `backend/` (works on Windows, macOS and Linux; use Python 3.10–3.12):
+
+```bash
+npm run setup:python     # creates python_services/venv and installs requirements.txt
+npm run start:python     # starts the service on 127.0.0.1:5001
+```
+
+| Variable (read by the Python service) | Default | Description |
+|---|---|---|
+| `DISTILBERT_BACKEND` | `auto` | `auto` = local model first, Hugging Face API as a fallback if a token is set; `local` = never use the API; `hf` = API only (needs credits). |
+| `DISTILBERT_HOST` / `DISTILBERT_PORT` | `127.0.0.1` / `5001` | Bind address. Keep it on loopback. |
+| `DISTILBERT_MODEL` | `distilbert/distilbert-base-uncased-finetuned-sst-2-english` | Model id or local folder. |
+| `DISTILBERT_DEVICE` | `auto` | `auto`, `cpu`, `cuda` or `mps`. DistilBERT is small; CPU is fine. |
+| `DISTILBERT_THREADS` | torch default | Number of CPU threads for inference. |
+| `DISTILBERT_SKIP_SELFTEST` | unset | `1` skips the start-up crash probe (see below). |
+| `DISTILBERT_SELFTEST_TIMEOUT` | `600` | Seconds allowed for the probe (the first run downloads the model). |
+| `SHAP_MAX_EVALS` | `300` | Model calls SHAP may spend per explanation (50–1500). More = smoother values, slower. |
+| `HF_HUB_OFFLINE` | unset | `1` forbids all network access (the model must already be cached). |
+
+**Crash isolation.** A native crash inside PyTorch (e.g. a `SIGBUS` on Apple Silicon with a very new Python) cannot be caught in Python and would normally take the service down. At start-up the service therefore runs one real forward pass in a *child process*; if that fails, the local backend is switched off, the reason is shown by `GET /health` and `GET /api/emotion/model-status`, and the service keeps running (Hugging Face fallback if a token exists, otherwise the Node backend's keyword analysis). If this happens on your machine, use a python.org / conda Python 3.11 or 3.12 for the venv.
 
 ### Media storage
 

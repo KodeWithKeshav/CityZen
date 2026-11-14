@@ -164,7 +164,7 @@ CityZen/
 │   ├── config/                     Supabase client configuration
 │   ├── database/                   Hand-run SQL migration patches (see docs/DATABASE.md)
 │   ├── middleware/                 JWT authentication middleware
-│   ├── python_services/            Optional Python microservice (DistilBERT emotion model)
+│   ├── python_services/            Optional Python microservice (local DistilBERT emotion model + SHAP explanations)
 │   ├── routes/                     Express route handlers (one file per resource)
 │   ├── scripts/                    One-off maintenance/data scripts
 │   ├── services/                   Business logic: priority engine, AHP math, AI integrations
@@ -216,7 +216,7 @@ CityZen/
 | Node.js | 18.x or 20.x | Backend and both frontends |
 | npm | 9+ | Dependency management |
 | A Supabase project | — | Database and auth storage |
-| Python | 3.10+ (optional) | Only if running the local DistilBERT emotion microservice |
+| Python | 3.10–3.12 (optional) | Only if running the local DistilBERT emotion + SHAP microservice (`npm run setup:python`, then `npm run start:python` in `backend/`; no API credits needed) |
 | Expo Go app or an emulator | — | Only for running the mobile client on a device |
 
 Image validation, voice-to-text, the chatbot, and infrastructure-proximity

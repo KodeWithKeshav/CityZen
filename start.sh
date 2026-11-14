@@ -50,7 +50,8 @@ echo "== CityZen dev stack =="
 
 if [ ! -f "$BACKEND_DIR/.env" ]; then
   echo "WARNING: backend/.env not found. The backend needs SUPABASE_URL, SUPABASE_ANON_KEY," >&2
-  echo "         JWT_SECRET, and (for the two Python services) HF_TOKEN set there." >&2
+  echo "         and JWT_SECRET set there. (HF_TOKEN is only needed for the optional" >&2
+  echo "         Hugging Face API fallback -- the DistilBERT service runs locally now.)" >&2
 fi
 
 # --- Node dependencies -------------------------------------------------
@@ -66,7 +67,7 @@ if [ ! -d "$PY_DIR/venv" ]; then
   echo "Creating Python virtual environment for python_services..."
   python3 -m venv "$PY_DIR/venv"
 fi
-echo "Installing/updating Python dependencies (this can take a minute the first time, SHAP pulls in numpy/scipy)..."
+echo "Installing/updating Python dependencies (the first run downloads PyTorch + SHAP and can take several minutes)..."
 "$PY_DIR/venv/bin/python" -m pip install --quiet --upgrade pip
 "$PY_DIR/venv/bin/python" -m pip install --quiet -r "$PY_DIR/requirements.txt"
 
