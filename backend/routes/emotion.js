@@ -1,12 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const { emotionService } = require('../services/EmotionAnalysisService');
+const { authorizeUserType } = require('../middleware/auth');
 
 /**
  * Multilingual emotion/sentiment analysis API for CivicStack.
  * The analysis logic itself lives in services/EmotionAnalysisService.js so
  * it can also be reused directly by routes/complaints.js during submission.
  */
+
+const MAX_EXPLAIN_CHARS = 2000;
+const EXPLAIN_TARGETS = ['NEGATIVE', 'POSITIVE'];
 
 // API Routes
 router.post('/analyze', async (req, res) => {
@@ -41,6 +45,68 @@ router.post('/analyze', async (req, res) => {
       message: 'Emotion analysis failed',
       error: error.message
     });
+  }
+});
+
+/**
+ * POST /api/emotion/explain   (admin only)
+ * SHAP word-level explanation of the local DistilBERT sentiment prediction:
+ * which words pushed the complaint towards (positive SHAP value) or away from
+ * (negative value) the `target` label. English text only -- the model is an
+ * English SST-2 classifier. Admin-only because each call costs real CPU time.
+ */
+router.post('/explain', authorizeUserType(['admin']), async (req, res) => {
+  try {
+    const { text, target, maxEvals, topK } = req.body || {};
+
+    if (typeof text !== 'string' || text.trim().length === 0) {
+      return res.status(400).json({ success: false, message: 'Text is required for explanation' });
+    }
+    if (text.length > MAX_EXPLAIN_CHARS) {
+      return res.status(400).json({ success: false, message: `Text is too long (max ${MAX_EXPLAIN_CHARS} characters)` });
+    }
+
+    let safeTarget = 'NEGATIVE';
+    if (target !== undefined && target !== null && target !== '') {
+      const upper = String(target).toUpperCase();
+      if (!EXPLAIN_TARGETS.includes(upper)) {
+        return res.status(400).json({ success: false, message: `target must be one of ${EXPLAIN_TARGETS.join(', ')}` });
+      }
+      safeTarget = upper;
+    }
+
+    const explanation = await emotionService.explainWithLocalModel(text.trim(), {
+      target: safeTarget,
+      maxEvals: Number.isFinite(Number(maxEvals)) ? Number(maxEvals) : undefined,
+      topK: Number.isFinite(Number(topK)) ? Number(topK) : undefined,
+    });
+
+    res.json({ success: true, data: explanation, timestamp: new Date().toISOString() });
+  } catch (error) {
+    const status = error.status || 500;
+    if (status === 503) console.warn('⚠️ Emotion explain unavailable:', error.message);
+    else if (status >= 500) console.error('❌ Emotion explain error:', error.message);
+    res.status(status).json({
+      success: false,
+      message: status === 503
+        ? 'The local DistilBERT service is not running or has no local model available'
+        : (error.message || 'Emotion explanation failed'),
+      detail: error.detail || undefined,
+    });
+  }
+});
+
+/**
+ * GET /api/emotion/model-status   (admin only)
+ * Which DistilBERT backend is live (local / hf / none), on which device, whether
+ * SHAP is installed, and the reason when the local model could not start.
+ */
+router.get('/model-status', authorizeUserType(['admin']), async (req, res) => {
+  try {
+    const status = await emotionService.getLocalModelStatus();
+    res.json({ success: true, data: status, timestamp: new Date().toISOString() });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Could not read model status' });
   }
 });
 

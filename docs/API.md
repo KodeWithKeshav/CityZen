@@ -381,6 +381,18 @@ resolution time, and community voting engagement stats.
 |---|---|---|
 | POST | `/analyze` | Body: `{ text: string, category?: string, translation?: string }`. Returns urgency/concern/anger/frustration sub-scores blended into one `emotionScore`. |
 | GET | `/test` | Runs three built-in multilingual (English/Hindi/Tamil) sample complaints through the analyzer and returns the results — a quick smoke test with no request body required. |
+| POST | `/explain` | **Admin only.** SHAP word-level explanation of the local DistilBERT sentiment prediction. Body: `{ text: string (≤ 2000 chars), target?: "NEGATIVE" \| "POSITIVE" (default NEGATIVE), maxEvals?: number, topK?: number }`. Returns `{ label, score, target, base_value, output_value, words: [{ text, start, end, shap }], top_positive, top_negative, elapsed_ms, ... }`. A positive `shap` value pushes the probability of `target` **up**; values are additive (`base_value + Σ shap ≈ output_value`). English text only. `503` if the Python service is down or running without its local model. |
+| GET | `/model-status` | **Admin only.** Health of the Python DistilBERT service: `{ reachable, status, backend: "local" \| "hf", device, shap, error? }`. When the local model could not start, `error` says why (e.g. `local self-test failed: killed by signal SIGBUS`). |
+
+### Python DistilBERT service (`backend/python_services`, default `http://127.0.0.1:5001`)
+
+Not exposed to the internet — only the Node backend calls it.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/health` | `200 { status: "ok", backend, device, shap, labels }` or `503 { status: "unavailable", error }`. |
+| POST | `/predict` | `{ text }` → `[[ { label: "NEGATIVE", score }, { label: "POSITIVE", score } ]]` (same shape as the HF Inference API). |
+| POST | `/explain` | `{ text, target?, max_evals?, top_k? }` → SHAP attribution (local backend only). |
 
 ---
 

@@ -149,6 +149,59 @@ class EmotionAnalysisService {
   }
 
   /**
+   * Ask the Python service how it is doing (backend in use, device, SHAP
+   * availability, and -- when the local model could not start -- why).
+   * Never throws: a down service is reported as { reachable: false }.
+   */
+  async getLocalModelStatus() {
+    try {
+      const response = await axios.get(`${this.config.localModelUrl}/health`, { timeout: 3000 });
+      return { reachable: true, ...response.data };
+    } catch (error) {
+      if (error.response && error.response.data) {
+        // The service answered but reported itself unavailable (HTTP 503 + reason)
+        return { reachable: true, ...error.response.data };
+      }
+      return { reachable: false, status: 'down', error: `DistilBERT service not reachable (${error.code || error.message})` };
+    }
+  }
+
+  /**
+   * SHAP word-level explanation of the DistilBERT sentiment prediction.
+   * Needs the LOCAL backend of the Python service (the HF Inference API cannot
+   * return SHAP values). Throws an Error carrying `.status` (HTTP code to relay).
+   *
+   * @param {string} text
+   * @param {{ target?: string, maxEvals?: number, topK?: number }} [options]
+   *   target - label whose probability is explained (default NEGATIVE, i.e.
+   *            "which words push this complaint towards distress")
+   */
+  async explainWithLocalModel(text, { target = 'NEGATIVE', maxEvals, topK } = {}) {
+    const payload = { text, target };
+    if (maxEvals) payload.max_evals = maxEvals;
+    if (topK) payload.top_k = topK;
+
+    try {
+      const response = await axios.post(
+        `${this.config.localModelUrl}/explain`,
+        payload,
+        { headers: { 'Content-Type': 'application/json' }, timeout: 60000 }
+      );
+      return response.data;
+    } catch (error) {
+      const upstream = error.response;
+      const err = new Error(
+        upstream?.data?.error ||
+        (upstream ? `DistilBERT service error (HTTP ${upstream.status})` : 'DistilBERT service is not reachable')
+      );
+      err.detail = upstream?.data?.detail || null;
+      // Relay client errors / "not available" as-is; everything else is a bad gateway.
+      err.status = upstream && [400, 501, 503].includes(upstream.status) ? upstream.status : (upstream ? 502 : 503);
+      throw err;
+    }
+  }
+
+  /**
    * AI-powered emotion analysis using Hugging Face with multiple model fallbacks
    */
   async analyzeWithAI(text) {
