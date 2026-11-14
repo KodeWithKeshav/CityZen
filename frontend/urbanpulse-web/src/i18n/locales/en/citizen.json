@@ -165,6 +165,10 @@
     "voteRemoved": "Vote removed",
     "voteLogged": "Civic concurrence vote logged",
     "votingUnavailable": "Voting unavailable",
+    "reopen": "REOPEN",
+    "reopening": "REOPENING...",
+    "reopened": "Complaint reopened for further action",
+    "reopenFailed": "Failed to reopen complaint",
     "linkCopied": "Incident link copied to clipboard",
     "notFoundTitle": "Record Not Found",
     "notFoundDesc": "The requested dispatch record could not be retrieved from the municipal registry.",
@@ -236,5 +240,35 @@
     "noZoneIncidents": "NO CONCURRENT INCIDENTS LOCATED IN THIS VICINITY.",
     "coordinateRegistered": "Coordinate registered",
     "viewDetails": "VIEW DETAILS"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your profile, password, and accessibility preferences.",
+    "tabs": {
+      "profile": "Profile",
+      "password": "Password",
+      "accessibility": "Accessibility",
+      "danger": "Danger Zone"
+    },
+    "fullName": "Full Name",
+    "phoneNumber": "Phone Number",
+    "address": "Address",
+    "saving": "Saving...",
+    "saveChanges": "Save Changes",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "confirmPassword": "Confirm New Password",
+    "changePassword": "Change Password",
+    "profileUpdated": "Profile updated successfully",
+    "passwordUpdated": "Password updated successfully",
+    "updateFailed": "Update failed",
+    "passwordMismatch": "New password and confirmation do not match",
+    "deleteAccount": "Delete Account",
+    "deleteAccountDesc": "This permanently deletes your account and all of your complaints. This cannot be undone.",
+    "enterPasswordToConfirm": "Enter your password to confirm",
+    "confirmDeleteAccount": "Confirm Delete Account",
+    "passwordRequired": "Password is required to confirm deletion",
+    "accountDeleted": "Your account has been deleted",
+    "deleteFailed": "Failed to delete account"
   }
 }

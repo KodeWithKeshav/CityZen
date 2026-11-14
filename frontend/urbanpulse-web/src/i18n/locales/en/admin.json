@@ -127,7 +127,19 @@
     "historicalRecord": "HISTORICAL RECORD",
     "noDispatchRecords": "NO DISPATCH RECORDS ON FILE FOR THIS CITIZEN.",
     "unclassifiedHazard": "Unclassified Hazard",
-    "audit": "AUDIT"
+    "audit": "AUDIT",
+    "accountStatus": "ACCOUNT STATUS",
+    "statusActive": "Active",
+    "statusInactive": "Inactive",
+    "deactivate": "Deactivate",
+    "reactivate": "Reactivate",
+    "delete": "Delete Citizen",
+    "confirmDelete": "Confirm Delete",
+    "deleteWarning": "This permanently deletes the citizen's account and all of their complaints. This cannot be undone. Click \"Confirm Delete\" again to proceed.",
+    "statusUpdated": "Account status updated",
+    "statusUpdateFailed": "Failed to update account status",
+    "deleted": "Citizen account deleted",
+    "deleteFailed": "Failed to delete citizen account"
   },
   "complaintMap": {
     "loadFailed": "Failed to load spatial cadastre",
@@ -253,7 +265,18 @@
     "officialResolutionNotes": "OFFICIAL RESOLUTION & FIELD NOTES",
     "notesPlaceholder": "Record municipal work order ID, field crew dispatched, timeline update, or closure remarks...",
     "commitDossierUpdate": "COMMIT DOSSIER UPDATE →",
-    "committingToLedger": "COMMITTING TO MUNICIPAL LEDGER..."
+    "committingToLedger": "COMMITTING TO MUNICIPAL LEDGER...",
+    "scoreBreakdown": {
+      "title": "Priority Score Computation",
+      "signal": "SIGNAL",
+      "raw": "RAW SCORE",
+      "weight": "WEIGHT",
+      "contribution": "CONTRIBUTION (PTS)",
+      "statusMultiplier": "STATUS MULTIPLIER",
+      "nearbyFacilities": "Nearby Facilities Driving the Infrastructure Score",
+      "nearest": "Nearest",
+      "totalFacilities": "Total Facilities Considered"
+    }
   },
   "explainAi": {
     "header": "EXPLAIN AI · SAM-3 VISION WORKFLOW",
@@ -280,6 +303,78 @@
     "dismiss": "DISMISS REPORT",
     "loadError": "Failed to generate SAM-3 neural explanation.",
     "connectError": "Unable to connect to image analysis engine."
+  },
+  "workforce": {
+    "title": "Departments & Workforce",
+    "subtitle": "The municipal departments and contractors the Complaint Workflow panel assigns complaints to.",
+    "loadFailed": "Failed to load workforce directory",
+    "createFailed": "Failed to create record",
+    "updateFailed": "Failed to update status",
+    "created": "Record created",
+    "statusUpdated": "Status updated",
+    "loading": "Loading...",
+    "saving": "Saving...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "empty": "No records yet.",
+    "tabs": {
+      "departments": "Departments",
+      "contractors": "Contractors"
+    },
+    "add": {
+      "departments": "Add Department",
+      "contractors": "Add Contractor"
+    },
+    "fields": {
+      "name": "Name",
+      "department": "Department",
+      "phone": "Phone",
+      "email": "Email",
+      "specialization": "Specialization"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    }
+  },
+  "complaintWorkflow": {
+    "title": "Municipal Complaint Workflow",
+    "subtitle": "Initial Review → Assessment → Resolution, with department/officer/contractor assignment and SLA tracking.",
+    "loadFailed": "Failed to load the complaint workflow",
+    "updateFailed": "Failed to update stage",
+    "stageUpdated": "{{stage}} updated",
+    "photoUploaded": "Resolution photo uploaded",
+    "photoUploadFailed": "Photo upload failed",
+    "escalateFailed": "Failed to escalate complaint",
+    "escalate": "ESCALATE",
+    "level": "LEVEL",
+    "slaBy": "SLA DUE",
+    "overdue": "SLA OVERDUE",
+    "stageLabel": "STAGE {{n}}",
+    "status": "STATUS",
+    "statusOptions": {
+      "pending": "Pending",
+      "in_progress": "In Progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "department": "DEPARTMENT",
+    "unassigned": "Unassigned",
+    "contractor": "CONTRACTOR",
+    "estimatedCost": "ESTIMATED COST",
+    "notes": "NOTES",
+    "notesPlaceholder": "Record inspection findings, work order details, or progress update...",
+    "resolutionProof": "RESOLUTION PROOF PHOTOS",
+    "uploadPhoto": "Upload Photo",
+    "uploading": "Uploading...",
+    "saving": "Saving...",
+    "saveStage": "Save Stage",
+    "noWorkflow": "No workflow data available for this complaint yet.",
+    "stageNames": {
+      "initial_review": "Initial Review",
+      "assessment": "Assessment",
+      "resolution": "Resolution"
+    }
   },
   "geometry": {
     "title": "Geometric Dimensions Profile",

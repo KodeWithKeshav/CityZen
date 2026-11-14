@@ -29,6 +29,8 @@ export const apiClient = {
     login: `${API_BASE_URL}/api/auth/login`,
     signup: `${API_BASE_URL}/api/auth/signup`,
     profile: `${API_BASE_URL}/api/auth/profile`,
+    password: `${API_BASE_URL}/api/auth/password`,
+    deleteAccount: `${API_BASE_URL}/api/auth/account`,
   },
 
   complaints: {
@@ -40,6 +42,7 @@ export const apiClient = {
     progress: (id) => `${API_BASE_URL}/api/complaint-details/${id}/progress`,
     vote: () => `${API_BASE_URL}/api/complaints/vote`,
     updateStatus: (id) => `${API_BASE_URL}/api/admin/complaints/${id}/status`,
+    reopen: (id) => `${API_BASE_URL}/api/complaints/${id}/reopen`,
   },
 
   admin: {
@@ -48,6 +51,14 @@ export const apiClient = {
     priorityQueue: `${API_BASE_URL}/api/admin-enhanced/complaints/priority-queue`,
     citizens: `${API_BASE_URL}/api/admin-enhanced/citizens`,
     citizenById: (id) => `${API_BASE_URL}/api/admin-enhanced/citizens/${id}/details`,
+    citizenStatus: (id) => `${API_BASE_URL}/api/admin-enhanced/citizens/${id}/status`,
+    deleteCitizen: (id) => `${API_BASE_URL}/api/admin-enhanced/citizens/${id}`,
+    workflowDetails: (id) => `${API_BASE_URL}/api/admin-enhanced/complaints/${id}/details`,
+    workflowStage: (id, stageId) => `${API_BASE_URL}/api/admin-enhanced/complaints/${id}/stage/${stageId}`,
+    escalate: (id) => `${API_BASE_URL}/api/admin-enhanced/complaints/${id}/escalate`,
+    departments: `${API_BASE_URL}/api/admin-enhanced/departments`,
+    contractors: `${API_BASE_URL}/api/admin-enhanced/contractors`,
+    contractorStatus: (id) => `${API_BASE_URL}/api/admin-enhanced/contractors/${id}/status`,
   },
 
   imageAnalysis: {
@@ -94,12 +105,25 @@ const buildDefaultHeaders = (token, isFormData = false) => ({
   ...(token ? { Authorization: `Bearer ${token}` } : {}),
 });
 
+// Generous enough to outlast the backend's own worst-case retry/backoff
+// window on slow endpoints (e.g. image validation: up to 3 Roboflow
+// attempts x 20s, with exponential backoff between them) -- without this,
+// a dropped/hung connection (dev server restart mid-request, network
+// blip) leaves `fetch` pending forever and the caller's loading state
+// stuck with no error ever surfacing.
+const DEFAULT_TIMEOUT_MS = 90000;
+
 export const makeApiCall = async (url, options = {}) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+
   try {
     const token = authStorage.getToken();
     const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+    const { timeoutMs, ...fetchOptions } = options;
     const response = await fetch(url, {
-      ...options,
+      ...fetchOptions,
+      signal: options.signal || controller.signal,
       headers: {
         ...buildDefaultHeaders(token, isFormData),
         ...(options.headers || {}),
@@ -126,10 +150,15 @@ export const makeApiCall = async (url, options = {}) => {
 
     return payload;
   } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('The request timed out. Please check your connection and try again.');
+    }
     if (error instanceof TypeError) {
       throw new Error('Unable to reach the server. Please check your connection and try again.');
     }
     throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
 };
 

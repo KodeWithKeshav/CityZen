@@ -6,7 +6,7 @@ import { useTranslatedText } from '../context/TranslationContext'
 import LanguageSwitcher from '../components/LanguageSwitcher'
 import {
   HiViewGrid, HiNewspaper, HiMap, HiDocumentReport,
-  HiChat, HiStar, HiChartBar, HiLogout, HiSearch,
+  HiChat, HiStar, HiChartBar, HiLogout, HiSearch, HiCog,
   HiBell, HiQuestionMarkCircle, HiPlusCircle, HiMenu, HiX
 } from 'react-icons/hi'
 
@@ -26,6 +26,7 @@ export default function CitizenLayout() {
     { to: '/citizen/chatbot', label: t('nav.citizen.chatbot'), icon: HiChat },
     { to: '/citizen/feedback', label: t('nav.citizen.feedback'), icon: HiStar },
     { to: '/citizen/transparency', label: t('nav.citizen.transparency'), icon: HiChartBar },
+    { to: '/citizen/settings', label: t('nav.citizen.settings'), icon: HiCog },
   ]
 
   const handleLogout = () => {

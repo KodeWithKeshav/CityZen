@@ -29,6 +29,11 @@ const PRIVACY_LEVEL_KEYS = ['exact', 'street', 'area']
 const STEP_KEYS = ['classification', 'evidence', 'narrative', 'geodata', 'auditSubmit']
 
 const DESCRIPTION_MIN_LENGTH_FOR_ANALYSIS = 15
+// Titles are inherently short ("pothole on MG road" is already a complete,
+// analyzable title) -- a much lower bar than description's, so a mismatched
+// title gets flagged immediately instead of waiting for the citizen to
+// also write 15+ characters of description.
+const TITLE_MIN_LENGTH_FOR_ANALYSIS = 3
 
 // The 6 languages supported end-to-end (UI rendering + speech-to-text).
 // Keep this list identical to the Expo app's languageOptions.
@@ -83,9 +88,11 @@ export default function SubmitComplaint() {
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
+  const [recordingField, setRecordingField] = useState(null) // 'title' | 'description' | null
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
   const mediaStreamRef = useRef(null)
+  const voiceTargetFieldRef = useRef('description')
 
   // Text authenticity/correctness analysis
   const [contentAnalysis, setContentAnalysis] = useState(null)
@@ -131,7 +138,19 @@ export default function SubmitComplaint() {
       const data = new FormData()
       data.append('file', file)
       data.append('upload_preset', CLOUDINARY_PRESET)
-      const cloudRes = await fetch(CLOUDINARY_URL, { method: 'POST', body: data })
+      const uploadController = new AbortController()
+      const uploadTimeoutId = setTimeout(() => uploadController.abort(), 60000)
+      let cloudRes
+      try {
+        cloudRes = await fetch(CLOUDINARY_URL, { method: 'POST', body: data, signal: uploadController.signal })
+      } catch (uploadErr) {
+        if (uploadErr.name === 'AbortError') {
+          throw new Error('Image upload timed out. Please check your connection and try again.')
+        }
+        throw uploadErr
+      } finally {
+        clearTimeout(uploadTimeoutId)
+      }
       const cloudResult = await cloudRes.json().catch(() => ({}))
       if (!cloudRes.ok || !cloudResult.secure_url) {
         throw new Error(cloudResult?.error?.message || 'Image upload failed')
@@ -170,10 +189,14 @@ export default function SubmitComplaint() {
     }
   }
 
-  // Debounced description text analysis
+  // Debounced title/description text analysis -- runs as soon as EITHER
+  // field has enough to analyze, so a mismatched title gets flagged right
+  // away instead of waiting for the description to also be long enough.
   useEffect(() => {
     if (step !== 2) return
-    if (form.description.trim().length < DESCRIPTION_MIN_LENGTH_FOR_ANALYSIS) {
+    const titleReady = form.title.trim().length >= TITLE_MIN_LENGTH_FOR_ANALYSIS
+    const descriptionReady = form.description.trim().length >= DESCRIPTION_MIN_LENGTH_FOR_ANALYSIS
+    if (!titleReady && !descriptionReady) {
       setContentAnalysis(null)
       return
     }
@@ -185,6 +208,7 @@ export default function SubmitComplaint() {
         const result = await makeApiCall(apiClient.complaints.analyzeText, {
           method: 'POST',
           body: JSON.stringify({
+            title: form.title,
             description: form.description,
             category: form.issueType,
             imagePrimaryClass: form.imagePrimaryClass,
@@ -200,7 +224,7 @@ export default function SubmitComplaint() {
     }, 800)
 
     return () => { if (analysisTimer.current) clearTimeout(analysisTimer.current) }
-  }, [form.description, form.issueType, step, form.imagePrimaryClass, form.language])
+  }, [form.title, form.description, form.issueType, step, form.imagePrimaryClass, form.language])
 
   const applySuggestedCategory = () => {
     if (!contentAnalysis?.suggestedCategory) return
@@ -238,7 +262,7 @@ export default function SubmitComplaint() {
     }
   }, [])
 
-  const handleVoiceInput = async () => {
+  const handleVoiceInput = async (targetField = 'description') => {
     if (isRecording) {
       mediaRecorderRef.current?.stop()
       return
@@ -248,6 +272,8 @@ export default function SubmitComplaint() {
       toast.error(t('voice.notSupported'))
       return
     }
+
+    voiceTargetFieldRef.current = targetField
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -283,9 +309,10 @@ export default function SubmitComplaint() {
 
           if (!isMountedRef.current) return
           if (response.ok && result.success && result.transcript) {
+            const field = voiceTargetFieldRef.current
             setForm(p => ({
               ...p,
-              description: p.description ? `${p.description} ${result.transcript}` : result.transcript,
+              [field]: p[field] ? `${p[field]} ${result.transcript}` : result.transcript,
             }))
             toast.success(t('voice.appended'))
           } else {
@@ -295,17 +322,22 @@ export default function SubmitComplaint() {
           console.error('Transcription upload failed:', err)
           if (isMountedRef.current) toast.error(t('voice.uploadError'))
         } finally {
-          if (isMountedRef.current) setTranscribing(false)
+          if (isMountedRef.current) {
+            setTranscribing(false)
+            setRecordingField(null)
+          }
         }
       }
 
       recorder.start()
       setIsRecording(true)
+      setRecordingField(targetField)
       toast(t('voice.listening'), { icon: '🎙️' })
     } catch (e) {
       console.error('Microphone access failed:', e)
       toast.error(t('voice.micError'))
       setIsRecording(false)
+      setRecordingField(null)
     }
   }
 
@@ -620,16 +652,57 @@ export default function SubmitComplaint() {
 
             <div className="space-y-4">
               <div>
-                <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700 mb-1">
-                  {t('form.titleLabel')}
-                </label>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                  <label className="block font-mono text-xs uppercase tracking-wider text-neutral-700">
+                    {t('form.titleLabel')}
+                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={form.language}
+                      onChange={e => setField('language', e.target.value)}
+                      disabled={isRecording || transcribing}
+                      className="font-mono text-xs px-2 py-1 border border-neutral-300 text-neutral-700 focus:outline-none focus:border-black"
+                    >
+                      {LANGUAGE_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleVoiceInput('title')}
+                      disabled={(isRecording || transcribing) && recordingField !== 'title'}
+                      className={`font-mono text-xs px-2.5 py-1 border flex items-center gap-1.5 transition-colors disabled:opacity-50 ${
+                        isRecording && recordingField === 'title'
+                          ? 'bg-rose-600 text-white border-rose-700 animate-pulse'
+                          : 'border-neutral-300 text-neutral-700 hover:border-black'
+                      }`}
+                    >
+                      <HiMicrophone className="w-3.5 h-3.5" />
+                      <span>
+                        {isRecording && recordingField === 'title'
+                          ? t('form.recording')
+                          : transcribing && recordingField === 'title'
+                            ? t('form.transcribing')
+                            : t('form.voiceDictate')}
+                      </span>
+                    </button>
+                  </div>
+                </div>
                 <input
                   value={form.title}
                   onChange={e => setField('title', e.target.value)}
                   placeholder={t('form.titlePlaceholder')}
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-none text-sm font-sans focus:outline-none focus:border-black"
+                  className={`w-full px-3 py-2 border rounded-none text-sm font-sans focus:outline-none focus:border-black ${
+                    contentAnalysis?.titleMismatchDetected ? 'border-amber-400' : 'border-neutral-300'
+                  }`}
                   maxLength={100}
                 />
+                {contentAnalysis?.titleMismatchDetected && (
+                  <p className="text-xs font-sans mt-1 text-amber-700 flex items-center gap-1">
+                    <HiExclamation className="w-3.5 h-3.5 flex-shrink-0" />
+                    {t('authenticity.titleMismatch')}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -650,16 +723,22 @@ export default function SubmitComplaint() {
                     </select>
                     <button
                       type="button"
-                      onClick={handleVoiceInput}
-                      disabled={transcribing}
+                      onClick={() => handleVoiceInput('description')}
+                      disabled={(isRecording || transcribing) && recordingField !== 'description'}
                       className={`font-mono text-xs px-2.5 py-1 border flex items-center gap-1.5 transition-colors disabled:opacity-50 ${
-                        isRecording
+                        isRecording && recordingField === 'description'
                           ? 'bg-rose-600 text-white border-rose-700 animate-pulse'
                           : 'border-neutral-300 text-neutral-700 hover:border-black'
                       }`}
                     >
                       <HiMicrophone className="w-3.5 h-3.5" />
-                      <span>{isRecording ? t('form.recording') : transcribing ? t('form.transcribing') : t('form.voiceDictate')}</span>
+                      <span>
+                        {isRecording && recordingField === 'description'
+                          ? t('form.recording')
+                          : transcribing && recordingField === 'description'
+                            ? t('form.transcribing')
+                            : t('form.voiceDictate')}
+                      </span>
                     </button>
                   </div>
                 </div>

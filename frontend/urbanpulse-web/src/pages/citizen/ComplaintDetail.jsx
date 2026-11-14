@@ -28,6 +28,7 @@ export default function ComplaintDetail() {
   const [progress, setProgress] = useState([])
   const [voting, setVoting] = useState(false)
   const [showAiExplainModal, setShowAiExplainModal] = useState(false)
+  const [reopening, setReopening] = useState(false)
 
   const STATUS_CONFIG = {
     pending: { label: t('admin:status.pending'), bg: 'bg-amber-50 text-amber-900 border-amber-300' },
@@ -157,6 +158,24 @@ export default function ComplaintDetail() {
     }
   }
 
+  const handleReopen = async () => {
+    if (!complaint) return
+    setReopening(true)
+    try {
+      const res = await makeApiCall(apiClient.complaints.reopen(id), { method: 'POST' })
+      if (res?.success) {
+        toast.success(t('citizen:complaintDetail.reopened'))
+        setComplaint(prev => ({ ...prev, status: 'in_progress' }))
+      } else {
+        toast.error(res?.message || t('citizen:complaintDetail.reopenFailed'))
+      }
+    } catch (err) {
+      toast.error(err.message || t('citizen:complaintDetail.reopenFailed'))
+    } finally {
+      setReopening(false)
+    }
+  }
+
   const handleShare = () => {
     if (navigator.clipboard) {
       navigator.clipboard.writeText(window.location.href)
@@ -253,10 +272,19 @@ export default function ComplaintDetail() {
               {activeComplaint.title || activeComplaint.complaintTitle || t('citizen:complaintDetail.defaultTitle')}
             </h1>
           </div>
-          <div className="flex-shrink-0 self-start sm:self-center">
+          <div className="flex-shrink-0 self-start sm:self-center flex items-center gap-2">
             <span className={`px-3 py-1 border font-mono text-xs tracking-wider uppercase font-bold inline-block ${statusInfo.bg}`}>
               {statusInfo.label}
             </span>
+            {statusKey === 'resolved' && (
+              <button
+                onClick={handleReopen}
+                disabled={reopening}
+                className="px-3 py-1 border border-black bg-white text-black hover:bg-neutral-100 font-mono text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+              >
+                {reopening ? t('citizen:complaintDetail.reopening') : t('citizen:complaintDetail.reopen')}
+              </button>
+            )}
           </div>
         </div>
 

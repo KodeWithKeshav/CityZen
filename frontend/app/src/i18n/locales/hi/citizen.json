@@ -488,5 +488,35 @@
     "resolvedSummary": "{{total}} में से {{resolved}} रिपोर्ट हल",
     "subtitle": "सार्वजनिक जवाबदेही और नागरिक प्रदर्शन आँकड़े",
     "totalReports": "कुल रिपोर्ट"
+  },
+  "settings": {
+    "title": "सेटिंग्स",
+    "subtitle": "अपनी प्रोफ़ाइल, पासवर्ड और सुगम्यता प्राथमिकताएं प्रबंधित करें।",
+    "tabs": {
+      "profile": "प्रोफ़ाइल",
+      "password": "पासवर्ड",
+      "accessibility": "सुगम्यता",
+      "danger": "खतरनाक क्षेत्र"
+    },
+    "fullName": "पूरा नाम",
+    "phoneNumber": "फोन नंबर",
+    "address": "पता",
+    "saving": "सहेजा जा रहा है...",
+    "saveChanges": "परिवर्तन सहेजें",
+    "currentPassword": "वर्तमान पासवर्ड",
+    "newPassword": "नया पासवर्ड",
+    "confirmPassword": "नए पासवर्ड की पुष्टि करें",
+    "changePassword": "पासवर्ड बदलें",
+    "profileUpdated": "प्रोफ़ाइल सफलतापूर्वक अपडेट की गई",
+    "passwordUpdated": "पासवर्ड सफलतापूर्वक अपडेट किया गया",
+    "updateFailed": "अपडेट विफल",
+    "passwordMismatch": "नया पासवर्ड और पुष्टिकरण मेल नहीं खाते",
+    "deleteAccount": "खाता हटाएं",
+    "deleteAccountDesc": "यह आपके खाते और आपकी सभी शिकायतों को स्थायी रूप से हटा देता है। इसे पूर्ववत नहीं किया जा सकता।",
+    "enterPasswordToConfirm": "पुष्टि करने के लिए अपना पासवर्ड दर्ज करें",
+    "confirmDeleteAccount": "खाता हटाने की पुष्टि करें",
+    "passwordRequired": "हटाने की पुष्टि के लिए पासवर्ड आवश्यक है",
+    "accountDeleted": "आपका खाता हटा दिया गया है",
+    "deleteFailed": "खाता हटाने में विफल"
   }
 }

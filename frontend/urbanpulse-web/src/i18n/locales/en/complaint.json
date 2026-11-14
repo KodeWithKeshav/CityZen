@@ -51,7 +51,8 @@
     "advisoryTitle": "Classification Advisory",
     "reassignTo": "Reassign category to {{category}} →",
     "canStillSubmit": "You can still submit — this will be queued for admin review.",
-    "mustFix": "This description must be edited or the category switched above before you can submit — it can't be submitted as-is."
+    "mustFix": "This description must be edited or the category switched above before you can submit — it can't be submitted as-is.",
+    "titleMismatch": "Title doesn't seem to match the selected issue type — see the note below."
   },
   "actions": {
     "back": "BACK",

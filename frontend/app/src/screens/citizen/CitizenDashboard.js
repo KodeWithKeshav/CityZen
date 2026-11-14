@@ -103,6 +103,12 @@ const CitizenDashboard = ({ navigation }) => {
             <Ionicons name="notifications-outline" size={22} color="#374151" />
           </TouchableOpacity>
           <TouchableOpacity
+            style={styles.headerIcon}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            <Ionicons name="settings-outline" size={22} color="#374151" />
+          </TouchableOpacity>
+          <TouchableOpacity
             style={styles.avatarButton}
             onPress={handleLogout}
           >

@@ -127,7 +127,19 @@
     "historicalRecord": "ऐतिहासिक रिकॉर्ड",
     "noDispatchRecords": "इस नागरिक के लिए कोई डिस्पैच रिकॉर्ड दर्ज नहीं है।",
     "unclassifiedHazard": "अवर्गीकृत खतरा",
-    "audit": "ऑडिट"
+    "audit": "ऑडिट",
+    "accountStatus": "खाता स्थिति",
+    "statusActive": "सक्रिय",
+    "statusInactive": "निष्क्रिय",
+    "deactivate": "निष्क्रिय करें",
+    "reactivate": "पुनः सक्रिय करें",
+    "delete": "नागरिक हटाएं",
+    "confirmDelete": "हटाने की पुष्टि करें",
+    "deleteWarning": "यह नागरिक के खाते और उनकी सभी शिकायतों को स्थायी रूप से हटा देता है। इसे पूर्ववत नहीं किया जा सकता। आगे बढ़ने के लिए \"हटाने की पुष्टि करें\" पर फिर से क्लिक करें।",
+    "statusUpdated": "खाता स्थिति अपडेट की गई",
+    "statusUpdateFailed": "खाता स्थिति अपडेट करने में विफल",
+    "deleted": "नागरिक खाता हटाया गया",
+    "deleteFailed": "नागरिक खाता हटाने में विफल"
   },
   "complaintMap": {
     "loadFailed": "स्थानिक कैडस्ट्रे लोड करने में विफल",
@@ -253,7 +265,18 @@
     "officialResolutionNotes": "आधिकारिक समाधान और क्षेत्रीय टिप्पणियाँ",
     "notesPlaceholder": "कार्य आदेश आईडी, भेजी गई टीम, या समापन टिप्पणी दर्ज करें...",
     "commitDossierUpdate": "डोजियर अपडेट सहेजें →",
-    "committingToLedger": "नगर लेजर में सहेजा जा रहा है..."
+    "committingToLedger": "नगर लेजर में सहेजा जा रहा है...",
+    "scoreBreakdown": {
+      "title": "प्राथमिकता स्कोर की गणना",
+      "signal": "संकेतक",
+      "raw": "कच्चा स्कोर",
+      "weight": "भार",
+      "contribution": "योगदान (अंक)",
+      "statusMultiplier": "स्थिति गुणक",
+      "nearbyFacilities": "अवसंरचना स्कोर को प्रभावित करने वाली आसपास की सुविधाएं",
+      "nearest": "निकटतम",
+      "totalFacilities": "विचार की गई कुल सुविधाएं"
+    }
   },
   "explainAi": {
     "header": "एआई व्याख्या · SAM-3 विज़न वर्कफ़्लो",
@@ -280,6 +303,78 @@
     "dismiss": "रिपोर्ट बंद करें",
     "loadError": "SAM-3 न्यूरल व्याख्या बनाने में विफल।",
     "connectError": "इमेज विश्लेषण इंजन से कनेक्ट करने में असमर्थ।"
+  },
+  "workforce": {
+    "title": "विभाग और कार्यबल",
+    "subtitle": "नगरपालिका विभाग और ठेकेदार जिन्हें कार्यप्रवाह पैनल शिकायतें सौंपता है।",
+    "loadFailed": "कार्यबल निर्देशिका लोड करने में विफल",
+    "createFailed": "रिकॉर्ड बनाने में विफल",
+    "updateFailed": "स्थिति अपडेट करने में विफल",
+    "created": "रिकॉर्ड बनाया गया",
+    "statusUpdated": "स्थिति अपडेट की गई",
+    "loading": "लोड हो रहा है...",
+    "saving": "सहेजा जा रहा है...",
+    "save": "सहेजें",
+    "cancel": "रद्द करें",
+    "empty": "अभी तक कोई रिकॉर्ड नहीं है।",
+    "tabs": {
+      "departments": "विभाग",
+      "contractors": "ठेकेदार"
+    },
+    "add": {
+      "departments": "विभाग जोड़ें",
+      "contractors": "ठेकेदार जोड़ें"
+    },
+    "fields": {
+      "name": "नाम",
+      "department": "विभाग",
+      "phone": "फोन",
+      "email": "ईमेल",
+      "specialization": "विशेषज्ञता"
+    },
+    "status": {
+      "active": "सक्रिय",
+      "inactive": "निष्क्रिय"
+    }
+  },
+  "complaintWorkflow": {
+    "title": "नगरपालिका शिकायत कार्यप्रवाह",
+    "subtitle": "प्रारंभिक समीक्षा → आकलन → समाधान — विभाग/अधिकारी/ठेकेदार असाइनमेंट और SLA ट्रैकिंग के साथ।",
+    "loadFailed": "शिकायत कार्यप्रवाह लोड करने में विफल",
+    "updateFailed": "चरण अपडेट करने में विफल",
+    "stageUpdated": "{{stage}} अपडेट किया गया",
+    "photoUploaded": "समाधान फोटो अपलोड हुई",
+    "photoUploadFailed": "फोटो अपलोड विफल",
+    "escalateFailed": "शिकायत को आगे बढ़ाने में विफल",
+    "escalate": "आगे बढ़ाएं",
+    "level": "स्तर",
+    "slaBy": "SLA समय सीमा",
+    "overdue": "SLA समय सीमा पार",
+    "stageLabel": "चरण {{n}}",
+    "status": "स्थिति",
+    "statusOptions": {
+      "pending": "लंबित",
+      "in_progress": "प्रगति में",
+      "completed": "पूर्ण",
+      "cancelled": "रद्द"
+    },
+    "department": "विभाग",
+    "unassigned": "अनिर्धारित",
+    "contractor": "ठेकेदार",
+    "estimatedCost": "अनुमानित लागत",
+    "notes": "टिप्पणियां",
+    "notesPlaceholder": "निरीक्षण निष्कर्ष, कार्य आदेश विवरण या प्रगति अपडेट दर्ज करें...",
+    "resolutionProof": "समाधान प्रमाण फोटो",
+    "uploadPhoto": "फोटो अपलोड करें",
+    "uploading": "अपलोड हो रहा है...",
+    "saving": "सहेजा जा रहा है...",
+    "saveStage": "चरण सहेजें",
+    "noWorkflow": "इस शिकायत के लिए अभी तक कोई कार्यप्रवाह डेटा उपलब्ध नहीं है।",
+    "stageNames": {
+      "initial_review": "प्रारंभिक समीक्षा",
+      "assessment": "आकलन",
+      "resolution": "समाधान"
+    }
   },
   "geometry": {
     "title": "ज्यामितीय आयाम प्रोफ़ाइल",

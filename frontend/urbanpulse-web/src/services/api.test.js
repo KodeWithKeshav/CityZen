@@ -26,7 +26,8 @@ describe('API Service', () => {
 
       const res = await makeApiCall('http://localhost:3001/test');
       expect(global.fetch).toHaveBeenCalledWith('http://localhost:3001/test', {
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        signal: expect.any(AbortSignal),
       });
       expect(res.data.foo).toBe('bar');
     });
@@ -40,7 +41,8 @@ describe('API Service', () => {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer fake-token'
-        }
+        },
+        signal: expect.any(AbortSignal),
       });
     });
 
@@ -63,6 +65,28 @@ describe('API Service', () => {
     it('reports a connectivity error (not a raw TypeError) when fetch itself fails (boundary/error case)', async () => {
       global.fetch.mockRejectedValueOnce(new TypeError('Failed to fetch'));
       await expect(makeApiCall('http://localhost:3001/unreachable')).rejects.toThrow(/unable to reach the server/i);
+    });
+
+    // Regression test: a hung connection (dead backend, dropped network)
+    // used to leave fetch pending forever, so any caller's loading state
+    // (e.g. SubmitComplaint's "EVALUATING NEURAL MODEL..." spinner) got
+    // stuck with no error ever surfacing. makeApiCall now aborts and
+    // rejects once its timeout elapses instead.
+    it('times out and reports a timeout error when the connection hangs (boundary/error case)', async () => {
+      vi.useFakeTimers();
+      global.fetch.mockImplementationOnce((url, { signal } = {}) => new Promise((resolve, reject) => {
+        signal?.addEventListener('abort', () => {
+          const err = new Error('The operation was aborted');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      }));
+
+      const pending = makeApiCall('http://localhost:3001/hangs', { timeoutMs: 5000 });
+      const assertion = expect(pending).rejects.toThrow(/timed out/i);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+      vi.useRealTimers();
     });
   });
 

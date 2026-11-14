@@ -83,6 +83,8 @@ export const apiClient = {
     login: `${API_BASE_URL}/api/auth/login`,
     signup: `${API_BASE_URL}/api/auth/signup`,
     profile: `${API_BASE_URL}/api/auth/profile`,
+    password: `${API_BASE_URL}/api/auth/password`,
+    deleteAccount: `${API_BASE_URL}/api/auth/account`,
   },
   // Complaint endpoints
   complaints: {

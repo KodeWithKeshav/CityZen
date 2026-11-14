@@ -8,6 +8,7 @@
       "chatbot": "AI Assistant",
       "feedback": "Feedback",
       "transparency": "Transparency",
+      "settings": "Settings",
       "portalLabel": "INSTITUTIONAL PORTAL",
       "newReport": "NEW REPORT",
       "signOut": "Sign Out"
@@ -18,6 +19,7 @@
       "priority": "Priority Queue",
       "map": "Complaint Map",
       "citizens": "Citizens",
+      "workforce": "Workforce",
       "consoleLabel": "ADMIN CONSOLE",
       "settings": "Settings",
       "signOut": "Sign Out"
@@ -106,5 +108,31 @@
     "wind": "Wind",
     "feelsLike": "Feels like",
     "unavailable": "Weather unavailable"
+  },
+  "accessibility": {
+    "title": "Accessibility",
+    "subtitle": "These preferences are saved on this device and apply across the app.",
+    "reset": "Reset to defaults",
+    "contrast": {
+      "label": "Contrast",
+      "desc": "Increase text and border contrast against the background.",
+      "normal": "Normal",
+      "high": "High"
+    },
+    "fontScale": {
+      "label": "Text Size",
+      "desc": "Scale up text size throughout the app.",
+      "normal": "Normal",
+      "large": "Large",
+      "xlarge": "Extra Large"
+    },
+    "reduceMotion": {
+      "label": "Reduce Motion",
+      "desc": "Minimize animations and transitions."
+    },
+    "dyslexiaFont": {
+      "label": "Dyslexia-Friendly Font",
+      "desc": "Switch to Atkinson Hyperlegible, a font designed for readability."
+    }
   }
 }

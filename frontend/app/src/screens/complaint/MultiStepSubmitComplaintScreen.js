@@ -82,6 +82,12 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
   // Refs for speech service and debounced description analysis
   const descriptionDebounceRef = useRef(null);
+  // Which field the active/most recent voice recording should be written
+  // into ('title' | 'description'); read by the speech service's onResult
+  // callback, which is registered once at mount so it can't close over
+  // fresh state directly.
+  const voiceTargetFieldRef = useRef('description');
+  const [recordingField, setRecordingField] = useState(null); // 'title' | 'description' | null
 
   // Language options for voice input
   const languageOptions = [
@@ -114,19 +120,20 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     return complaintCategories.find(cat => cat.value === complaintData.category);
   }, [complaintData.category]);
 
-  // Simple text change handlers - completely fresh approach
-  const handleTitleChange = useCallback((text) => {
-    setComplaintData(prev => ({ ...prev, title: text }));
-  }, []);
-
   // Description content analysis: runs BOTH the emotion/sentiment analysis and
   // the authenticity / category-match check in one call against the backend's
   // analyze-text endpoint (this endpoint internally also computes the same
   // emotion analysis the old bare /api/emotion/analyze call used to return).
-  const analyzeDescriptionContent = useCallback(async (text) => {
-    if (!text || text.trim().length < 10) return;
+  // Takes the title too, so a title that doesn't match the selected issue
+  // type gets flagged the same way an off-topic description does -- and
+  // runs as soon as EITHER field is long enough, so a mismatched title
+  // gets flagged immediately instead of waiting on the description.
+  const analyzeDescriptionContent = useCallback(async (text, titleText) => {
+    const safeText = text || '';
+    const safeTitle = titleText || '';
+    if (safeText.trim().length < 10 && safeTitle.trim().length < 3) return;
 
-    console.log('🧠 Starting description content analysis for text:', text.substring(0, 50) + '...');
+    console.log('🧠 Starting description content analysis for text:', safeText.substring(0, 50) + '...');
     console.log('🌐 API_BASE_URL:', API_BASE_URL);
 
     try {
@@ -135,7 +142,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       const result = await makeApiCall(apiClient.complaints.analyzeText, {
         method: 'POST',
         body: JSON.stringify({
-          description: text,
+          title: safeTitle,
+          description: safeText,
           category: complaintData.category || '',
           imagePrimaryClass: complaintData.imageValidation?.primaryClass || null,
           language: speechService.getSarvamLanguageCode(complaintData.selectedLang),
@@ -176,16 +184,39 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       descriptionDebounceRef.current = null;
     }
 
-    // Debounced content analysis (emotion + authenticity)
-    if (text.trim().length > 10) {
+    // Debounced content analysis (emotion + authenticity) -- runs once
+    // EITHER this field or the title is long enough, so typing a short but
+    // already-analyzable title doesn't get stuck waiting on description.
+    if (text.trim().length > 10 || complaintData.title.trim().length >= 3) {
       descriptionDebounceRef.current = setTimeout(() => {
-        analyzeDescriptionContent(text);
+        analyzeDescriptionContent(text, complaintData.title);
       }, 1000); // 1 second delay to avoid too many API calls
     } else {
       // Clear analysis for short text
       setComplaintData(prev => ({ ...prev, emotionScore: null, contentAnalysis: null }));
     }
-  }, [analyzeDescriptionContent]);
+  }, [analyzeDescriptionContent, complaintData.title]);
+
+  // Title changes re-run the same debounced authenticity check (keyed off
+  // the current description) so a title that doesn't match the selected
+  // issue type gets flagged immediately -- it no longer waits for the
+  // description to also be long enough.
+  const handleTitleChange = useCallback((text) => {
+    setComplaintData(prev => ({ ...prev, title: text }));
+
+    if (descriptionDebounceRef.current) {
+      clearTimeout(descriptionDebounceRef.current);
+      descriptionDebounceRef.current = null;
+    }
+
+    if (text.trim().length >= 3 || complaintData.description.trim().length > 10) {
+      descriptionDebounceRef.current = setTimeout(() => {
+        analyzeDescriptionContent(complaintData.description, text);
+      }, 1000);
+    } else {
+      setComplaintData(prev => ({ ...prev, emotionScore: null, contentAnalysis: null }));
+    }
+  }, [analyzeDescriptionContent, complaintData.description]);
 
   const handleLanguageChange = useCallback((itemValue) => {
     setComplaintData(prev => ({ ...prev, selectedLang: itemValue }));
@@ -342,6 +373,14 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
     }
   };
 
+  // Kept in sync every render so the speech service's onResult callback
+  // (registered once below, at mount) always calls the latest version of
+  // these handlers instead of closing over the ones that existed at mount.
+  const handleDescriptionChangeRef = useRef(handleDescriptionChange);
+  const handleTitleChangeRef = useRef(handleTitleChange);
+  useEffect(() => { handleDescriptionChangeRef.current = handleDescriptionChange; }, [handleDescriptionChange]);
+  useEffect(() => { handleTitleChangeRef.current = handleTitleChange; }, [handleTitleChange]);
+
   // Initialize speech service
   useEffect(() => {
     // Initialize SarvamSpeechService with callbacks
@@ -355,14 +394,20 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           const voiceText = result.value[0];
           console.log('🎤 Voice input result:', voiceText);
 
-          // Use handleDescriptionChange to ensure emotion analysis is triggered
-          handleDescriptionChange(voiceText);
+          // Route the transcript to whichever field's mic button was
+          // pressed, so emotion/authenticity analysis still gets triggered.
+          if (voiceTargetFieldRef.current === 'title') {
+            handleTitleChangeRef.current(voiceText);
+          } else {
+            handleDescriptionChangeRef.current(voiceText);
+          }
         }
       },
       onError: (error) => {
         console.error('Speech recognition error:', error);
         setVoiceError(error.error?.message || 'Error in speech recognition');
         setIsRecording(false);
+        setRecordingField(null);
 
         Alert.alert(
           t('chatbot:mobile.speechErrorTitle'),
@@ -372,6 +417,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       },
       onEnd: () => {
         setIsRecording(false);
+        setRecordingField(null);
         console.log('Speech recognition ended');
       }
     });
@@ -963,8 +1009,9 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
 
   // Step 3: Details (title, description, emotion + authenticity analysis) and final submission
   const renderStep3Details = () => {
-    const startVoiceInput = async () => {
+    const startVoiceInput = async (targetField = 'description') => {
       setVoiceError(null);
+      voiceTargetFieldRef.current = targetField;
 
       try {
         // Request audio recording permissions
@@ -974,6 +1021,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
           return;
         }
 
+        setRecordingField(targetField);
         // Start recording with Sarvam Speech Service using the selected language
         console.log(`Starting speech recognition with language: ${complaintData.selectedLang}`);
         await speechService.startSpeech(complaintData.selectedLang);
@@ -982,6 +1030,7 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
         console.error('Speech recognition setup error:', err);
         setVoiceError(err.message);
         setIsRecording(false);
+        setRecordingField(null);
         Alert.alert(t('common:mobileNav.error'), t('chatbot:mobile.speechStartError', { message: err.message }));
       }
     };
@@ -994,6 +1043,8 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
       } catch (error) {
         console.error('Error stopping speech:', error);
         setIsRecording(false);
+      } finally {
+        setRecordingField(null);
       }
     };
 
@@ -1213,7 +1264,37 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
               multiline={false}
               style={styles.customInputContainer}
             />
+
+            {/* Voice Button for Title */}
+            <View style={styles.voiceButtonContainer}>
+              <TouchableOpacity
+                style={styles.voiceButtonEnhanced}
+                onPress={() => (recordingField === 'title' ? stopVoiceInput() : startVoiceInput('title'))}
+                disabled={loading || (isRecording && recordingField !== 'title')}
+              >
+                <Ionicons
+                  name={recordingField === 'title' ? 'mic' : 'mic-outline'}
+                  size={24}
+                  color={recordingField === 'title' ? '#2E7D32' : loading ? '#ccc' : '#666'}
+                />
+                <Text style={[
+                  styles.voiceButtonText,
+                  recordingField === 'title' && styles.voiceButtonTextActive
+                ]}>
+                  {recordingField === 'title' ? t('form.recording') : t('form.voiceDictate')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <Text style={styles.characterCount}>{complaintData.title.length}/100</Text>
+
+            {complaintData.contentAnalysis?.titleMismatchDetected && (
+              <View style={styles.authenticityReasonsList}>
+                <Text style={styles.authenticityReasonText}>
+                  ⚠ {t('authenticity.titleMismatch')}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Language Picker for Voice Input */}
@@ -1261,19 +1342,19 @@ const MultiStepSubmitComplaintScreen = ({ navigation }) => {
             <View style={styles.voiceButtonContainer}>
               <TouchableOpacity
                 style={styles.voiceButtonEnhanced}
-                onPress={isRecording ? stopVoiceInput : startVoiceInput}
-                disabled={loading}
+                onPress={() => (recordingField === 'description' ? stopVoiceInput() : startVoiceInput('description'))}
+                disabled={loading || (isRecording && recordingField !== 'description')}
               >
                 <Ionicons
-                  name={isRecording ? 'mic' : 'mic-outline'}
+                  name={recordingField === 'description' ? 'mic' : 'mic-outline'}
                   size={24}
-                  color={isRecording ? '#2E7D32' : loading ? '#ccc' : '#666'}
+                  color={recordingField === 'description' ? '#2E7D32' : loading ? '#ccc' : '#666'}
                 />
                 <Text style={[
                   styles.voiceButtonText,
-                  isRecording && styles.voiceButtonTextActive
+                  recordingField === 'description' && styles.voiceButtonTextActive
                 ]}>
-                  {isRecording ? t('form.recording') : t('form.voiceDictate')}
+                  {recordingField === 'description' ? t('form.recording') : t('form.voiceDictate')}
                 </Text>
               </TouchableOpacity>
             </View>
