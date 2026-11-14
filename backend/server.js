@@ -174,6 +174,14 @@ if (require.main === module) {
     console.log(`📱 API endpoints: ${url}/api`);
     console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log('⭐ Server is ready to accept connections');
+
+    // Without Cloudflare Workers AI, the in-process DistilBERT model is the
+    // primary sentiment source, so warm it up now (in the background). With
+    // Cloudflare configured it is only loaded lazily if Cloudflare fails.
+    const { emotionService } = require('./services/EmotionAnalysisService');
+    if (!emotionService.getCloudflareConfig()) {
+      emotionService.loadInProcessModel();
+    }
   });
 }
 

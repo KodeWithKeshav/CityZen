@@ -1,8 +1,10 @@
 /**
  * ModelAuthenticityService
  *
- * Multilingual, model-based half of the complaint-authenticity check. Calls
- * a Hugging Face zero-shot-classification model twice -- once to score how
+ * Multilingual, model-based half of the complaint-authenticity check.
+ * Primary provider: Groq (free tier LLM, one call returning probabilities
+ * over the same labels). Fallback: the Hugging Face zero-shot model below
+ * (needs paid credits). The HF path calls the model twice -- once to score how
  * well the description matches the declared/detected civic category, once
  * to score genuine-complaint vs spam/gibberish -- so authenticity checking
  * works directly on text in any of the app's 6 supported languages, not
@@ -25,7 +27,7 @@ const axios = require('axios');
 const { CIVIC_ISSUE_LABELS: CATEGORY_LABELS } = require('./imageAnalysisService');
 
 const HF_MODEL = process.env.HF_AUTHENTICITY_MODEL || 'MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7';
-const HF_API_URL = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
+const HF_API_URL = `https://router.huggingface.co/hf-inference/models/${HF_MODEL}`;
 const CALL_TIMEOUT_MS = 7000;
 const OUTER_TIMEOUT_MS = 8000;
 
@@ -55,6 +57,75 @@ async function callZeroShot(text, candidateLabels) {
     }
   );
   return response.data;
+}
+
+// ---------------------------------------------------------------------------
+// Groq (free tier) provider. A single chat-completion call asks the LLM for a
+// probability distribution over the SAME candidate labels the HF zero-shot
+// model uses, then reshapes it into HF's { labels, scores } format (sorted
+// descending) so rankAwareConfidence()/scoreForLabel() below work unchanged.
+// ---------------------------------------------------------------------------
+const GROQ_API_BASE = (process.env.GROQ_API_BASE || 'https://api.groq.com/openai/v1').replace(/\/+$/, '');
+const GROQ_AUTHENTICITY_MODEL = process.env.GROQ_AUTHENTICITY_MODEL || 'openai/gpt-oss-20b';
+
+function getGroqApiKey() {
+  return (process.env.GROQ_API_KEY || '').trim();
+}
+
+/**
+ * Turn an LLM-returned { label: probability } map into HF zero-shot shape.
+ * Missing/invalid entries count as 0; the result is renormalised to sum to 1.
+ */
+function toZeroShotResult(distribution, candidateLabels) {
+  const raw = candidateLabels.map((label) => {
+    const value = Number(distribution && distribution[label]);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  });
+  const total = raw.reduce((sum, v) => sum + v, 0);
+  if (total <= 0) throw new Error('Groq returned no usable probabilities');
+  return candidateLabels
+    .map((label, i) => ({ label, score: raw[i] / total }))
+    .sort((a, b) => b.score - a.score)
+    .reduce((acc, { label, score }) => {
+      acc.labels.push(label);
+      acc.scores.push(score);
+      return acc;
+    }, { labels: [], scores: [] });
+}
+
+async function callGroqClassifier(text, candidateCategoryLabels) {
+  const systemPrompt =
+    'You are a strict classifier for a municipal civic-complaint app (India). Complaints may be in English, ' +
+    'Hindi, Tamil, Telugu, Kannada, Malayalam or mixed/romanized. Return ONLY a JSON object:\n' +
+    '{"category": {<label>: <probability>, ...}, "genuineness": {<label>: <probability>, ...}}\n' +
+    `- "category": a probability for EVERY one of these labels, summing to 1: ${JSON.stringify(candidateCategoryLabels)}\n` +
+    `- "genuineness": a probability for EVERY one of these labels, summing to 1: ${JSON.stringify(GENUINENESS_LABELS)}\n` +
+    'Use exactly these label strings as keys. No explanations.';
+
+  const response = await axios.post(
+    `${GROQ_API_BASE}/chat/completions`,
+    {
+      model: GROQ_AUTHENTICITY_MODEL,
+      temperature: 0,
+      reasoning_effort: 'low',
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Complaint text:\n"""${text}"""` },
+      ],
+    },
+    {
+      headers: { Authorization: `Bearer ${getGroqApiKey()}`, 'Content-Type': 'application/json' },
+      timeout: CALL_TIMEOUT_MS,
+    }
+  );
+
+  const content = response.data?.choices?.[0]?.message?.content;
+  const parsed = JSON.parse(content || '{}');
+  return {
+    categoryResult: toZeroShotResult(parsed.category, candidateCategoryLabels),
+    genuinenessResult: toZeroShotResult(parsed.genuineness, GENUINENESS_LABELS),
+  };
 }
 
 function scoreForLabel(result, label) {
@@ -111,8 +182,9 @@ function rankAwareConfidence(result, label) {
  * @returns {Promise<{ available: boolean, categoryScore?: number, genuinenessScore?: number, spamLikelihood?: number, spamScore?: number, rawLabels?: object }>}
  */
 async function analyzeWithModel({ text, title, category } = {}) {
-  const apiKey = getHfApiKey();
-  if (!apiKey || typeof text !== 'string' || !text.trim()) {
+  const groqKey = getGroqApiKey();
+  const hfKey = getHfApiKey();
+  if ((!groqKey && !hfKey) || typeof text !== 'string' || !text.trim()) {
     return { available: false };
   }
 
@@ -126,10 +198,30 @@ async function analyzeWithModel({ text, title, category } = {}) {
   ];
 
   const work = (async () => {
-    const [categoryResult, genuinenessResult] = await Promise.all([
-      categoryLabel ? callZeroShot(classificationText, candidateCategoryLabels) : Promise.resolve(null),
-      callZeroShot(classificationText, GENUINENESS_LABELS),
-    ]);
+    // Provider order: Groq (free tier) -> Hugging Face zero-shot (paid credits).
+    // If both fail, the rejection makes the caller use the rule-based score.
+    let categoryResult = null;
+    let genuinenessResult = null;
+    let provider = null;
+
+    if (groqKey) {
+      try {
+        ({ categoryResult, genuinenessResult } = await callGroqClassifier(classificationText, candidateCategoryLabels));
+        if (!categoryLabel) categoryResult = null;
+        provider = 'groq';
+      } catch (error) {
+        console.error('ModelAuthenticityService: Groq call failed:', error.response?.status || error.message);
+        if (!hfKey) throw error;
+      }
+    }
+
+    if (!provider) {
+      [categoryResult, genuinenessResult] = await Promise.all([
+        categoryLabel ? callZeroShot(classificationText, candidateCategoryLabels) : Promise.resolve(null),
+        callZeroShot(classificationText, GENUINENESS_LABELS),
+      ]);
+      provider = 'huggingface';
+    }
 
     // categoryScore: how strongly the text was classified as the declared
     // category specifically (0 if "none of these" clearly won, or if
@@ -143,6 +235,7 @@ async function analyzeWithModel({ text, title, category } = {}) {
 
     return {
       available: true,
+      provider,
       categoryScore,
       genuinenessScore,
       spamLikelihood,
@@ -166,7 +259,7 @@ async function analyzeWithModel({ text, title, category } = {}) {
   try {
     return await Promise.race([work, timeout]);
   } catch (error) {
-    console.error('ModelAuthenticityService: HF call failed:', error.message);
+    console.error('ModelAuthenticityService: model check failed:', error.message);
     return { available: false, reason: error.message };
   } finally {
     clearTimeout(timeoutId);

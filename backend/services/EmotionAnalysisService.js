@@ -18,12 +18,13 @@ class EmotionAnalysisService {
       huggingFaceToken: process.env.HUGGINGFACE_API_TOKEN,
       // Local DistilBERT Python service (preferred — no API key needed)
       localModelUrl: process.env.DISTILBERT_SERVICE_URL || 'http://127.0.0.1:5001',
-      // Remote HF API fallback models
+      // Remote HF API fallback models (Inference Providers router; the legacy
+      // api-inference.huggingface.co host has been retired)
       models: [
-        'https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english',
-        'https://api-inference.huggingface.co/models/cardiffnlp/twitter-roberta-base-sentiment-latest',
-        'https://api-inference.huggingface.co/models/nlptown/bert-base-multilingual-uncased-sentiment',
-        'https://api-inference.huggingface.co/models/cardiffnlp/twitter-xlm-roberta-base-sentiment'
+        'https://router.huggingface.co/hf-inference/models/distilbert/distilbert-base-uncased-finetuned-sst-2-english',
+        'https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-roberta-base-sentiment-latest',
+        'https://router.huggingface.co/hf-inference/models/nlptown/bert-base-multilingual-uncased-sentiment',
+        'https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-xlm-roberta-base-sentiment'
       ]
     };
     this.localModelAvailable = null; // will be checked on first call
@@ -110,6 +111,96 @@ class EmotionAnalysisService {
    */
   async detectLanguage(text) {
     return this.detectLanguageSync(text);
+  }
+
+  /**
+   * Cloudflare Workers AI credentials (free tier: 10k neurons/day). Hosts the
+   * same DistilBERT SST-2 model as the HF API, so results are equivalent.
+   */
+  getCloudflareConfig() {
+    const accountId = (process.env.CLOUDFLARE_ACCOUNT_ID || '').trim();
+    const apiToken = (process.env.CLOUDFLARE_API_TOKEN || '').trim();
+    return accountId && apiToken ? { accountId, apiToken } : null;
+  }
+
+  /**
+   * Sentiment via Cloudflare Workers AI (@cf/huggingface/distilbert-sst-2-int8).
+   * Response shape: { success, result: [{ label: 'NEGATIVE', score }, { label: 'POSITIVE', score }] }
+   */
+  async analyzeWithCloudflare(text) {
+    const cf = this.getCloudflareConfig();
+    if (!cf) throw new Error('Cloudflare Workers AI not configured');
+
+    const url = `https://api.cloudflare.com/client/v4/accounts/${cf.accountId}/ai/run/@cf/huggingface/distilbert-sst-2-int8`;
+    const response = await axios.post(
+      url,
+      { text },
+      {
+        headers: { Authorization: `Bearer ${cf.apiToken}`, 'Content-Type': 'application/json' },
+        timeout: 8000
+      }
+    );
+
+    const result = response.data?.result;
+    if (!response.data?.success || !Array.isArray(result) || result.length === 0) {
+      throw new Error(`Unexpected Cloudflare response: ${JSON.stringify(response.data).slice(0, 200)}`);
+    }
+    console.log('✅ Cloudflare Workers AI response:', JSON.stringify(result));
+    return this.convertSentimentToEmotions(result, text);
+  }
+
+  /**
+   * Whether the in-process DistilBERT fallback may be loaded. Disabled under
+   * Jest (no model downloads in tests) and via LOCAL_SENTIMENT_MODEL=off.
+   */
+  inProcessModelAllowed() {
+    if (process.env.NODE_ENV === 'test') return false;
+    return !['off', 'false', '0'].includes(String(process.env.LOCAL_SENTIMENT_MODEL || '').toLowerCase());
+  }
+
+  /**
+   * Start loading the in-process 8-bit DistilBERT SST-2 model (Transformers.js /
+   * ONNX, ~160 MB RAM, a few ms per call). Loads once in the background and
+   * never throws; until it is ready, callers fall through to other methods.
+   */
+  loadInProcessModel() {
+    if (this.inProcessPipeline || this.inProcessLoading || this.inProcessFailed) return this.inProcessLoading;
+    if (!this.inProcessModelAllowed()) return null;
+
+    console.log('⏳ Loading in-process DistilBERT (q8) sentiment model in background...');
+    const startedAt = Date.now();
+    this.inProcessLoading = import('@huggingface/transformers')
+      .then(({ pipeline }) =>
+        pipeline('sentiment-analysis', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english', { dtype: 'q8' })
+      )
+      .then((pipe) => {
+        this.inProcessPipeline = pipe;
+        console.log(`✅ In-process DistilBERT ready in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
+        return pipe;
+      })
+      .catch((error) => {
+        this.inProcessFailed = true;
+        console.log('⚠️ In-process DistilBERT failed to load:', error.message);
+        return null;
+      })
+      .finally(() => {
+        this.inProcessLoading = null;
+      });
+    return this.inProcessLoading;
+  }
+
+  /**
+   * Sentiment via the in-process model. Throws if the model isn't ready yet
+   * (and kicks off loading so later requests can use it).
+   */
+  async analyzeWithInProcessModel(text) {
+    if (!this.inProcessPipeline) {
+      this.loadInProcessModel();
+      throw new Error('In-process model not ready');
+    }
+    const result = await this.inProcessPipeline(text);
+    console.log('✅ In-process DistilBERT response:', JSON.stringify(result));
+    return this.convertSentimentToEmotions(result, text);
   }
 
   /**
@@ -588,8 +679,31 @@ class EmotionAnalysisService {
         emotions = this.analyzeWithEnhancedKeywords(safeText, language);
         analysisMethod = `enhanced-keywords-${language === 'ta' ? 'tamil' : 'hindi'}`;
       }
-      // 1) Try LOCAL DistilBERT model first (no API key needed)
-      else if (await this.checkLocalModel()) {
+      else {
+        // 1) Cloudflare Workers AI (free tier, same DistilBERT SST-2 model)
+        if (this.getCloudflareConfig()) {
+          try {
+            console.log('☁️ Using Cloudflare Workers AI...');
+            emotions = await this.analyzeWithCloudflare(safeText);
+            analysisMethod = 'cloudflare-distilbert';
+          } catch (error) {
+            console.log('⚠️ Cloudflare Workers AI failed:', error.response?.status || error.message);
+            emotions = null;
+          }
+        }
+        // 2) In-process 8-bit DistilBERT (runs inside this backend)
+        if (!emotions && this.inProcessModelAllowed()) {
+          try {
+            emotions = await this.analyzeWithInProcessModel(safeText);
+            analysisMethod = 'inprocess-distilbert';
+          } catch (error) {
+            console.log('⚠️ In-process model unavailable:', error.message);
+            emotions = null;
+          }
+        }
+      }
+      // 3) Try LOCAL DistilBERT Python service (no API key needed)
+      if (!emotions && language !== 'ta' && language !== 'hi' && await this.checkLocalModel()) {
         try {
           console.log('🧠 Using local DistilBERT model...');
           emotions = await this.analyzeWithLocalModel(safeText);
@@ -603,7 +717,7 @@ class EmotionAnalysisService {
           emotions = null;
         }
       }
-      // 2) Try remote Hugging Face API (needs token)
+      // 4) Try remote Hugging Face API (needs token + paid credits)
       const hfToken = this.getHuggingFaceToken();
       if (!emotions && hfToken && hfToken.startsWith('hf_') && hfToken.length > 20) {
         try {
@@ -616,7 +730,7 @@ class EmotionAnalysisService {
           emotions = null;
         }
       }
-      // 3) Fallback to enhanced keywords
+      // 5) Fallback to enhanced keywords
       if (!emotions) {
         console.log('📝 Using enhanced keyword analysis');
         emotions = this.analyzeWithEnhancedKeywords(safeText, language);
