@@ -81,6 +81,12 @@ export const apiClient = {
     message: `${API_BASE_URL}/api/chatbot/message`,
   },
 
+  // Admin-only: SHAP word attributions from the local DistilBERT service
+  emotion: {
+    explain: `${API_BASE_URL}/api/emotion/explain`,
+    modelStatus: `${API_BASE_URL}/api/emotion/model-status`,
+  },
+
   transcribe: {
     audio: `${API_BASE_URL}/api/transcribe/audio`,
   },

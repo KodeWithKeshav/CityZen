@@ -10,6 +10,7 @@ import { useTranslatedObject } from '../../context/TranslationContext'
 import ExplainAiModal from '../../components/ExplainAiModal'
 import GeometryEstimateCard from '../../components/GeometryEstimateCard'
 import ScoreBreakdownPanel from '../../components/admin/ScoreBreakdownPanel'
+import EmotionExplainPanel from '../../components/admin/EmotionExplainPanel'
 import ComplaintWorkflowPanel from '../../components/admin/ComplaintWorkflowPanel'
 
 export default function AdminComplaintDetail() {
@@ -260,6 +261,9 @@ export default function AdminComplaintDetail() {
 
       {/* Score Breakdown (collapsible) */}
       <ScoreBreakdownPanel breakdown={activeComplaint.priority_breakdown} />
+
+      {/* Emotion model explanation (SHAP) -- uses the ORIGINAL description, not the UI-translated one */}
+      <EmotionExplainPanel text={complaint?.description} />
 
       {/* Geometry Estimation */}
       <GeometryEstimateCard

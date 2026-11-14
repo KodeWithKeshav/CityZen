@@ -276,6 +276,22 @@
       "nearbyFacilities": "Nearby Facilities Driving the Infrastructure Score",
       "nearest": "Nearest",
       "totalFacilities": "Total Facilities Considered"
+    },
+    "emotionExplain": {
+      "title": "Emotion Model Explanation (SHAP)",
+      "description": "Shows which words pushed the local DistilBERT model towards a distressed (negative) reading of this complaint. Red words raise the distress signal; blue words lower it.",
+      "run": "Explain with SHAP",
+      "running": "Running SHAP on the local model...",
+      "rerun": "Run again",
+      "englishOnly": "SHAP works on English text only, and this complaint is not written in English.",
+      "unavailable": "Explanation unavailable",
+      "unavailableHint": "Make sure the local DistilBERT service is running (backend/python_services) and is using its local backend.",
+      "verdict": "Model verdict",
+      "baseline": "Baseline",
+      "raises": "Raises distress",
+      "lowers": "Lowers distress",
+      "topWords": "Most influential words",
+      "computedIn": "Computed in {{ms}} ms"
     }
   },
   "explainAi": {
